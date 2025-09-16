@@ -51,7 +51,7 @@
 import { ref, onMounted, onUnmounted, watch, nextTick } from 'vue'
 import { Refresh } from '@element-plus/icons-vue'
 import * as echarts from 'echarts'
-import { temperatureApi } from '@/services/temperatureApi'
+// import { temperatureApi } from '@/services/temperatureApi'
 
 interface Props {
   title?: string
@@ -240,12 +240,15 @@ const updateChart = () => {
 
 const fetchSensors = async () => {
   try {
-    const response = await temperatureApi.getSensors()
-    if (response.code === 200) {
-      sensors.value = response.data.items || []
-      if (sensors.value.length > 0 && !selectedSensor.value) {
-        selectedSensor.value = sensors.value[0].id
-      }
+    // 使用模拟数据
+    sensors.value = [
+      { id: 'sensor1', name: '探头1 (室温)', location: '室温监测' },
+      { id: 'sensor2', name: '探头2 (进风口)', location: '进风口' },
+      { id: 'sensor3', name: '探头3 (出风口)', location: '出风口' },
+      { id: 'sensor4', name: '探头4 (网络设备)', location: '网络设备' }
+    ]
+    if (sensors.value.length > 0 && !selectedSensor.value) {
+      selectedSensor.value = sensors.value[0].id
     }
   } catch (error) {
     console.error('获取传感器列表失败:', error)
@@ -257,18 +260,26 @@ const fetchTemperatureData = async () => {
   
   loading.value = true
   try {
-    const response = await temperatureApi.getTemperatureData({
-      sensor_id: selectedSensor.value,
-      time_range: timeRange.value
-    })
-    
-    if (response.code === 200) {
-      temperatureData.value = response.data.items || []
-      hasData.value = temperatureData.value.length > 0
-      
-      await nextTick()
-      updateChart()
+    // 生成模拟温度数据
+    const now = new Date()
+    const mockData = []
+    const baseTemp = selectedSensor.value === 'sensor3' ? 35 : 25
+
+    for (let i = 23; i >= 0; i--) {
+      const time = new Date(now.getTime() - i * 60 * 60 * 1000)
+      const temp = baseTemp + (Math.random() - 0.5) * 6
+      mockData.push({
+        timestamp: time.toISOString(),
+        temperature: +temp.toFixed(1),
+        humidity: +(50 + (Math.random() - 0.5) * 20).toFixed(1)
+      })
     }
+
+    temperatureData.value = mockData
+    hasData.value = temperatureData.value.length > 0
+
+    await nextTick()
+    updateChart()
   } catch (error) {
     console.error('获取温度数据失败:', error)
     hasData.value = false

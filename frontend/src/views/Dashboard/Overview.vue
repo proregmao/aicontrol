@@ -50,7 +50,7 @@
           <el-card class="status-card">
             <div class="card-content">
               <div class="card-icon temperature">
-                <el-icon><Thermometer /></el-icon>
+                <el-icon><TrendCharts /></el-icon>
               </div>
               <div class="card-info">
                 <h3>温度监控</h3>
@@ -233,7 +233,7 @@ import { ElMessage } from 'element-plus'
 import { 
   Monitor, 
   Connection, 
-  Thermometer, 
+  TrendCharts,
   Warning, 
   Refresh,
   SuccessFilled

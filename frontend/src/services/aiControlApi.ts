@@ -1,4 +1,4 @@
-import { apiClient } from './index'
+import apiClient from '@/api'
 
 export interface AIStrategy {
   id: number
@@ -99,7 +99,7 @@ export const aiControlApi = {
     status?: string
     priority?: number
   }) => {
-    return await apiClient.get('/api/v1/ai-control/strategies', { params })
+    return await apiClient.get('/ai-control/strategies', { params })
   },
 
   getStrategy: async (id: number) => {

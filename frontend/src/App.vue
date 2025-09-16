@@ -32,7 +32,9 @@ html, body {
 
 /* 全局样式 */
 .page-container {
-  width: 1400px; /* 增加宽度 */
+  max-width: 1400px; /* 最大宽度限制 */
+  width: 100%; /* 响应式宽度 */
+  min-width: 1200px; /* 最小宽度保证 */
   height: 1080px;
   margin: 0 auto;
   background: white;
@@ -72,5 +74,7 @@ html, body {
   flex: 1;
   padding: 15px; /* 减少padding */
   overflow-y: auto;
+  overflow-x: hidden; /* 防止水平溢出 */
+  max-width: calc(1400px - 144px - 30px); /* 容器宽度 - 侧边栏宽度 - padding */
 }
 </style>

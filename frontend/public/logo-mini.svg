@@ -1,0 +1,28 @@
+<svg width="32" height="32" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- 背景 -->
+  <rect width="32" height="32" rx="6" fill="#409EFF"/>
+  
+  <!-- 设备图标 -->
+  <g transform="translate(6, 6)">
+    <!-- 主设备 -->
+    <rect x="2" y="2" width="16" height="10" rx="1" fill="white" opacity="0.9"/>
+    <rect x="4" y="4" width="3" height="2" rx="0.5" fill="#409EFF"/>
+    <rect x="8" y="4" width="3" height="2" rx="0.5" fill="#409EFF"/>
+    <rect x="12" y="4" width="3" height="2" rx="0.5" fill="#409EFF"/>
+    <rect x="4" y="7" width="11" height="1" rx="0.5" fill="#409EFF"/>
+    <rect x="4" y="9" width="8" height="1" rx="0.5" fill="#409EFF"/>
+    
+    <!-- 连接线 -->
+    <line x1="10" y1="14" x2="10" y2="18" stroke="white" stroke-width="1.5" opacity="0.8"/>
+    <line x1="10" y1="18" x2="5" y2="18" stroke="white" stroke-width="1.5" opacity="0.8"/>
+    <line x1="10" y1="18" x2="15" y2="18" stroke="white" stroke-width="1.5" opacity="0.8"/>
+    
+    <!-- 子设备1 -->
+    <circle cx="5" cy="20" r="2" fill="white" opacity="0.8"/>
+    <circle cx="5" cy="20" r="1" fill="#409EFF"/>
+    
+    <!-- 子设备2 -->
+    <circle cx="15" cy="20" r="2" fill="white" opacity="0.8"/>
+    <circle cx="15" cy="20" r="1" fill="#409EFF"/>
+  </g>
+</svg>

@@ -36,13 +36,15 @@ type AppConfig struct {
 
 // DatabaseConfig 数据库配置
 type DatabaseConfig struct {
-	Host     string `json:"host"`
-	Port     string `json:"port"`
-	User     string `json:"user"`
-	Password string `json:"password"`
-	Name     string `json:"name"`
-	SSLMode  string `json:"ssl_mode"`
-	TimeZone string `json:"timezone"`
+	Type     string `json:"type"`     // 数据库类型: sqlite, postgres
+	Path     string `json:"path"`     // SQLite数据库文件路径
+	Host     string `json:"host"`     // PostgreSQL主机
+	Port     string `json:"port"`     // PostgreSQL端口
+	User     string `json:"user"`     // PostgreSQL用户名
+	Password string `json:"password"` // PostgreSQL密码
+	Name     string `json:"name"`     // PostgreSQL数据库名
+	SSLMode  string `json:"ssl_mode"` // PostgreSQL SSL模式
+	TimeZone string `json:"timezone"` // 时区
 }
 
 // RedisConfig Redis配置
@@ -121,9 +123,12 @@ var GlobalConfig *Config
 
 // LoadConfig 加载配置
 func LoadConfig() (*Config, error) {
-	// 加载.env文件
-	if err := godotenv.Load("configs/.env"); err != nil {
-		logrus.Warn("未找到.env文件，使用环境变量")
+	// 优先加载根目录的.env文件，然后加载configs/.env文件
+	if err := godotenv.Load("../.env"); err != nil {
+		logrus.Debug("未找到根目录.env文件，尝试加载configs/.env")
+		if err := godotenv.Load("configs/.env"); err != nil {
+			logrus.Warn("未找到配置文件，使用环境变量")
+		}
 	}
 
 	config := &Config{
@@ -131,10 +136,12 @@ func LoadConfig() (*Config, error) {
 			Name:    getEnv("APP_NAME", "智能设备管理系统"),
 			Version: getEnv("APP_VERSION", "1.0.0"),
 			Env:     getEnv("APP_ENV", "development"),
-			Port:    getEnv("APP_PORT", "8080"),
-			Host:    getEnv("APP_HOST", "0.0.0.0"),
+			Port:    getEnv("BACKEND_PORT", getEnv("APP_PORT", "8080")),
+			Host:    getEnv("BACKEND_HOST", getEnv("APP_HOST", "0.0.0.0")),
 		},
 		Database: DatabaseConfig{
+			Type:     getEnv("DB_TYPE", "sqlite"),
+			Path:     getEnv("DB_PATH", "./data/smart_device_management.db"),
 			Host:     getEnv("DB_HOST", "localhost"),
 			Port:     getEnv("DB_PORT", "5432"),
 			User:     getEnv("DB_USER", "postgres"),

@@ -1,277 +1,177 @@
 <template>
   <div class="server-monitor">
+    <!-- 页面标题区域 -->
     <div class="page-header">
-      <h1>服务器监控</h1>
-      <p>实时监控服务器运行状态和性能指标</p>
+      <h1>🖥️ 服务器管理 - 📊 服务器监控</h1>
+      <p>硬件信息监控、系统状态监控、远程控制操作</p>
     </div>
-    
-    <div class="monitor-content">
+
+    <!-- 统计卡片区域 -->
+    <div class="stats-section">
       <el-row :gutter="20">
-        <el-col :span="24">
-          <el-card>
-            <template #header>
-              <div class="card-header">
-                <span>服务器列表</span>
-                <div class="header-actions">
-                  <el-button type="primary" size="small" @click="refreshData">
-                    <el-icon><Refresh /></el-icon>
-                    刷新
-                  </el-button>
-                </div>
+        <el-col :span="6">
+          <el-card class="status-card success">
+            <div class="status-item">
+              <div class="status-icon">
+                <span style="color: #52c41a">🖥️</span>
               </div>
-            </template>
-            
-            <el-table :data="servers" style="width: 100%">
-              <el-table-column prop="name" label="服务器名称" width="150" />
-              <el-table-column prop="ip" label="IP地址" width="140" />
-              <el-table-column prop="os" label="操作系统" width="120" />
-              <el-table-column prop="cpu" label="CPU使用率" width="120">
-                <template #default="scope">
-                  <el-progress 
-                    :percentage="scope.row.cpu" 
-                    :color="getCpuColor(scope.row.cpu)"
-                    :stroke-width="8"
-                  />
-                </template>
-              </el-table-column>
-              <el-table-column prop="memory" label="内存使用率" width="120">
-                <template #default="scope">
-                  <el-progress 
-                    :percentage="scope.row.memory" 
-                    :color="getMemoryColor(scope.row.memory)"
-                    :stroke-width="8"
-                  />
-                </template>
-              </el-table-column>
-              <el-table-column prop="disk" label="磁盘使用率" width="120">
-                <template #default="scope">
-                  <el-progress 
-                    :percentage="scope.row.disk" 
-                    :color="getDiskColor(scope.row.disk)"
-                    :stroke-width="8"
-                  />
-                </template>
-              </el-table-column>
-              <el-table-column prop="status" label="状态" width="100">
-                <template #default="scope">
-                  <el-tag 
-                    :type="scope.row.status === 'online' ? 'success' : 'danger'"
-                    size="small"
-                  >
-                    {{ scope.row.status === 'online' ? '在线' : '离线' }}
-                  </el-tag>
-                </template>
-              </el-table-column>
-              <el-table-column prop="uptime" label="运行时间" width="120" />
-              <el-table-column label="操作" width="200">
-                <template #default="scope">
-                  <el-button type="text" size="small" @click="viewDetails(scope.row)">
-                    详情
-                  </el-button>
-                  <el-button type="text" size="small" @click="remoteConnect(scope.row)">
-                    远程连接
-                  </el-button>
-                  <el-button 
-                    type="text" 
-                    size="small" 
-                    @click="restartServer(scope.row)"
-                    :disabled="scope.row.status === 'offline'"
-                  >
-                    重启
-                  </el-button>
-                </template>
-              </el-table-column>
-            </el-table>
-          </el-card>
-        </el-col>
-      </el-row>
-      
-      <el-row :gutter="20" style="margin-top: 20px;">
-        <el-col :span="12">
-          <el-card>
-            <template #header>
-              <span>系统资源趋势</span>
-            </template>
-            <div class="chart-container">
-              <div class="chart-placeholder">
-                <el-icon class="chart-icon"><TrendCharts /></el-icon>
-                <p>系统资源使用趋势图</p>
-                <p class="placeholder-text">ECharts图表组件开发中...</p>
+              <div class="status-info">
+                <h3>主服务器</h3>
+                <div class="status-value" style="color: #52c41a">运行中</div>
+                <div class="status-subtitle">CPU: 45% | 内存: 62% | 正常</div>
               </div>
             </div>
           </el-card>
         </el-col>
-        
-        <el-col :span="12">
-          <el-card>
-            <template #header>
-              <span>告警信息</span>
-            </template>
-            <div class="alarm-list">
-              <div 
-                v-for="alarm in alarms" 
-                :key="alarm.id"
-                class="alarm-item"
-                :class="`alarm-${alarm.level}`"
-              >
-                <div class="alarm-info">
-                  <div class="alarm-title">{{ alarm.title }}</div>
-                  <div class="alarm-desc">{{ alarm.description }}</div>
-                  <div class="alarm-time">{{ alarm.time }}</div>
-                </div>
-                <el-tag 
-                  :type="alarm.level === 'critical' ? 'danger' : 'warning'"
-                  size="small"
-                >
-                  {{ alarm.level === 'critical' ? '严重' : '警告' }}
-                </el-tag>
+        <el-col :span="6">
+          <el-card class="status-card success">
+            <div class="status-item">
+              <div class="status-icon">
+                <span style="color: #52c41a">🖥️</span>
+              </div>
+              <div class="status-info">
+                <h3>备用服务器</h3>
+                <div class="status-value" style="color: #52c41a">待机</div>
+                <div class="status-subtitle">CPU: 5% | 内存: 15% | 正常</div>
+              </div>
+            </div>
+          </el-card>
+        </el-col>
+        <el-col :span="6">
+          <el-card class="status-card info">
+            <div class="status-item">
+              <div class="status-icon">
+                <span style="color: #1890ff">🔗</span>
+              </div>
+              <div class="status-info">
+                <h3>网络连接</h3>
+                <div class="status-value" style="color: #52c41a">正常</div>
+                <div class="status-subtitle">SSH连接 | 延迟: 2ms</div>
+              </div>
+            </div>
+          </el-card>
+        </el-col>
+        <el-col :span="6">
+          <el-card class="status-card success">
+            <div class="status-item">
+              <div class="status-icon">
+                <span style="color: #52c41a">💾</span>
+              </div>
+              <div class="status-info">
+                <h3>存储空间</h3>
+                <div class="status-value" style="color: #52c41a">充足</div>
+                <div class="status-subtitle">使用率: 35% | 剩余: 650GB</div>
               </div>
             </div>
           </el-card>
         </el-col>
       </el-row>
     </div>
+
+    <!-- 硬件信息监控 -->
+    <el-card class="function-card">
+      <template #header>
+        <div class="card-header">
+          <h3>🔧 硬件信息监控</h3>
+          <el-button type="primary" @click="refreshServerInfo">🔄 刷新信息</el-button>
+        </div>
+      </template>
+      <div class="card-body">
+        <el-table :data="serverHardware" style="width: 100%">
+          <el-table-column prop="server" label="服务器" width="120" />
+          <el-table-column prop="cpu" label="CPU型号" width="200" />
+          <el-table-column prop="memory" label="内存容量" width="120" />
+          <el-table-column prop="storage" label="存储容量" width="120" />
+          <el-table-column prop="network" label="网络接口" width="120" />
+          <el-table-column prop="status" label="运行状态" width="100">
+            <template #default="scope">
+              <el-tag
+                :type="scope.row.status === '运行中' ? 'success' : 'info'"
+                size="small"
+              >
+                {{ scope.row.status }}
+              </el-tag>
+            </template>
+          </el-table-column>
+          <el-table-column label="操作" width="150">
+            <template #default="scope">
+              <el-button size="small" @click="showServerControl(scope.row)">控制</el-button>
+              <el-button size="small" @click="showServerDetail(scope.row)">详情</el-button>
+            </template>
+          </el-table-column>
+        </el-table>
+      </div>
+    </el-card>
+
+    <!-- 系统状态监控 -->
+    <el-card class="function-card">
+      <template #header>
+        <div class="card-header">
+          <h3>📊 系统状态监控</h3>
+          <el-button @click="showDetailMonitor">查看详细监控</el-button>
+        </div>
+      </template>
+      <div class="card-body">
+        <div class="chart-container">
+          <div style="text-align: center; padding: 40px; color: #8c8c8c;">
+            <div style="font-size: 48px; margin-bottom: 16px;">📊</div>
+            <div style="font-size: 18px; font-weight: 600; margin-bottom: 8px;">系统资源使用率图表 (ECharts)</div>
+            <div>CPU使用率、内存使用率、磁盘I/O、网络流量</div>
+            <div>实时监控服务器性能指标</div>
+          </div>
+        </div>
+      </div>
+    </el-card>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
-import { ElMessage, ElMessageBox } from 'element-plus'
-import { Refresh, TrendCharts } from '@element-plus/icons-vue'
+import { ref } from 'vue'
+import { ElMessage } from 'element-plus'
 
-// 响应式数据
-const loading = ref(false)
-
-// 模拟服务器数据
-const servers = ref([
+// 服务器硬件信息
+const serverHardware = ref([
   {
-    id: 1,
-    name: 'WEB-SERVER-01',
-    ip: '192.168.1.10',
-    os: 'Ubuntu 20.04',
-    cpu: 45,
-    memory: 68,
-    disk: 32,
-    status: 'online',
-    uptime: '15天3小时'
+    server: '主服务器',
+    cpu: 'Intel Xeon E5-2680 v4',
+    memory: '32GB DDR4',
+    storage: '1TB SSD',
+    network: '千兆以太网',
+    status: '运行中'
   },
   {
-    id: 2,
-    name: 'DB-SERVER-01',
-    ip: '192.168.1.11',
-    os: 'CentOS 8',
-    cpu: 78,
-    memory: 85,
-    disk: 56,
-    status: 'online',
-    uptime: '8天12小时'
-  },
-  {
-    id: 3,
-    name: 'APP-SERVER-01',
-    ip: '192.168.1.12',
-    os: 'Windows Server 2019',
-    cpu: 23,
-    memory: 42,
-    disk: 28,
-    status: 'offline',
-    uptime: '0天0小时'
+    server: '备用服务器',
+    cpu: 'Intel Xeon E5-2660 v3',
+    memory: '16GB DDR4',
+    storage: '500GB SSD',
+    network: '千兆以太网',
+    status: '待机'
   }
 ])
 
-// 模拟告警数据
-const alarms = ref([
-  {
-    id: 1,
-    title: 'DB-SERVER-01 内存使用率过高',
-    description: '内存使用率达到85%，建议检查应用程序',
-    time: '2024-01-08 10:25:00',
-    level: 'warning'
-  },
-  {
-    id: 2,
-    title: 'APP-SERVER-01 服务器离线',
-    description: '服务器无法连接，请检查网络和电源',
-    time: '2024-01-08 09:15:00',
-    level: 'critical'
-  }
-])
-
-// 获取CPU使用率颜色
-const getCpuColor = (percentage: number) => {
-  if (percentage < 50) return '#67c23a'
-  if (percentage < 80) return '#e6a23c'
-  return '#f56c6c'
+// 方法
+const refreshServerInfo = () => {
+  ElMessage.success('服务器信息已刷新')
 }
 
-// 获取内存使用率颜色
-const getMemoryColor = (percentage: number) => {
-  if (percentage < 60) return '#67c23a'
-  if (percentage < 85) return '#e6a23c'
-  return '#f56c6c'
+const showServerControl = (server: any) => {
+  ElMessage.info(`打开服务器控制面板: ${server.server}`)
 }
 
-// 获取磁盘使用率颜色
-const getDiskColor = (percentage: number) => {
-  if (percentage < 70) return '#67c23a'
-  if (percentage < 90) return '#e6a23c'
-  return '#f56c6c'
+const showServerDetail = (server: any) => {
+  ElMessage.info(`查看服务器详情: ${server.server}`)
 }
 
-// 刷新数据
-const refreshData = async () => {
-  loading.value = true
-  try {
-    // 这里将调用API获取最新数据
-    ElMessage.success('数据刷新成功')
-  } catch (error) {
-    ElMessage.error('数据刷新失败')
-  } finally {
-    loading.value = false
-  }
+const showDetailMonitor = () => {
+  ElMessage.info('详细监控功能')
 }
-
-// 查看详情
-const viewDetails = (server: any) => {
-  ElMessage.info(`查看服务器 ${server.name} 详情`)
-}
-
-// 远程连接
-const remoteConnect = (server: any) => {
-  if (server.status === 'offline') {
-    ElMessage.warning('服务器离线，无法建立远程连接')
-    return
-  }
-  ElMessage.info(`正在连接到服务器 ${server.name}...`)
-}
-
-// 重启服务器
-const restartServer = async (server: any) => {
-  try {
-    await ElMessageBox.confirm(
-      `确定要重启服务器 ${server.name} 吗？`,
-      '确认重启',
-      {
-        confirmButtonText: '确定',
-        cancelButtonText: '取消',
-        type: 'warning'
-      }
-    )
-    
-    ElMessage.success(`服务器 ${server.name} 重启命令已发送`)
-  } catch (error) {
-    // 用户取消重启
-  }
-}
-
-onMounted(() => {
-  refreshData()
-})
 </script>
 
 <style scoped>
 .server-monitor {
-  padding: 0;
+  width: 100%; /* 统一宽度设置 */
+  max-width: none; /* 移除宽度限制 */
+  padding: 0; /* 移除padding，使用布局的统一padding */
 }
 
 .page-header {
@@ -279,16 +179,66 @@ onMounted(() => {
 }
 
 .page-header h1 {
-  margin: 0 0 8px 0;
   font-size: 24px;
   font-weight: 600;
-  color: #1f2937;
+  color: #262626;
+  margin: 0 0 8px 0;
 }
 
 .page-header p {
+  color: #8c8c8c;
   margin: 0;
-  color: #6b7280;
+}
+
+.stats-section {
+  margin-bottom: 24px;
+}
+
+.status-card {
+  border-radius: 8px;
+  border: 1px solid #f0f0f0;
+}
+
+.status-card.success {
+  border-left: 4px solid #52c41a;
+}
+
+.status-card.info {
+  border-left: 4px solid #1890ff;
+}
+
+.status-item {
+  display: flex;
+  align-items: center;
+  padding: 16px;
+}
+
+.status-icon {
+  font-size: 32px;
+  margin-right: 16px;
+}
+
+.status-info h3 {
   font-size: 14px;
+  color: #8c8c8c;
+  margin: 0 0 8px 0;
+  font-weight: 500;
+}
+
+.status-value {
+  font-size: 24px;
+  font-weight: 600;
+  margin-bottom: 4px;
+}
+
+.status-subtitle {
+  font-size: 12px;
+  color: #8c8c8c;
+}
+
+.function-card {
+  margin-bottom: 24px;
+  border-radius: 8px;
 }
 
 .card-header {
@@ -297,83 +247,18 @@ onMounted(() => {
   align-items: center;
 }
 
-.header-actions {
-  display: flex;
-  gap: 12px;
-  align-items: center;
+.card-header h3 {
+  font-size: 16px;
+  font-weight: 600;
+  color: #262626;
+  margin: 0;
+}
+
+.card-body {
+  padding: 16px;
 }
 
 .chart-container {
-  height: 300px;
-}
-
-.chart-placeholder {
-  height: 100%;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  background: #f9fafb;
-  border-radius: 8px;
-  border: 2px dashed #d1d5db;
-}
-
-.chart-icon {
-  font-size: 48px;
-  color: #9ca3af;
-  margin-bottom: 16px;
-}
-
-.placeholder-text {
-  color: #9ca3af;
-  font-size: 14px;
-  margin-top: 8px;
-}
-
-.alarm-list {
-  max-height: 300px;
-  overflow-y: auto;
-}
-
-.alarm-item {
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-  padding: 12px;
-  margin-bottom: 8px;
-  background: #f9fafb;
-  border-radius: 8px;
-  border-left: 4px solid #e5e7eb;
-}
-
-.alarm-item.alarm-warning {
-  background: #fffbeb;
-  border-left-color: #f59e0b;
-}
-
-.alarm-item.alarm-critical {
-  background: #fef2f2;
-  border-left-color: #ef4444;
-}
-
-.alarm-info {
-  flex: 1;
-}
-
-.alarm-title {
-  font-weight: 600;
-  color: #1f2937;
-  margin-bottom: 4px;
-}
-
-.alarm-desc {
-  font-size: 14px;
-  color: #6b7280;
-  margin-bottom: 4px;
-}
-
-.alarm-time {
-  font-size: 12px;
-  color: #9ca3af;
+  min-height: 200px;
 }
 </style>

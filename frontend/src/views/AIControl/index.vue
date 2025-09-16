@@ -12,7 +12,7 @@
           <el-card class="overview-card">
             <div class="overview-content">
               <div class="overview-icon active">
-                <el-icon><cpu /></el-icon>
+                <el-icon><Cpu /></el-icon>
               </div>
               <div class="overview-info">
                 <div class="overview-value">{{ activeStrategies }}</div>
@@ -166,9 +166,9 @@
                     <el-tag type="warning" size="small">执行中</el-tag>
                   </div>
                   <div class="execution-progress">
-                    <el-progress 
-                      :percentage="currentExecution.progress" 
-                      :status="currentExecution.status"
+                    <el-progress
+                      :percentage="currentExecution.progress"
+                      :status="getExecutionStatusType(currentExecution.status)"
                       :stroke-width="8"
                     />
                   </div>
@@ -248,7 +248,7 @@
                 :loading="batchLoading && batchOperation === 'optimize'"
                 style="width: 100%;"
               >
-                <el-icon><Magic /></el-icon>
+                <el-icon><Star /></el-icon>
                 运行全局优化
               </el-button>
             </div>
@@ -270,7 +270,7 @@ import {
   VideoPlay,
   CircleCheck,
   CircleClose,
-  Magic,
+  Star,
   Cpu,
   TrendCharts,
   Money
@@ -610,7 +610,9 @@ onMounted(() => {
 
 <style scoped>
 .ai-control {
-  padding: 0;
+  width: 100%; /* 统一宽度设置 */
+  max-width: none; /* 移除宽度限制 */
+  padding: 0; /* 移除padding，使用布局的统一padding */
 }
 
 .page-header {

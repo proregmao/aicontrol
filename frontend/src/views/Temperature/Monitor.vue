@@ -1,209 +1,237 @@
 <template>
   <div class="temperature-monitor">
+    <!-- 页面标题区域 -->
     <div class="page-header">
-      <h1>温度实时监控</h1>
-      <p>实时监控所有温度传感器状态</p>
+      <h1>🌡️ 温度监控 - 📊 实时监控</h1>
+      <p>4路温度实时显示、历史趋势图表、告警阈值设置</p>
     </div>
-    
-    <div class="monitor-content">
+
+    <!-- 统计卡片区域 -->
+    <div class="stats-section">
       <el-row :gutter="20">
-        <el-col :span="18">
-          <el-card>
-            <template #header>
-              <div class="card-header">
-                <span>温度趋势图</span>
-                <div class="header-actions">
-                  <el-select v-model="timeRange" size="small" style="width: 120px;">
-                    <el-option label="最近1小时" value="1h" />
-                    <el-option label="最近6小时" value="6h" />
-                    <el-option label="最近24小时" value="24h" />
-                    <el-option label="最近7天" value="7d" />
-                  </el-select>
-                  <el-button type="primary" size="small" @click="refreshData">
-                    <el-icon><Refresh /></el-icon>
-                    刷新
-                  </el-button>
-                </div>
-              </div>
-            </template>
-            <div class="chart-container">
-              <div class="chart-placeholder">
-                <el-icon class="chart-icon"><TrendCharts /></el-icon>
-                <p>温度趋势图表</p>
-                <p class="placeholder-text">ECharts图表组件开发中...</p>
-              </div>
-            </div>
-          </el-card>
-        </el-col>
-        
         <el-col :span="6">
-          <el-card>
-            <template #header>
-              <span>传感器状态</span>
-            </template>
-            <div class="sensor-list">
-              <div 
-                v-for="sensor in sensors" 
-                :key="sensor.id"
-                class="sensor-item"
-                :class="{ 'sensor-alarm': sensor.status === 'alarm' }"
-              >
-                <div class="sensor-info">
-                  <div class="sensor-name">{{ sensor.name }}</div>
-                  <div class="sensor-location">{{ sensor.location }}</div>
-                </div>
-                <div class="sensor-value">
-                  <span class="temperature">{{ sensor.temperature }}°C</span>
-                  <el-tag 
-                    :type="sensor.status === 'normal' ? 'success' : 'danger'"
-                    size="small"
-                  >
-                    {{ sensor.status === 'normal' ? '正常' : '告警' }}
-                  </el-tag>
-                </div>
+          <el-card class="status-card success">
+            <div class="status-item">
+              <div class="status-icon">
+                <span style="color: #52c41a">🌡️</span>
+              </div>
+              <div class="status-info">
+                <h3>探头1 (室温)</h3>
+                <div class="status-value" style="color: #52c41a">{{ sensorData.sensor1.temperature }}°C</div>
+                <div class="status-subtitle">正常范围 18-25°C | 5秒刷新</div>
               </div>
             </div>
           </el-card>
         </el-col>
-      </el-row>
-      
-      <el-row :gutter="20" style="margin-top: 20px;">
-        <el-col :span="24">
-          <el-card>
-            <template #header>
-              <span>传感器详细信息</span>
-            </template>
-            <el-table :data="sensors" style="width: 100%">
-              <el-table-column prop="name" label="传感器名称" width="150" />
-              <el-table-column prop="location" label="位置" width="200" />
-              <el-table-column prop="temperature" label="当前温度" width="120">
-                <template #default="scope">
-                  <span :class="{ 'temp-high': scope.row.temperature > 30 }">
-                    {{ scope.row.temperature }}°C
-                  </span>
-                </template>
-              </el-table-column>
-              <el-table-column prop="humidity" label="湿度" width="100">
-                <template #default="scope">
-                  {{ scope.row.humidity }}%
-                </template>
-              </el-table-column>
-              <el-table-column prop="status" label="状态" width="100">
-                <template #default="scope">
-                  <el-tag 
-                    :type="scope.row.status === 'normal' ? 'success' : 'danger'"
-                    size="small"
-                  >
-                    {{ scope.row.status === 'normal' ? '正常' : '告警' }}
-                  </el-tag>
-                </template>
-              </el-table-column>
-              <el-table-column prop="lastUpdate" label="最后更新" width="180" />
-              <el-table-column label="操作" width="150">
-                <template #default="scope">
-                  <el-button type="text" size="small" @click="viewDetails(scope.row)">
-                    详情
-                  </el-button>
-                  <el-button type="text" size="small" @click="configSensor(scope.row)">
-                    配置
-                  </el-button>
-                </template>
-              </el-table-column>
-            </el-table>
+        <el-col :span="6">
+          <el-card class="status-card success">
+            <div class="status-item">
+              <div class="status-icon">
+                <span style="color: #52c41a">🌡️</span>
+              </div>
+              <div class="status-info">
+                <h3>探头2 (进风口)</h3>
+                <div class="status-value" style="color: #52c41a">{{ sensorData.sensor2.temperature }}°C</div>
+                <div class="status-subtitle">正常范围 18-25°C | 5秒刷新</div>
+              </div>
+            </div>
+          </el-card>
+        </el-col>
+        <el-col :span="6">
+          <el-card class="status-card warning">
+            <div class="status-item">
+              <div class="status-icon">
+                <span style="color: #faad14">🌡️</span>
+              </div>
+              <div class="status-info">
+                <h3>探头3 (出风口)</h3>
+                <div class="status-value" style="color: #faad14">{{ sensorData.sensor3.temperature }}°C</div>
+                <div class="status-subtitle">警告范围 30-45°C | 5秒刷新</div>
+              </div>
+            </div>
+          </el-card>
+        </el-col>
+        <el-col :span="6">
+          <el-card class="status-card success">
+            <div class="status-item">
+              <div class="status-icon">
+                <span style="color: #52c41a">🌡️</span>
+              </div>
+              <div class="status-info">
+                <h3>探头4 (网络设备)</h3>
+                <div class="status-value" style="color: #52c41a">{{ sensorData.sensor4.temperature }}°C</div>
+                <div class="status-subtitle">正常范围 22-40°C | 5秒刷新</div>
+              </div>
+            </div>
           </el-card>
         </el-col>
       </el-row>
     </div>
+
+    <!-- 历史趋势图表 -->
+    <el-card class="function-card">
+      <template #header>
+        <div class="card-header">
+          <h3>📈 历史趋势图表</h3>
+          <div class="time-range-buttons">
+            <el-button 
+              v-for="range in timeRanges" 
+              :key="range.value"
+              :type="selectedTimeRange === range.value ? 'primary' : 'default'"
+              size="small"
+              @click="changeTimeRange(range.value)"
+            >
+              {{ range.label }}
+            </el-button>
+          </div>
+        </div>
+      </template>
+      <div class="card-body">
+        <TemperatureChart 
+          :height="400"
+          :time-range="selectedTimeRange"
+          :refresh-trigger="refreshTrigger"
+        />
+      </div>
+    </el-card>
+
+    <!-- 告警阈值设置 -->
+    <el-card class="function-card">
+      <template #header>
+        <div class="card-header">
+          <h3>⚠️ 告警阈值设置</h3>
+          <el-button type="primary" @click="showAlarmModal = true">设置告警</el-button>
+        </div>
+      </template>
+      <div class="card-body">
+        <el-table :data="alarmThresholds" style="width: 100%">
+          <el-table-column prop="probe" label="探头" width="100" />
+          <el-table-column prop="location" label="位置" width="120" />
+          <el-table-column prop="normalRange" label="正常范围" width="120" />
+          <el-table-column prop="warningThreshold" label="警告阈值" width="120" />
+          <el-table-column prop="dangerThreshold" label="危险阈值" width="120" />
+          <el-table-column prop="status" label="当前状态" width="100">
+            <template #default="scope">
+              <el-tag 
+                :type="scope.row.status === '正常' ? 'success' : 'warning'"
+                size="small"
+              >
+                {{ scope.row.status }}
+              </el-tag>
+            </template>
+          </el-table-column>
+          <el-table-column label="操作" width="100">
+            <template #default="scope">
+              <el-button size="small" @click="editAlarmRule(scope.row)">编辑</el-button>
+            </template>
+          </el-table-column>
+        </el-table>
+      </div>
+    </el-card>
   </div>
 </template>
 
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted } from 'vue'
 import { ElMessage } from 'element-plus'
-import { Refresh, TrendCharts } from '@element-plus/icons-vue'
-import { startDataPolling, stopDataPolling, getTemperatureData } from '@/services/dataCollection'
-import { handleTemperatureData } from '@/services/websocket'
-import type { TemperatureData } from '@/services/dataCollection'
+import TemperatureChart from '@/components/charts/TemperatureChart.vue'
 
 // 响应式数据
-const timeRange = ref('1h')
-const loading = ref(false)
-const sensors = ref<TemperatureData[]>([])
+const selectedTimeRange = ref('6h')
+const refreshTrigger = ref(0)
+const showAlarmModal = ref(false)
 
-// 时间范围选项
-const timeRangeOptions = [
-  { label: '最近1小时', value: '1h' },
-  { label: '最近6小时', value: '6h' },
-  { label: '最近24小时', value: '24h' },
-  { label: '最近7天', value: '7d' }
-]
-
-// 加载温度数据
-const loadTemperatureData = async () => {
-  loading.value = true
-  try {
-    const data = await getTemperatureData()
-    sensors.value = data.map(item => ({
-      ...item,
-      id: parseInt(item.id),
-      location: `机房${item.deviceName.slice(-1)}-机柜1`,
-      lastUpdate: new Date(item.timestamp).toLocaleString()
-    }))
-  } catch (error) {
-    console.error('加载温度数据失败:', error)
-    ElMessage.error('加载温度数据失败')
-  } finally {
-    loading.value = false
-  }
-}
-
-// 刷新数据
-const refreshData = async () => {
-  await loadTemperatureData()
-  ElMessage.success('数据刷新成功')
-}
-
-// 查看详情
-const viewDetails = (sensor: any) => {
-  ElMessage.info(`查看传感器 ${sensor.name} 详情`)
-}
-
-// 配置传感器
-const configSensor = (sensor: any) => {
-  ElMessage.info(`配置传感器 ${sensor.name}`)
-}
-
-// 处理WebSocket实时数据更新
-const handleRealtimeUpdate = (data: TemperatureData[]) => {
-  sensors.value = data.map(item => ({
-    ...item,
-    id: parseInt(item.id),
-    location: `机房${item.deviceName.slice(-1)}-机柜1`,
-    lastUpdate: new Date(item.timestamp).toLocaleString()
-  }))
-}
-
-// 组件挂载时初始化数据
-onMounted(async () => {
-  // 加载初始数据
-  await loadTemperatureData()
-
-  // 启动数据轮询
-  startDataPolling('temperature', handleRealtimeUpdate, 5000)
-
-  // 监听WebSocket实时数据
-  handleTemperatureData(handleRealtimeUpdate)
+// 传感器数据
+const sensorData = ref({
+  sensor1: { temperature: 23.5, status: 'normal' },
+  sensor2: { temperature: 21.2, status: 'normal' },
+  sensor3: { temperature: 35.8, status: 'warning' },
+  sensor4: { temperature: 28.3, status: 'normal' }
 })
 
-// 组件卸载时清理资源
+// 时间范围选项
+const timeRanges = [
+  { label: '1小时', value: '1h' },
+  { label: '6小时', value: '6h' },
+  { label: '24小时', value: '24h' },
+  { label: '7天', value: '7d' },
+  { label: '30天', value: '30d' }
+]
+
+// 告警阈值数据
+const alarmThresholds = ref([
+  {
+    probe: '探头1',
+    location: '室温监测',
+    normalRange: '18-25°C',
+    warningThreshold: '25-30°C',
+    dangerThreshold: '>30°C',
+    status: '正常'
+  },
+  {
+    probe: '探头2',
+    location: '进风口',
+    normalRange: '18-25°C',
+    warningThreshold: '25-30°C',
+    dangerThreshold: '>30°C',
+    status: '正常'
+  },
+  {
+    probe: '探头3',
+    location: '出风口',
+    normalRange: '30-45°C',
+    warningThreshold: '45-60°C',
+    dangerThreshold: '>60°C',
+    status: '警告'
+  },
+  {
+    probe: '探头4',
+    location: '网络设备',
+    normalRange: '22-40°C',
+    warningThreshold: '40-50°C',
+    dangerThreshold: '>50°C',
+    status: '正常'
+  }
+])
+
+// 方法
+const changeTimeRange = (range: string) => {
+  selectedTimeRange.value = range
+  refreshTrigger.value++
+}
+
+const editAlarmRule = (row: any) => {
+  ElMessage.info(`编辑告警规则: ${row.probe}`)
+}
+
+// 模拟数据更新
+let updateTimer: NodeJS.Timeout | null = null
+
+const updateSensorData = () => {
+  // 模拟温度变化
+  sensorData.value.sensor1.temperature = +(23.5 + (Math.random() - 0.5) * 2).toFixed(1)
+  sensorData.value.sensor2.temperature = +(21.2 + (Math.random() - 0.5) * 2).toFixed(1)
+  sensorData.value.sensor3.temperature = +(35.8 + (Math.random() - 0.5) * 3).toFixed(1)
+  sensorData.value.sensor4.temperature = +(28.3 + (Math.random() - 0.5) * 2).toFixed(1)
+}
+
+// 生命周期
+onMounted(() => {
+  updateTimer = setInterval(updateSensorData, 5000) // 5秒更新一次
+})
+
 onUnmounted(() => {
-  stopDataPolling('temperature')
+  if (updateTimer) {
+    clearInterval(updateTimer)
+  }
 })
 </script>
 
 <style scoped>
 .temperature-monitor {
-  padding: 0;
+  width: 100%; /* 统一宽度设置 */
+  max-width: none; /* 移除宽度限制 */
+  padding: 0; /* 移除padding，使用布局的统一padding */
 }
 
 .page-header {
@@ -211,16 +239,66 @@ onUnmounted(() => {
 }
 
 .page-header h1 {
-  margin: 0 0 8px 0;
   font-size: 24px;
   font-weight: 600;
-  color: #1f2937;
+  color: #262626;
+  margin: 0 0 8px 0;
 }
 
 .page-header p {
+  color: #8c8c8c;
   margin: 0;
-  color: #6b7280;
+}
+
+.stats-section {
+  margin-bottom: 24px;
+}
+
+.status-card {
+  border-radius: 8px;
+  border: 1px solid #f0f0f0;
+}
+
+.status-card.success {
+  border-left: 4px solid #52c41a;
+}
+
+.status-card.warning {
+  border-left: 4px solid #faad14;
+}
+
+.status-item {
+  display: flex;
+  align-items: center;
+  padding: 16px;
+}
+
+.status-icon {
+  font-size: 32px;
+  margin-right: 16px;
+}
+
+.status-info h3 {
   font-size: 14px;
+  color: #8c8c8c;
+  margin: 0 0 8px 0;
+  font-weight: 500;
+}
+
+.status-value {
+  font-size: 24px;
+  font-weight: 600;
+  margin-bottom: 4px;
+}
+
+.status-subtitle {
+  font-size: 12px;
+  color: #8c8c8c;
+}
+
+.function-card {
+  margin-bottom: 24px;
+  border-radius: 8px;
 }
 
 .card-header {
@@ -229,88 +307,19 @@ onUnmounted(() => {
   align-items: center;
 }
 
-.header-actions {
-  display: flex;
-  gap: 12px;
-  align-items: center;
-}
-
-.chart-container {
-  height: 400px;
-}
-
-.chart-placeholder {
-  height: 100%;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  background: #f9fafb;
-  border-radius: 8px;
-  border: 2px dashed #d1d5db;
-}
-
-.chart-icon {
-  font-size: 48px;
-  color: #9ca3af;
-  margin-bottom: 16px;
-}
-
-.placeholder-text {
-  color: #9ca3af;
-  font-size: 14px;
-  margin-top: 8px;
-}
-
-.sensor-list {
-  max-height: 400px;
-  overflow-y: auto;
-}
-
-.sensor-item {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 12px;
-  margin-bottom: 8px;
-  background: #f9fafb;
-  border-radius: 8px;
-  border: 1px solid #e5e7eb;
-}
-
-.sensor-item.sensor-alarm {
-  background: #fef2f2;
-  border-color: #fecaca;
-}
-
-.sensor-info {
-  flex: 1;
-}
-
-.sensor-name {
+.card-header h3 {
+  font-size: 16px;
   font-weight: 600;
-  color: #1f2937;
-  margin-bottom: 4px;
+  color: #262626;
+  margin: 0;
 }
 
-.sensor-location {
-  font-size: 12px;
-  color: #6b7280;
+.time-range-buttons {
+  display: flex;
+  gap: 8px;
 }
 
-.sensor-value {
-  text-align: right;
-}
-
-.temperature {
-  display: block;
-  font-size: 18px;
-  font-weight: 600;
-  color: #1f2937;
-  margin-bottom: 4px;
-}
-
-.temp-high {
-  color: #ef4444 !important;
+.card-body {
+  padding: 16px;
 }
 </style>

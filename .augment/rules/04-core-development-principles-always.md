@@ -128,15 +128,29 @@ const calc = (items: any[]) => { /* */ };
 - [ ] 环境变量配置正确
 - [ ] 文档更新完成
 
-## 🎯 AI执行纪律
+## 🎯 AI执行纪律 - 强制执行
+
+### **开发前必须执行**
 ```bash
-# AI必须执行的检查流程
-./check-environment-setup.sh      # 环境检查
-./validate-code-quality.sh        # 代码质量检查
-./run-all-tests.sh               # 运行所有测试
-./security-scan.sh               # 安全扫描
-./performance-test.sh            # 性能测试
-./browser-validation.sh          # 浏览器验证
+# 🚫 不执行则禁止开发
+./scripts/enforce-design-compliance.sh    # 设计一致性检查
+./scripts/check-environment-setup.sh      # 环境检查
+./scripts/validate-code-quality.sh        # 代码质量检查
+
+# 检查失败立即停止
+if [ $? -ne 0 ]; then
+    echo "🚫 强制检查失败，禁止开发"
+    exit 1
+fi
+```
+
+### **开发后必须执行**
+```bash
+# 🚫 不通过则禁止提交
+./scripts/run-all-tests.sh               # 运行所有测试
+./scripts/security-scan.sh               # 安全扫描
+./scripts/performance-test.sh            # 性能测试
+./scripts/browser-validation.sh          # 浏览器验证
 ```
 
 ---

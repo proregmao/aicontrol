@@ -41,6 +41,12 @@ export class DataCollectionService {
 
   // 获取温度数据
   async getTemperatureData(deviceId?: string, timeRange?: { start: string; end: string }): Promise<TemperatureData[]> {
+    // 在开发模式下直接返回模拟数据，避免404错误
+    if (import.meta.env.DEV) {
+      console.log('开发模式：使用温度模拟数据')
+      return this.getMockTemperatureData()
+    }
+
     try {
       const params: any = {}
       if (deviceId) params.deviceId = deviceId
@@ -53,13 +59,19 @@ export class DataCollectionService {
       return response.data || []
     } catch (error) {
       console.error('获取温度数据失败:', error)
-      // 返回模拟数据
+      // 返回模拟数据作为降级方案
       return this.getMockTemperatureData()
     }
   }
 
   // 获取断路器数据
   async getBreakerData(deviceId?: string, timeRange?: { start: string; end: string }): Promise<BreakerData[]> {
+    // 在开发模式下直接返回模拟数据，避免404错误
+    if (import.meta.env.DEV) {
+      console.log('开发模式：使用断路器模拟数据')
+      return this.getMockBreakerData()
+    }
+
     try {
       const params: any = {}
       if (deviceId) params.deviceId = deviceId
@@ -72,13 +84,19 @@ export class DataCollectionService {
       return response.data || []
     } catch (error) {
       console.error('获取断路器数据失败:', error)
-      // 返回模拟数据
+      // 返回模拟数据作为降级方案
       return this.getMockBreakerData()
     }
   }
 
   // 获取服务器数据
   async getServerData(deviceId?: string, timeRange?: { start: string; end: string }): Promise<ServerData[]> {
+    // 在开发模式下直接返回模拟数据，避免404错误
+    if (import.meta.env.DEV) {
+      console.log('开发模式：使用服务器模拟数据')
+      return this.getMockServerData()
+    }
+
     try {
       const params: any = {}
       if (deviceId) params.deviceId = deviceId
@@ -91,7 +109,7 @@ export class DataCollectionService {
       return response.data || []
     } catch (error) {
       console.error('获取服务器数据失败:', error)
-      // 返回模拟数据
+      // 返回模拟数据作为降级方案
       return this.getMockServerData()
     }
   }
@@ -159,26 +177,31 @@ export class DataCollectionService {
   // 模拟温度数据
   private getMockTemperatureData(): TemperatureData[] {
     const now = new Date()
-    return [
-      {
-        id: '1',
-        deviceId: 'temp-001',
-        deviceName: 'TMP-001',
-        temperature: 22.5 + Math.random() * 10,
-        humidity: 45 + Math.random() * 20,
-        timestamp: now.toISOString(),
-        status: 'normal'
-      },
-      {
-        id: '2',
-        deviceId: 'temp-002',
-        deviceName: 'TMP-002',
-        temperature: 28.3 + Math.random() * 8,
-        humidity: 52 + Math.random() * 15,
-        timestamp: now.toISOString(),
-        status: 'warning'
-      }
+    const devices = [
+      { id: 'temp-001', name: '机房1-机柜1', baseTemp: 24, baseTempRange: 6 },
+      { id: 'temp-002', name: '机房1-机柜2', baseTemp: 26, baseTempRange: 5 },
+      { id: 'temp-003', name: '机房2-机柜1', baseTemp: 28, baseTempRange: 8 },
+      { id: 'temp-004', name: '机房2-机柜2', baseTemp: 25, baseTempRange: 4 }
     ]
+
+    return devices.map((device, index) => {
+      const temperature = device.baseTemp + (Math.random() - 0.5) * device.baseTempRange
+      const humidity = 45 + Math.random() * 25
+      let status: 'normal' | 'warning' | 'critical' = 'normal'
+
+      if (temperature > 32) status = 'critical'
+      else if (temperature > 28) status = 'warning'
+
+      return {
+        id: (index + 1).toString(),
+        deviceId: device.id,
+        deviceName: device.name,
+        temperature: Math.round(temperature * 100) / 100,
+        humidity: Math.round(humidity * 100) / 100,
+        timestamp: now.toISOString(),
+        status
+      }
+    })
   }
 
   // 模拟断路器数据

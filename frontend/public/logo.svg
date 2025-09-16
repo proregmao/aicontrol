@@ -1,0 +1,32 @@
+<svg width="120" height="40" viewBox="0 0 120 40" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- 背景 -->
+  <rect width="120" height="40" rx="8" fill="#409EFF"/>
+  
+  <!-- 设备图标 -->
+  <g transform="translate(8, 8)">
+    <!-- 主设备 -->
+    <rect x="2" y="2" width="12" height="8" rx="1" fill="white" opacity="0.9"/>
+    <rect x="3" y="3" width="2" height="2" rx="0.5" fill="#409EFF"/>
+    <rect x="6" y="3" width="2" height="2" rx="0.5" fill="#409EFF"/>
+    <rect x="9" y="3" width="2" height="2" rx="0.5" fill="#409EFF"/>
+    <rect x="3" y="6" width="8" height="1" rx="0.5" fill="#409EFF"/>
+    <rect x="3" y="8" width="6" height="1" rx="0.5" fill="#409EFF"/>
+    
+    <!-- 连接线 -->
+    <line x1="8" y1="12" x2="8" y2="16" stroke="white" stroke-width="1" opacity="0.8"/>
+    <line x1="8" y1="16" x2="4" y2="16" stroke="white" stroke-width="1" opacity="0.8"/>
+    <line x1="8" y1="16" x2="12" y2="16" stroke="white" stroke-width="1" opacity="0.8"/>
+    
+    <!-- 子设备1 -->
+    <circle cx="4" cy="18" r="2" fill="white" opacity="0.8"/>
+    <circle cx="4" cy="18" r="1" fill="#409EFF"/>
+    
+    <!-- 子设备2 -->
+    <circle cx="12" cy="18" r="2" fill="white" opacity="0.8"/>
+    <circle cx="12" cy="18" r="1" fill="#409EFF"/>
+  </g>
+  
+  <!-- 文字 -->
+  <text x="32" y="16" font-family="Arial, sans-serif" font-size="10" font-weight="bold" fill="white">智能设备</text>
+  <text x="32" y="28" font-family="Arial, sans-serif" font-size="8" fill="white" opacity="0.9">管理系统</text>
+</svg>

@@ -8,9 +8,17 @@ export interface ApiResponse<T = any> {
   data: T
 }
 
+// 获取API基础URL
+const getApiBaseUrl = () => {
+  // 优先使用Vite环境变量，然后是根目录环境变量，最后是默认值
+  return import.meta.env.VITE_API_BASE_URL ||
+         `http://${import.meta.env.VITE_BACKEND_HOST || 'localhost'}:${import.meta.env.VITE_BACKEND_PORT || '8080'}/api/v1` ||
+         'http://localhost:8080/api/v1'
+}
+
 // 创建axios实例
 const apiClient: AxiosInstance = axios.create({
-  baseURL: import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080/api/v1',
+  baseURL: getApiBaseUrl(),
   timeout: 10000,
   headers: {
     'Content-Type': 'application/json',
@@ -47,8 +55,8 @@ apiClient.interceptors.response.use(
 
     const { code, message, data } = response.data
 
-    // 处理业务错误码
-    if (code !== 200) {
+    // 处理业务错误码 (后端成功状态码为20000)
+    if (code !== 20000 && code !== 200) {
       ElMessage.error(message || '请求失败')
       return Promise.reject(new Error(message || '请求失败'))
     }
@@ -73,7 +81,12 @@ apiClient.interceptors.response.use(
           ElMessage.error('权限不足')
           break
         case 404:
-          ElMessage.error('请求的资源不存在')
+          // 在开发模式下，对数据API的404错误不显示消息（使用模拟数据）
+          if (import.meta.env.DEV && error.config?.url?.includes('/data/')) {
+            console.warn(`数据API不存在: ${error.config.url}，将使用模拟数据`)
+          } else {
+            ElMessage.error('请求的资源不存在')
+          }
           break
         case 500:
           ElMessage.error('服务器内部错误')

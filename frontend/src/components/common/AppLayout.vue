@@ -4,8 +4,8 @@
     <aside class="sidebar" :class="{ collapsed: sidebarCollapsed }">
       <div class="sidebar-header">
         <div class="logo">
-          <img src="/logo.png" alt="Logo" v-if="!sidebarCollapsed" />
-          <img src="/logo-mini.png" alt="Logo" v-else />
+          <img src="/logo.svg" alt="Logo" v-if="!sidebarCollapsed" />
+          <img src="/logo-mini.svg" alt="Logo" v-else />
         </div>
         <h1 v-if="!sidebarCollapsed" class="app-title">智能设备管理系统</h1>
       </div>
@@ -27,7 +27,7 @@
           
           <el-sub-menu index="temperature">
             <template #title>
-              <el-icon><Thermometer /></el-icon>
+              <el-icon><TrendCharts /></el-icon>
               <span>温度监控</span>
             </template>
             <el-menu-item index="/temperature/monitor">实时监控</el-menu-item>
@@ -175,7 +175,7 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import type { FormInstance, FormRules } from 'element-plus'
 import {
   Monitor,
-  Thermometer,
+  TrendCharts,
   Switch,
   MagicStick,
   Bell,
@@ -415,6 +415,11 @@ watch(
   padding: 20px;
   overflow-y: auto;
   background-color: #f5f5f5;
+  width: 1200px; /* 固定宽度，确保所有页面宽度完全一致 */
+  max-width: 1200px; /* 设置最大宽度限制 */
+  min-width: 1200px; /* 设置最小宽度，确保所有页面宽度一致 */
+  box-sizing: border-box; /* 确保padding包含在宽度内 */
+  overflow-x: auto; /* 如果内容超出宽度，显示水平滚动条 */
 }
 
 /* Element Plus Menu 样式覆盖 */

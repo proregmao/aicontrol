@@ -1,11 +1,17 @@
 import { defineConfig, loadEnv } from 'vite'
 import vue from '@vitejs/plugin-vue'
 import { resolve } from 'path'
+import { config } from 'dotenv'
+
+// 加载根目录的.env文件
+config({ path: resolve(__dirname, '../.env') })
 
 // https://vitejs.dev/config/
 export default defineConfig(({ mode }) => {
-  // 加载环境变量
-  const env = loadEnv(mode, process.cwd(), '')
+  // 加载环境变量 (先加载根目录，再加载当前目录)
+  const rootEnv = loadEnv(mode, resolve(__dirname, '..'), '')
+  const localEnv = loadEnv(mode, process.cwd(), '')
+  const env = { ...rootEnv, ...localEnv }
 
   return {
     plugins: [vue()],
@@ -15,16 +21,16 @@ export default defineConfig(({ mode }) => {
       },
     },
     server: {
-      port: parseInt(env.VITE_PORT || '3005'),
-      host: env.VITE_HOST || '0.0.0.0',
+      port: parseInt(env.VITE_PORT || env.FRONTEND_PORT || '3005'),
+      host: env.VITE_HOST || env.FRONTEND_HOST || '0.0.0.0',
       strictPort: true, // 强制使用指定端口，如果被占用则报错
       proxy: {
         '/api': {
-          target: env.VITE_API_BASE_URL || 'http://localhost:3003',
+          target: env.VITE_API_BASE_URL || env.API_BASE_URL || `http://${env.BACKEND_HOST || 'localhost'}:${env.BACKEND_PORT || '8080'}/api/v1`,
           changeOrigin: true,
         },
         '/ws': {
-          target: env.VITE_WS_URL || 'ws://localhost:3004',
+          target: env.VITE_WS_URL || env.WS_URL || `ws://${env.BACKEND_HOST || 'localhost'}:${env.BACKEND_PORT || '8080'}/ws`,
           ws: true,
           changeOrigin: true,
         },

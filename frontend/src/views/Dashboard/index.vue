@@ -1,140 +1,341 @@
 <template>
   <div class="dashboard">
     <div class="dashboard-header">
-      <h1>系统概览</h1>
-      <p>智能设备管理系统总览</p>
+      <h1>🏠 系统概览</h1>
+      <p>智能机房管理系统 - 硬件信息展示、系统状态概览、实时数据汇总、告警信息中心</p>
     </div>
     
     <div class="dashboard-content">
-      <el-row :gutter="20">
-        <el-col :span="6">
-          <el-card class="stat-card">
-            <div class="stat-item">
-              <div class="stat-icon temperature">
-                <el-icon><Thermometer /></el-icon>
+      <!-- 统计卡片区域 -->
+      <div class="stats-section">
+        <el-row :gutter="20">
+          <el-col :span="6">
+            <el-card class="stat-card info">
+              <div class="stat-item">
+                <div class="stat-icon">
+                  <span style="color: #1890ff; font-size: 24px;">🖥️</span>
+                </div>
+                <div class="stat-info">
+                  <h3>硬件设备</h3>
+                  <div class="stat-value" style="color: #1890ff;">{{ systemStats.totalDevices }}台</div>
+                  <div class="stat-subtitle">服务器{{ systemStats.servers }}台 + 传感器{{ systemStats.sensors }}个 + 断路器{{ systemStats.breakers }}个</div>
+                </div>
               </div>
-              <div class="stat-info">
-                <h3>温度传感器</h3>
-                <p class="stat-number">12</p>
-                <p class="stat-desc">在线设备</p>
+            </el-card>
+          </el-col>
+          
+          <el-col :span="6">
+            <el-card class="stat-card success">
+              <div class="stat-item">
+                <div class="stat-icon">
+                  <span style="color: #52c41a; font-size: 24px;">🌡️</span>
+                </div>
+                <div class="stat-info">
+                  <h3>环境温度</h3>
+                  <div class="stat-value" style="color: #52c41a;">{{ systemStats.avgTemperature }}°C</div>
+                  <div class="stat-subtitle">{{ systemStats.sensors }}路传感器平均值 | 正常范围</div>
+                </div>
               </div>
+            </el-card>
+          </el-col>
+          
+          <el-col :span="6">
+            <el-card class="stat-card success">
+              <div class="stat-item">
+                <div class="stat-icon">
+                  <span style="color: #52c41a; font-size: 24px;">⚡</span>
+                </div>
+                <div class="stat-info">
+                  <h3>电源状态</h3>
+                  <div class="stat-value" style="color: #52c41a;">{{ systemStats.powerStatus }}</div>
+                  <div class="stat-subtitle">{{ systemStats.breakers }}路断路器在线 | 负载正常</div>
+                </div>
+              </div>
+            </el-card>
+          </el-col>
+          
+          <el-col :span="6">
+            <el-card class="stat-card success">
+              <div class="stat-item">
+                <div class="stat-icon">
+                  <span style="color: #52c41a; font-size: 24px;">🔔</span>
+                </div>
+                <div class="stat-info">
+                  <h3>告警状态</h3>
+                  <div class="stat-value" style="color: #52c41a;">{{ systemStats.activeAlarms }}</div>
+                  <div class="stat-subtitle">无活跃告警 | 系统运行正常</div>
+                </div>
+              </div>
+            </el-card>
+          </el-col>
+        </el-row>
+      </div>
+
+      <!-- 硬件信息展示 -->
+      <el-card class="function-card" style="margin-top: 20px;">
+        <template #header>
+          <div class="card-header">
+            <h3>🖥️ 本机硬件信息</h3>
+            <el-button type="primary" @click="refreshHardwareInfo">
+              <el-icon><Refresh /></el-icon>
+              刷新信息
+            </el-button>
+          </div>
+        </template>
+        <div class="hardware-info-grid">
+          <div class="hardware-info-card">
+            <div class="hardware-icon">💻</div>
+            <div class="hardware-details">
+              <h4>CPU</h4>
+              <div class="hardware-value">{{ hardwareInfo.cpu.model }}</div>
+              <div class="hardware-usage">使用率: {{ hardwareInfo.cpu.usage }}%</div>
+              <div class="hardware-temp">温度: {{ hardwareInfo.cpu.temperature }}°C</div>
             </div>
-          </el-card>
-        </el-col>
-        
-        <el-col :span="6">
-          <el-card class="stat-card">
-            <div class="stat-item">
-              <div class="stat-icon server">
-                <el-icon><Monitor /></el-icon>
-              </div>
-              <div class="stat-info">
-                <h3>服务器</h3>
-                <p class="stat-number">8</p>
-                <p class="stat-desc">运行中</p>
-              </div>
+          </div>
+          
+          <div class="hardware-info-card">
+            <div class="hardware-icon">🧠</div>
+            <div class="hardware-details">
+              <h4>内存</h4>
+              <div class="hardware-value">{{ hardwareInfo.memory.total }}GB DDR4</div>
+              <div class="hardware-usage">使用率: {{ hardwareInfo.memory.usage }}%</div>
+              <div class="hardware-temp">已用: {{ hardwareInfo.memory.used }}GB</div>
             </div>
-          </el-card>
-        </el-col>
-        
-        <el-col :span="6">
-          <el-card class="stat-card">
-            <div class="stat-item">
-              <div class="stat-icon breaker">
-                <el-icon><Switch /></el-icon>
-              </div>
-              <div class="stat-info">
-                <h3>智能断路器</h3>
-                <p class="stat-number">24</p>
-                <p class="stat-desc">正常状态</p>
-              </div>
+          </div>
+          
+          <div class="hardware-info-card">
+            <div class="hardware-icon">💾</div>
+            <div class="hardware-details">
+              <h4>磁盘</h4>
+              <div class="hardware-value">{{ hardwareInfo.disk.total }}GB {{ hardwareInfo.disk.type }}</div>
+              <div class="hardware-usage">使用率: {{ hardwareInfo.disk.usage }}%</div>
+              <div class="hardware-temp">可用: {{ hardwareInfo.disk.available }}GB</div>
             </div>
-          </el-card>
-        </el-col>
-        
-        <el-col :span="6">
-          <el-card class="stat-card">
-            <div class="stat-item">
-              <div class="stat-icon alarm">
-                <el-icon><Bell /></el-icon>
-              </div>
-              <div class="stat-info">
-                <h3>告警信息</h3>
-                <p class="stat-number">3</p>
-                <p class="stat-desc">待处理</p>
-              </div>
+          </div>
+          
+          <div class="hardware-info-card">
+            <div class="hardware-icon">🌐</div>
+            <div class="hardware-details">
+              <h4>网络</h4>
+              <div class="hardware-value">{{ hardwareInfo.network.type }}</div>
+              <div class="hardware-usage">上传: {{ hardwareInfo.network.upload }}MB/s</div>
+              <div class="hardware-temp">下载: {{ hardwareInfo.network.download }}MB/s</div>
             </div>
-          </el-card>
-        </el-col>
-      </el-row>
-      
-      <el-row :gutter="20" style="margin-top: 20px;">
-        <el-col :span="12">
-          <el-card>
-            <template #header>
-              <span>温度趋势图</span>
-            </template>
-            <div class="chart-placeholder">
-              <p>温度监控图表</p>
-              <p class="placeholder-text">图表组件开发中...</p>
-            </div>
-          </el-card>
-        </el-col>
-        
-        <el-col :span="12">
-          <el-card>
-            <template #header>
-              <span>系统状态</span>
-            </template>
-            <div class="status-list">
-              <div class="status-item">
-                <el-tag type="success">系统运行正常</el-tag>
-                <span class="status-time">2024-01-08 10:30:00</span>
-              </div>
-              <div class="status-item">
-                <el-tag type="warning">温度传感器异常</el-tag>
-                <span class="status-time">2024-01-08 09:15:00</span>
-              </div>
-              <div class="status-item">
-                <el-tag type="info">系统维护完成</el-tag>
-                <span class="status-time">2024-01-08 08:00:00</span>
-              </div>
-            </div>
-          </el-card>
-        </el-col>
-      </el-row>
+          </div>
+        </div>
+      </el-card>
+
+      <!-- 系统状态监控 -->
+      <el-card class="function-card" style="margin-top: 20px;">
+        <template #header>
+          <div class="card-header">
+            <h3>📊 系统状态监控</h3>
+            <el-button type="primary" @click="refreshSystemStatus">
+              <el-icon><Refresh /></el-icon>
+              刷新状态
+            </el-button>
+          </div>
+        </template>
+        <DataTable
+          :data="systemDevices"
+          :columns="deviceColumns"
+          :loading="loading"
+          @action="handleDeviceAction"
+        />
+      </el-card>
+
+      <!-- 告警信息中心 -->
+      <el-card class="function-card" style="margin-top: 20px;">
+        <template #header>
+          <div class="card-header">
+            <h3>🔔 告警信息中心</h3>
+            <el-button @click="$router.push('/alarm')">查看全部告警</el-button>
+          </div>
+        </template>
+        <div v-if="systemStats.activeAlarms === 0" class="no-alarms">
+          <div style="text-align: center; padding: 40px; color: #52c41a;">
+            <div style="font-size: 48px; margin-bottom: 16px;">✅</div>
+            <h3>系统运行正常</h3>
+            <p>当前无活跃告警信息</p>
+          </div>
+        </div>
+        <div v-else class="alarm-list">
+          <el-alert
+            v-for="alarm in recentAlarms"
+            :key="alarm.id"
+            :title="alarm.title"
+            :type="alarm.type"
+            :description="alarm.description"
+            show-icon
+            style="margin-bottom: 10px;"
+          />
+        </div>
+      </el-card>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
-import { Thermometer, Monitor, Switch, Bell } from '@element-plus/icons-vue'
+import { ref, onMounted, onUnmounted } from 'vue'
+import { Refresh } from '@element-plus/icons-vue'
+import DataTable from '@/components/common/DataTable.vue'
 
-// 页面数据
+// 系统统计数据
+const systemStats = ref({
+  totalDevices: 8,
+  servers: 2,
+  sensors: 4,
+  breakers: 2,
+  avgTemperature: 24.5,
+  powerStatus: '正常',
+  activeAlarms: 0
+})
+
+// 硬件信息
+const hardwareInfo = ref({
+  cpu: {
+    model: 'Intel Core i7-12700',
+    usage: 15.2,
+    temperature: 42
+  },
+  memory: {
+    total: 32,
+    usage: 68.5,
+    used: 21.9
+  },
+  disk: {
+    total: 1000,
+    type: 'NVMe SSD',
+    usage: 45.8,
+    available: 542
+  },
+  network: {
+    type: '千兆以太网',
+    upload: 2.5,
+    download: 15.8
+  }
+})
+
+// 系统设备列表
+const systemDevices = ref([
+  {
+    id: 1,
+    type: '🌡️ 温度传感器',
+    name: '4路温度监控',
+    connectionStatus: 'online',
+    runningStatus: 'normal',
+    lastUpdate: '2025-09-16 18:30:00',
+    route: '/temperature/monitor'
+  },
+  {
+    id: 2,
+    type: '🖥️ 服务器',
+    name: '主服务器 + 备用服务器',
+    connectionStatus: 'online',
+    runningStatus: 'running',
+    lastUpdate: '2025-09-16 18:30:00',
+    route: '/server/monitor'
+  },
+  {
+    id: 3,
+    type: '⚡ 智能断路器',
+    name: '断路器#1 + 断路器#2',
+    connectionStatus: 'online',
+    runningStatus: 'normal',
+    lastUpdate: '2025-09-16 18:30:00',
+    route: '/breaker/monitor'
+  },
+  {
+    id: 4,
+    type: '🤖 AI控制',
+    name: '智能控制系统',
+    connectionStatus: 'online',
+    runningStatus: 'running',
+    lastUpdate: '2025-09-16 18:30:00',
+    route: '/ai-control'
+  }
+])
+
+// 设备表格列配置
+const deviceColumns = [
+  { prop: 'type', label: '设备类型', width: 150 },
+  { prop: 'name', label: '设备名称', minWidth: 200 },
+  { prop: 'connectionStatus', label: '连接状态', width: 120, type: 'status' },
+  { prop: 'runningStatus', label: '运行状态', width: 120, type: 'status' },
+  { prop: 'lastUpdate', label: '最后更新', width: 180 },
+  {
+    prop: 'actions',
+    label: '快速操作',
+    width: 120,
+    type: 'actions',
+    actions: [
+      { name: 'view', label: '查看详情', type: 'primary', size: 'small' }
+    ]
+  }
+]
+
+// 最近告警
+const recentAlarms = ref([])
+
 const loading = ref(false)
 
-// 获取仪表板数据
-const fetchDashboardData = async () => {
+// 刷新硬件信息
+const refreshHardwareInfo = () => {
+  // 模拟数据更新
+  hardwareInfo.value.cpu.usage = Math.random() * 30 + 10
+  hardwareInfo.value.cpu.temperature = Math.random() * 20 + 35
+  hardwareInfo.value.memory.usage = Math.random() * 30 + 50
+  hardwareInfo.value.memory.used = (hardwareInfo.value.memory.usage / 100) * hardwareInfo.value.memory.total
+  hardwareInfo.value.disk.usage = Math.random() * 20 + 35
+  hardwareInfo.value.disk.available = hardwareInfo.value.disk.total * (1 - hardwareInfo.value.disk.usage / 100)
+  hardwareInfo.value.network.upload = Math.random() * 3 + 1
+  hardwareInfo.value.network.download = Math.random() * 20 + 5
+}
+
+// 刷新系统状态
+const refreshSystemStatus = () => {
   loading.value = true
-  try {
-    // 这里将调用API获取仪表板数据
-    console.log('获取仪表板数据')
-  } catch (error) {
-    console.error('获取仪表板数据失败:', error)
-  } finally {
+  setTimeout(() => {
+    // 模拟数据更新
+    systemDevices.value.forEach(device => {
+      device.lastUpdate = new Date().toLocaleString('zh-CN')
+    })
     loading.value = false
+  }, 1000)
+}
+
+// 处理设备操作
+const handleDeviceAction = (actionName: string, row: any) => {
+  if (actionName === 'view') {
+    // 跳转到对应的详情页面
+    window.location.href = `#${row.route}`
   }
 }
 
+// 定时更新数据
+let timer: NodeJS.Timeout | null = null
+
 onMounted(() => {
-  fetchDashboardData()
+  // 每30秒更新一次数据
+  timer = setInterval(() => {
+    refreshHardwareInfo()
+    systemStats.value.avgTemperature = Math.random() * 5 + 22
+  }, 30000)
+})
+
+onUnmounted(() => {
+  if (timer) {
+    clearInterval(timer)
+  }
 })
 </script>
 
 <style scoped>
 .dashboard {
-  padding: 0;
+  width: 100%; /* 统一宽度设置 */
+  max-width: none; /* 移除宽度限制 */
+  padding: 0; /* 移除padding，使用布局的统一padding */
+  background-color: transparent; /* 使用布局的背景色 */
 }
 
 .dashboard-header {
@@ -142,111 +343,158 @@ onMounted(() => {
 }
 
 .dashboard-header h1 {
-  margin: 0 0 8px 0;
   font-size: 24px;
   font-weight: 600;
-  color: #1f2937;
+  color: #262626;
+  margin-bottom: 8px;
 }
 
 .dashboard-header p {
-  margin: 0;
-  color: #6b7280;
+  color: #8c8c8c;
   font-size: 14px;
 }
 
+.stats-section {
+  margin-bottom: 20px;
+}
+
 .stat-card {
-  height: 120px;
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
 }
 
 .stat-item {
   display: flex;
   align-items: center;
-  height: 100%;
+  padding: 20px;
 }
 
 .stat-icon {
-  width: 60px;
-  height: 60px;
-  border-radius: 12px;
+  margin-right: 16px;
   display: flex;
   align-items: center;
   justify-content: center;
-  margin-right: 16px;
-  font-size: 24px;
-  color: white;
-}
-
-.stat-icon.temperature {
-  background: linear-gradient(135deg, #ff6b6b, #ee5a24);
-}
-
-.stat-icon.server {
-  background: linear-gradient(135deg, #4ecdc4, #44a08d);
-}
-
-.stat-icon.breaker {
-  background: linear-gradient(135deg, #45b7d1, #96c93d);
-}
-
-.stat-icon.alarm {
-  background: linear-gradient(135deg, #f093fb, #f5576c);
 }
 
 .stat-info h3 {
-  margin: 0 0 8px 0;
   font-size: 14px;
-  color: #6b7280;
+  color: #8c8c8c;
+  margin-bottom: 8px;
   font-weight: 500;
 }
 
-.stat-number {
-  margin: 0 0 4px 0;
-  font-size: 28px;
-  font-weight: 700;
-  color: #1f2937;
+.stat-value {
+  font-size: 24px;
+  font-weight: 600;
+  margin-bottom: 4px;
 }
 
-.stat-desc {
-  margin: 0;
+.stat-subtitle {
   font-size: 12px;
-  color: #9ca3af;
+  color: #8c8c8c;
 }
 
-.chart-placeholder {
-  height: 300px;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  background: #f9fafb;
+.function-card {
   border-radius: 8px;
-  border: 2px dashed #d1d5db;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
 }
 
-.placeholder-text {
-  color: #9ca3af;
-  font-size: 14px;
-  margin-top: 8px;
-}
-
-.status-list {
-  space-y: 12px;
-}
-
-.status-item {
+.card-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 12px 0;
-  border-bottom: 1px solid #f3f4f6;
 }
 
-.status-item:last-child {
-  border-bottom: none;
+.card-header h3 {
+  font-size: 16px;
+  font-weight: 600;
+  color: #262626;
+  margin: 0;
 }
 
-.status-time {
+.hardware-info-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 20px;
+}
+
+.hardware-info-card {
+  display: flex;
+  align-items: center;
+  padding: 16px;
+  background-color: #fafafa;
+  border-radius: 8px;
+  border: 1px solid #f0f0f0;
+}
+
+.hardware-icon {
+  font-size: 32px;
+  margin-right: 16px;
+}
+
+.hardware-details h4 {
+  font-size: 14px;
+  font-weight: 600;
+  color: #262626;
+  margin-bottom: 8px;
+}
+
+.hardware-value {
+  font-size: 16px;
+  font-weight: 600;
+  color: #1890ff;
+  margin-bottom: 4px;
+}
+
+.hardware-usage {
   font-size: 12px;
-  color: #9ca3af;
+  color: #52c41a;
+  margin-bottom: 2px;
+}
+
+.hardware-temp {
+  font-size: 12px;
+  color: #8c8c8c;
+}
+
+.no-alarms {
+  background-color: #f6ffed;
+  border: 1px solid #b7eb8f;
+  border-radius: 8px;
+}
+
+.no-alarms h3 {
+  color: #52c41a;
+  margin-bottom: 8px;
+}
+
+.no-alarms p {
+  color: #8c8c8c;
+  margin: 0;
+}
+
+.alarm-list {
+  max-height: 300px;
+  overflow-y: auto;
+}
+
+@media (max-width: 1200px) {
+  .hardware-info-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (max-width: 768px) {
+  .hardware-info-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .stat-item {
+    padding: 16px;
+  }
+
+  .stat-value {
+    font-size: 20px;
+  }
 }
 </style>

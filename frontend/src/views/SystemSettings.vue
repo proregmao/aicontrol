@@ -215,7 +215,9 @@ onMounted(() => {
 
 <style scoped>
 .system-settings {
-  padding: 20px;
+  width: 100%; /* 统一宽度设置 */
+  max-width: none; /* 移除宽度限制 */
+  padding: 0; /* 移除padding，使用布局的统一padding */
 }
 
 .settings-nav {

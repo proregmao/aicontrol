@@ -296,7 +296,9 @@ const deleteServer = async (server: any) => {
 
 <style scoped>
 .server-config {
-  padding: 0;
+  width: 100%; /* 统一宽度设置 */
+  max-width: none; /* 移除宽度限制 */
+  padding: 0; /* 移除padding，使用布局的统一padding */
 }
 
 .page-header {
