@@ -38,8 +38,8 @@ export class DeviceApiService {
    * 获取设备统计数据
    */
   async getDeviceStats(): Promise<ApiResponse<DeviceStats>> {
-    const result = await apiService.get<DeviceStats>('/api/device-management/stats', true)
-    
+    const result = await apiService.get<DeviceStats>('/api/v1/dashboard/overview', true)
+
     // 如果API不存在，返回模拟数据
     if (!result.success) {
       console.log('📊 设备统计API不存在，使用模拟数据')
@@ -53,7 +53,7 @@ export class DeviceApiService {
         }
       }
     }
-    
+
     return result
   }
 
@@ -61,8 +61,8 @@ export class DeviceApiService {
    * 获取设备列表
    */
   async getDevices(): Promise<ApiResponse<{ items: Device[] }>> {
-    const result = await apiService.get<{ items: Device[] }>('/api/device-management/devices', true)
-    
+    const result = await apiService.get<{ items: Device[] }>('/api/v1/devices', true)
+
     // 如果API不存在，返回模拟数据
     if (!result.success) {
       console.log('📋 设备列表API不存在，使用模拟数据')
@@ -81,7 +81,7 @@ export class DeviceApiService {
               createdAt: new Date(Date.now() - 86400000).toISOString()
             },
             {
-              id: '2', 
+              id: '2',
               name: '电源控制器',
               type: 'power',
               status: 'online',
@@ -93,7 +93,7 @@ export class DeviceApiService {
             {
               id: '3',
               name: '智能开关',
-              type: 'switch', 
+              type: 'switch',
               status: 'online',
               ip: '192.168.110.52',
               port: 502,
@@ -114,28 +114,28 @@ export class DeviceApiService {
         }
       }
     }
-    
+
     return result
-  },
+  }
 
   async getDeviceById(id: string): Promise<ApiResponse<Device>> {
-    return apiService.get<Device>(`/api/device-management/devices/${id}`, true)
-  },
+    return apiService.get<Device>(`/api/v1/devices/${id}`, true)
+  }
 
   async createDevice(deviceData: any): Promise<ApiResponse<Device>> {
-    return apiService.post<Device>('/api/device-management/devices', deviceData, true)
-  },
+    return apiService.post<Device>('/api/v1/devices', deviceData, true)
+  }
 
   async updateDevice(id: string, deviceData: any): Promise<ApiResponse<Device>> {
-    return apiService.put<Device>(`/api/device-management/devices/${id}`, deviceData, true)
-  },
+    return apiService.put<Device>(`/api/v1/devices/${id}`, deviceData, true)
+  }
 
   async deleteDevice(id: string): Promise<ApiResponse<any>> {
-    return apiService.delete(`/api/device-management/devices/${id}`, true)
-  },
+    return apiService.delete(`/api/v1/devices/${id}`, true)
+  }
 
   async testConnection(deviceData: any): Promise<ApiResponse<any>> {
-    return apiService.post('/api/device-management/test-connection', deviceData, true)
+    return apiService.post('/api/v1/devices/test-connection', deviceData, true)
   }
 
   /**

@@ -55,11 +55,13 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive } from 'vue'
+import { ref, reactive, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
-import { ElMessage, type FormInstance } from 'element-plus'
+import { useAuthStore } from '@/stores/auth'
+import { ElMessage, type FormInstance, type FormRules } from 'element-plus'
 
 const router = useRouter()
+const authStore = useAuthStore()
 
 // 表单引用
 const loginFormRef = ref<FormInstance>()
@@ -71,9 +73,10 @@ const loginForm = reactive({
 })
 
 // 表单验证规则
-const loginRules = {
+const loginRules: FormRules = {
   username: [
-    { required: true, message: '请输入用户名', trigger: 'blur' }
+    { required: true, message: '请输入用户名', trigger: 'blur' },
+    { min: 3, message: '用户名长度不能少于3位', trigger: 'blur' }
   ],
   password: [
     { required: true, message: '请输入密码', trigger: 'blur' },
@@ -89,33 +92,33 @@ const handleLogin = async () => {
   if (!loginFormRef.value) return
 
   try {
+    // 验证表单
     await loginFormRef.value.validate()
 
     loginLoading.value = true
 
-    // 模拟登录API调用
-    setTimeout(() => {
-      if (loginForm.username === 'admin' && loginForm.password === 'admin123') {
-        // 保存token
-        localStorage.setItem('token', 'mock-jwt-token')
-        localStorage.setItem('username', loginForm.username)
+    // 调用登录API
+    await authStore.login({
+      username: loginForm.username,
+      password: loginForm.password
+    })
 
-        ElMessage.success('登录成功')
-
-        // 强制跳转到首页
-        window.location.href = '/'
-      } else {
-        ElMessage.error('用户名或密码错误')
-      }
-
-      loginLoading.value = false
-    }, 1000)
+    // 跳转到首页
+    router.push('/')
 
   } catch (error) {
-    console.error('表单验证失败:', error)
+    console.error('登录失败:', error)
+  } finally {
     loginLoading.value = false
   }
 }
+
+// 组件挂载时检查是否已登录
+onMounted(() => {
+  if (authStore.isAuthenticated) {
+    router.push('/')
+  }
+})
 </script>
 
 <style scoped>
