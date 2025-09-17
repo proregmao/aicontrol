@@ -268,15 +268,15 @@ func (s *ModbusService) writeCoil(breaker *models.Breaker, address uint16, value
 
 // sendModbusWriteCoil 发送MODBUS TCP写入线圈指令
 func (s *ModbusService) sendModbusWriteCoil(ipAddress string, port int, address uint16, value uint16) error {
-	// 建立TCP连接 (快速超时，避免阻塞前端)
-	conn, err := net.DialTimeout("tcp", fmt.Sprintf("%s:%d", ipAddress, port), 1*time.Second)
+	// 建立TCP连接 (超快速超时，避免阻塞前端)
+	conn, err := net.DialTimeout("tcp", fmt.Sprintf("%s:%d", ipAddress, port), 200*time.Millisecond)
 	if err != nil {
 		return fmt.Errorf("连接MODBUS设备失败: %w", err)
 	}
 	defer conn.Close()
 
-	// 设置读写超时 (快速超时)
-	conn.SetDeadline(time.Now().Add(1 * time.Second))
+	// 设置读写超时 (超快速超时)
+	conn.SetDeadline(time.Now().Add(300 * time.Millisecond))
 
 	// 构建MODBUS TCP请求帧
 	// MODBUS TCP ADU = MBAP Header (7字节) + PDU
@@ -341,15 +341,15 @@ func (s *ModbusService) sendModbusWriteCoil(ipAddress string, port int, address 
 
 // sendModbusReadInputRegister 发送MODBUS TCP读取输入寄存器指令
 func (s *ModbusService) sendModbusReadInputRegister(ipAddress string, port int, address uint16) (uint16, error) {
-	// 建立TCP连接 (快速超时，避免阻塞前端)
-	conn, err := net.DialTimeout("tcp", fmt.Sprintf("%s:%d", ipAddress, port), 1*time.Second)
+	// 建立TCP连接 (超快速超时，避免阻塞前端)
+	conn, err := net.DialTimeout("tcp", fmt.Sprintf("%s:%d", ipAddress, port), 200*time.Millisecond)
 	if err != nil {
 		return 0, fmt.Errorf("连接MODBUS设备失败: %w", err)
 	}
 	defer conn.Close()
 
-	// 设置读写超时 (快速超时)
-	conn.SetDeadline(time.Now().Add(1 * time.Second))
+	// 设置读写超时 (超快速超时)
+	conn.SetDeadline(time.Now().Add(300 * time.Millisecond))
 
 	// 构建MODBUS TCP请求帧
 	// MODBUS TCP ADU = MBAP Header (7字节) + PDU
