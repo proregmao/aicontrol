@@ -198,6 +198,13 @@ start_backend() {
     echo $COLLECTOR_PID > ../temperature-collector.pid
     log_success "温度数据采集服务启动完成 (PID: $COLLECTOR_PID)"
 
+    # 启动服务器状态监控服务
+    log_info "启动服务器状态监控服务..."
+    nohup go run cmd/server-monitor/main.go > ../logs/server-monitor.log 2>&1 &
+    MONITOR_PID=$!
+    echo $MONITOR_PID > ../server-monitor.pid
+    log_success "服务器状态监控服务启动完成 (PID: $MONITOR_PID)"
+
     cd ..
 
     # 等待后端启动
@@ -314,6 +321,7 @@ show_logs_info() {
     echo -e "  后端日志: ${YELLOW}tail -f logs/backend.log${NC}"
     echo -e "  前端日志: ${YELLOW}tail -f logs/frontend.log${NC}"
     echo -e "  温度采集日志: ${YELLOW}tail -f logs/temperature-collector.log${NC}"
+    echo -e "  服务器监控日志: ${YELLOW}tail -f logs/server-monitor.log${NC}"
     echo -e "  查看所有日志: ${YELLOW}tail -f logs/*.log${NC}"
     echo ""
 }
@@ -353,6 +361,21 @@ cleanup() {
         fi
         rm -f temperature-collector.pid
         log_success "温度数据采集服务已停止"
+    fi
+
+    # 停止服务器状态监控服务
+    if [ -f "server-monitor.pid" ]; then
+        MONITOR_PID=$(cat server-monitor.pid)
+        if kill -0 $MONITOR_PID 2>/dev/null; then
+            kill -TERM $MONITOR_PID 2>/dev/null || true
+            sleep 2
+            # 如果进程仍在运行，强制杀死
+            if kill -0 $MONITOR_PID 2>/dev/null; then
+                kill -KILL $MONITOR_PID 2>/dev/null || true
+            fi
+        fi
+        rm -f server-monitor.pid
+        log_success "服务器状态监控服务已停止"
     fi
 
     # 停止前端服务

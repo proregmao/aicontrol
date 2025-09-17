@@ -351,7 +351,7 @@ func (c *ServerController) CreateServer(ctx *gin.Context) {
 // @Accept json
 // @Produce json
 // @Param id path int true "服务器ID"
-// @Param server body models.ServerUpdateRequest true "服务器更新信息"
+// @Param server body models.UpdateServerRequest true "服务器更新信息"
 // @Success 200 {object} models.APIResponse{data=models.Server}
 // @Failure 400 {object} models.APIResponse
 // @Failure 404 {object} models.APIResponse
@@ -359,26 +359,9 @@ func (c *ServerController) CreateServer(ctx *gin.Context) {
 // @Router /api/v1/servers/{id} [put]
 func (c *ServerController) UpdateServer(ctx *gin.Context) {
 	idStr := ctx.Param("id")
-	id, err := strconv.Atoi(idStr)
-	if err != nil {
-		ctx.JSON(http.StatusBadRequest, models.APIResponse{
-			Code:    http.StatusBadRequest,
-			Message: "无效的服务器ID",
-			Error:   err.Error(),
-		})
-		return
-	}
 
-	var updateReq struct {
-		Name        string `json:"name" binding:"required"`
-		Host        string `json:"host" binding:"required"`
-		Port        int    `json:"port" binding:"required"`
-		Username    string `json:"username" binding:"required"`
-		Description string `json:"description"`
-		Location    string `json:"location"`
-	}
-
-	if err := ctx.ShouldBindJSON(&updateReq); err != nil {
+	var req models.UpdateServerRequest
+	if err := ctx.ShouldBindJSON(&req); err != nil {
 		ctx.JSON(http.StatusBadRequest, models.APIResponse{
 			Code:    http.StatusBadRequest,
 			Message: "请求参数错误",
@@ -387,22 +370,20 @@ func (c *ServerController) UpdateServer(ctx *gin.Context) {
 		return
 	}
 
-	// 模拟更新服务器
-	server := gin.H{
-		"id":          id,
-		"name":        updateReq.Name,
-		"host":        updateReq.Host,
-		"port":        updateReq.Port,
-		"username":    updateReq.Username,
-		"description": updateReq.Description,
-		"location":    updateReq.Location,
-		"status":      "online",
-		"updated_at":  time.Now().Format(time.RFC3339),
+	// 调用服务层更新服务器
+	server, err := c.serverService.UpdateServer(idStr, &req)
+	if err != nil {
+		ctx.JSON(http.StatusInternalServerError, models.APIResponse{
+			Code:    http.StatusInternalServerError,
+			Message: "更新服务器失败",
+			Error:   err.Error(),
+		})
+		return
 	}
 
 	ctx.JSON(http.StatusOK, models.APIResponse{
 		Code:    http.StatusOK,
-		Message: "服务器信息更新成功",
+		Message: "服务器更新成功",
 		Data:    server,
 	})
 }

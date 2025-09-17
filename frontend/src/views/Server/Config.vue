@@ -10,22 +10,38 @@
         <template #header>
           <div class="card-header">
             <span>服务器连接配置</span>
-            <el-button type="primary" @click="addServer">
-              <el-icon><Plus /></el-icon>
-              添加服务器
-            </el-button>
+            <div class="header-buttons">
+              <el-button
+                type="danger"
+                :disabled="selectedServers.length === 0"
+                @click="batchDeleteServers"
+              >
+                <el-icon><Delete /></el-icon>
+                批量删除 ({{ selectedServers.length }})
+              </el-button>
+              <el-button type="primary" @click="addServer">
+                <el-icon><Plus /></el-icon>
+                添加服务器
+              </el-button>
+            </div>
           </div>
         </template>
         
-        <el-table :data="serverConfigs" style="width: 100%">
-          <el-table-column prop="name" label="服务器名称" width="150" />
-          <el-table-column prop="ip" label="IP地址" width="140" />
-          <el-table-column prop="port" label="端口" width="80" />
-          <el-table-column prop="protocol" label="协议" width="100" />
-          <el-table-column prop="username" label="用户名" width="120" />
-          <el-table-column prop="status" label="连接状态" width="100">
+        <el-table
+          :data="serverConfigs"
+          style="width: 100%"
+          border
+          @selection-change="handleSelectionChange"
+        >
+          <el-table-column type="selection" width="50" />
+          <el-table-column prop="name" label="服务器名称" width="112" header-align="center" />
+          <el-table-column prop="ip" label="IP地址" width="136" header-align="center" />
+          <el-table-column prop="port" label="端口" width="64" header-align="center" />
+          <el-table-column prop="protocol" label="协议" width="64" header-align="center" />
+          <el-table-column prop="username" label="用户名" width="80" header-align="center" />
+          <el-table-column prop="status" label="连接状态" width="96" header-align="center">
             <template #default="scope">
-              <el-tag 
+              <el-tag
                 :type="scope.row.connected ? 'success' : 'danger'"
                 size="small"
               >
@@ -33,22 +49,34 @@
               </el-tag>
             </template>
           </el-table-column>
-          <el-table-column label="操作" width="200">
+          <el-table-column prop="testInterval" label="测试间隔" width="96" header-align="center">
             <template #default="scope">
-              <el-button type="text" size="small" @click="editServer(scope.row)">
-                编辑
-              </el-button>
-              <el-button type="text" size="small" @click="testConnection(scope.row)">
-                测试连接
-              </el-button>
-              <el-button 
-                type="text" 
-                size="small" 
-                @click="deleteServer(scope.row)"
-                style="color: #f56565;"
-              >
-                删除
-              </el-button>
+              {{ formatTestInterval(scope.row.testInterval) }}
+            </template>
+          </el-table-column>
+          <el-table-column prop="lastTestAt" label="最后测试" width="96" header-align="center">
+            <template #default="scope">
+              {{ formatLastTestTime(scope.row.lastTestAt) }}
+            </template>
+          </el-table-column>
+          <el-table-column label="操作" header-align="center">
+            <template #default="scope">
+              <div class="action-buttons">
+                <el-button type="text" size="small" @click="editServer(scope.row)">
+                  编辑
+                </el-button>
+                <el-button type="text" size="small" @click="testConnection(scope.row)">
+                  测试连接
+                </el-button>
+                <el-button
+                  type="text"
+                  size="small"
+                  @click="deleteServer(scope.row)"
+                  class="delete-button"
+                >
+                  删除
+                </el-button>
+              </div>
             </template>
           </el-table-column>
         </el-table>
@@ -91,18 +119,35 @@
         <el-form-item label="用户名" prop="username">
           <el-input v-model="serverForm.username" placeholder="请输入用户名" />
         </el-form-item>
+
+        <el-form-item label="测试间隔">
+          <el-select v-model="serverForm.testInterval" placeholder="请选择测试间隔">
+            <el-option label="1分钟" :value="60" />
+            <el-option label="2分钟" :value="120" />
+            <el-option label="5分钟" :value="300" />
+            <el-option label="10分钟" :value="600" />
+            <el-option label="15分钟" :value="900" />
+            <el-option label="30分钟" :value="1800" />
+            <el-option label="1小时" :value="3600" />
+          </el-select>
+        </el-form-item>
         
-        <el-form-item label="密码" prop="password">
-          <el-input 
-            v-model="serverForm.password" 
-            type="password" 
-            placeholder="请输入密码"
+        <el-form-item label="密码">
+          <el-input
+            v-model="serverForm.password"
+            type="password"
+            placeholder="请输入密码（可选）"
             show-password
           />
         </el-form-item>
-        
-        <el-form-item label="私钥文件" v-if="serverForm.protocol === 'ssh'">
-          <el-input v-model="serverForm.privateKey" placeholder="私钥文件路径（可选）" />
+
+        <el-form-item label="私钥" v-if="serverForm.protocol === 'ssh'">
+          <el-input
+            v-model="serverForm.privateKey"
+            type="textarea"
+            :rows="6"
+            placeholder="请输入私钥内容（可选）&#10;-----BEGIN OPENSSH PRIVATE KEY-----&#10;...&#10;-----END OPENSSH PRIVATE KEY-----"
+          />
         </el-form-item>
         
         <el-form-item label="描述">
@@ -129,7 +174,7 @@
 import { ref, reactive, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import type { FormInstance, FormRules } from 'element-plus'
-import { Plus } from '@element-plus/icons-vue'
+import { Plus, Delete } from '@element-plus/icons-vue'
 
 // 响应式数据
 const dialogVisible = ref(false)
@@ -139,6 +184,9 @@ const formRef = ref<FormInstance>()
 
 // 服务器配置列表
 const serverConfigs = ref([])
+
+// 多选相关
+const selectedServers = ref([])
 
 // 加载服务器列表
 const loadServers = async () => {
@@ -154,17 +202,28 @@ const loadServers = async () => {
     const result = await response.json()
 
     if (result.code === 200) {
-      serverConfigs.value = result.data.map((server: any) => ({
-        id: server.id,
-        name: server.server_name,
-        ip: server.ip_address,
-        port: server.port,
-        protocol: server.protocol,
-        username: server.username,
-        connected: server.connected,
-        status: server.status,
-        description: server.description
-      }))
+      // 检查 result.data 是否为 null 或不是数组
+      if (result.data && Array.isArray(result.data)) {
+        serverConfigs.value = result.data.map((server: any) => ({
+          id: server.id,
+          name: server.server_name,
+          ip: server.ip_address,
+          port: server.port,
+          protocol: server.protocol,
+          username: server.username,
+          password: server.password || '',
+          privateKey: server.private_key || '',
+          testInterval: server.test_interval || 300,
+          lastTestAt: server.last_test_at,
+          connected: server.connected,
+          status: server.status,
+          description: server.description
+        }))
+      } else {
+        // 如果没有数据，设置为空数组
+        serverConfigs.value = []
+        console.log('服务器列表为空')
+      }
     } else {
       ElMessage.error(result.message || '加载服务器列表失败')
     }
@@ -184,6 +243,7 @@ const serverForm = reactive({
   username: '',
   password: '',
   privateKey: '',
+  testInterval: 300, // 默认5分钟
   description: ''
 })
 
@@ -204,10 +264,8 @@ const formRules: FormRules = {
   ],
   username: [
     { required: true, message: '请输入用户名', trigger: 'blur' }
-  ],
-  password: [
-    { required: true, message: '请输入密码', trigger: 'blur' }
   ]
+  // 密码和私钥都是可选的，不需要验证规则
 }
 
 // 添加服务器
@@ -220,7 +278,17 @@ const addServer = () => {
 // 编辑服务器
 const editServer = (server: any) => {
   isEdit.value = true
-  Object.assign(serverForm, server)
+  // 正确映射服务器数据到表单字段
+  serverForm.id = server.id
+  serverForm.name = server.name
+  serverForm.ip = server.ip
+  serverForm.port = server.port
+  serverForm.protocol = server.protocol.toLowerCase()
+  serverForm.username = server.username
+  serverForm.password = server.password || ''
+  serverForm.privateKey = server.privateKey || ''
+  serverForm.testInterval = server.testInterval || 300
+  serverForm.description = server.description || ''
   dialogVisible.value = true
 }
 
@@ -235,6 +303,7 @@ const resetForm = () => {
     username: '',
     password: '',
     privateKey: '',
+    testInterval: 300,
     description: ''
   })
 }
@@ -247,35 +316,61 @@ const saveServer = async () => {
     await formRef.value.validate()
     saving.value = true
 
-    // 这里将调用API保存服务器配置
-    await new Promise(resolve => setTimeout(resolve, 1000))
+    const serverData = {
+      server_name: serverForm.name,
+      ip_address: serverForm.ip,
+      port: serverForm.port,
+      protocol: serverForm.protocol.toUpperCase(),
+      username: serverForm.username,
+      password: serverForm.password,
+      private_key: serverForm.privateKey,
+      test_interval: serverForm.testInterval,
+      description: serverForm.description
+    }
 
     if (isEdit.value) {
       // 编辑模式：更新现有服务器
-      const index = serverConfigs.value.findIndex(s => s.id === serverForm.id)
-      if (index > -1) {
-        serverConfigs.value[index] = {
-          ...serverConfigs.value[index],
-          ...serverForm,
-          connected: serverConfigs.value[index].connected // 保持原有连接状态
-        }
+      const response = await fetch(`/api/v1/servers/${serverForm.id}`, {
+        method: 'PUT',
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('token')}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(serverData)
+      })
+
+      const result = await response.json()
+      if (result.code === 200) {
+        ElMessage.success('服务器配置更新成功')
+        await loadServers() // 重新加载服务器列表
+      } else {
+        throw new Error(result.message || '更新服务器失败')
       }
-      ElMessage.success('服务器更新成功')
     } else {
-      // 添加模式：添加新服务器
-      const newServer = {
-        ...serverForm,
-        id: Date.now(), // 生成临时ID
-        connected: false // 新服务器默认未连接
+      // 添加模式：创建新服务器
+      const response = await fetch('/api/v1/servers', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('token')}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(serverData)
+      })
+
+      const result = await response.json()
+      if (result.code === 200 || result.code === 201) {
+        ElMessage.success('服务器添加成功')
+        await loadServers() // 重新加载服务器列表
+      } else {
+        throw new Error(result.message || '添加服务器失败')
       }
-      serverConfigs.value.push(newServer)
-      ElMessage.success('服务器添加成功')
     }
 
     dialogVisible.value = false
 
-  } catch (error) {
+  } catch (error: any) {
     console.error('保存服务器失败:', error)
+    ElMessage.error(`保存服务器失败: ${error.message || error}`)
   } finally {
     saving.value = false
   }
@@ -296,6 +391,55 @@ const testConnection = async (server: any) => {
       server.connected = false
     }
   }, 2000)
+}
+
+// 多选处理
+const handleSelectionChange = (selection: any[]) => {
+  selectedServers.value = selection
+}
+
+// 批量删除服务器
+const batchDeleteServers = async () => {
+  if (selectedServers.value.length === 0) {
+    ElMessage.warning('请先选择要删除的服务器')
+    return
+  }
+
+  try {
+    const serverNames = selectedServers.value.map((server: any) => server.name).join('、')
+    await ElMessageBox.confirm(
+      `确定要删除以下 ${selectedServers.value.length} 个服务器吗？\n${serverNames}`,
+      '批量删除确认',
+      {
+        confirmButtonText: '确定删除',
+        cancelButtonText: '取消',
+        type: 'warning',
+      }
+    )
+
+    // 批量删除API调用
+    const deletePromises = selectedServers.value.map((server: any) =>
+      fetch(`http://localhost:8080/api/v1/servers/${server.id}`, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('token')}`,
+          'Content-Type': 'application/json'
+        }
+      })
+    )
+
+    await Promise.all(deletePromises)
+
+    ElMessage.success(`成功删除 ${selectedServers.value.length} 个服务器`)
+    selectedServers.value = []
+    await loadServers() // 重新加载服务器列表
+
+  } catch (error: any) {
+    if (error !== 'cancel') {
+      console.error('批量删除服务器失败:', error)
+      ElMessage.error(`批量删除失败: ${error.message || error}`)
+    }
+  }
 }
 
 // 删除服务器
@@ -337,6 +481,27 @@ const deleteServer = async (server: any) => {
   }
 }
 
+// 格式化测试间隔
+const formatTestInterval = (seconds: number) => {
+  if (!seconds) return '未设置'
+  if (seconds < 60) return `${seconds}秒`
+  if (seconds < 3600) return `${Math.floor(seconds / 60)}分钟`
+  return `${Math.floor(seconds / 3600)}小时`
+}
+
+// 格式化最后测试时间
+const formatLastTestTime = (lastTestAt: string | null) => {
+  if (!lastTestAt) return '从未测试'
+  const date = new Date(lastTestAt)
+  const now = new Date()
+  const diff = now.getTime() - date.getTime()
+
+  if (diff < 60000) return '刚刚'
+  if (diff < 3600000) return `${Math.floor(diff / 60000)}分钟前`
+  if (diff < 86400000) return `${Math.floor(diff / 3600000)}小时前`
+  return date.toLocaleDateString() + ' ' + date.toLocaleTimeString()
+}
+
 // 页面加载时获取服务器列表
 onMounted(() => {
   loadServers()
@@ -371,5 +536,30 @@ onMounted(() => {
   display: flex;
   justify-content: space-between;
   align-items: center;
+}
+
+.header-buttons {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+}
+
+.action-buttons {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.action-buttons .el-button {
+  margin: 0;
+  padding: 4px 8px;
+}
+
+.delete-button {
+  color: #f56565 !important;
+}
+
+.delete-button:hover {
+  color: #e53e3e !important;
 }
 </style>

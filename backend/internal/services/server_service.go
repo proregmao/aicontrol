@@ -3,10 +3,14 @@ package services
 import (
 	"errors"
 	"fmt"
+	"net"
+	"net/http"
 	"smart-device-management/internal/models"
 	"smart-device-management/internal/repositories"
 	"smart-device-management/pkg/logger"
 	"strconv"
+	"strings"
+	"time"
 )
 
 // ServerService 服务器服务
@@ -93,21 +97,28 @@ func (s *ServerService) CreateServer(req *models.CreateServerRequest) (*models.S
 		req.Protocol = "SSH"
 	}
 
+	// 设置默认测试间隔
+	if req.TestInterval == 0 {
+		req.TestInterval = 300 // 默认5分钟
+	}
+
 	// 创建服务器对象
 	server := &models.Server{
-		ServerName:  req.ServerName,
-		Hostname:    req.Hostname,
-		IPAddress:   req.IPAddress,
-		Port:        req.Port,
-		Protocol:    req.Protocol,
-		Username:    req.Username,
-		Password:    req.Password, // TODO: 加密存储
-		OSType:      req.OSType,
-		OSVersion:   req.OSVersion,
-		Status:      models.ServerStatusOffline,
-		Connected:   false,
-		IsMonitored: true,
-		Description: req.Description,
+		ServerName:   req.ServerName,
+		Hostname:     req.Hostname,
+		IPAddress:    req.IPAddress,
+		Port:         req.Port,
+		Protocol:     req.Protocol,
+		Username:     req.Username,
+		Password:     req.Password,   // TODO: 加密存储
+		PrivateKey:   req.PrivateKey, // TODO: 加密存储
+		TestInterval: req.TestInterval,
+		OSType:       req.OSType,
+		OSVersion:    req.OSVersion,
+		Status:       models.ServerStatusOffline,
+		Connected:    false,
+		IsMonitored:  true,
+		Description:  req.Description,
 	}
 
 	// 保存到数据库
@@ -165,6 +176,12 @@ func (s *ServerService) UpdateServer(id string, req *models.UpdateServerRequest)
 	}
 	if req.Password != "" {
 		server.Password = req.Password // TODO: 加密存储
+	}
+	if req.PrivateKey != "" {
+		server.PrivateKey = req.PrivateKey // TODO: 加密存储
+	}
+	if req.TestInterval > 0 {
+		server.TestInterval = req.TestInterval
 	}
 	if req.OSType != "" {
 		server.OSType = req.OSType
@@ -232,4 +249,72 @@ func (s *ServerService) UpdateServerStatus(id string, status models.ServerStatus
 
 	s.logger.Info("成功更新服务器状态", "server_id", id, "status", status)
 	return nil
+}
+
+// TestConnection 测试服务器连接
+func (s *ServerService) TestConnection(ipAddress string, port int, protocol, username, password, privateKey string) (bool, error) {
+	s.logger.Info("测试服务器连接", "ip_address", ipAddress, "port", port, "protocol", protocol)
+
+	switch strings.ToUpper(protocol) {
+	case "SSH":
+		return s.testSSHConnection(ipAddress, port, username, password, privateKey)
+	case "RDP":
+		return s.testRDPConnection(ipAddress, port)
+	case "HTTP", "HTTPS":
+		return s.testHTTPConnection(ipAddress, port, protocol)
+	default:
+		return s.testTCPConnection(ipAddress, port)
+	}
+}
+
+// testSSHConnection 测试SSH连接
+func (s *ServerService) testSSHConnection(ipAddress string, port int, username, password, privateKey string) (bool, error) {
+	// 简单的TCP连接测试
+	timeout := 10 * time.Second
+	conn, err := net.DialTimeout("tcp", fmt.Sprintf("%s:%d", ipAddress, port), timeout)
+	if err != nil {
+		return false, err
+	}
+	defer conn.Close()
+
+	// TODO: 实现真正的SSH认证测试
+	return true, nil
+}
+
+// testRDPConnection 测试RDP连接
+func (s *ServerService) testRDPConnection(ipAddress string, port int) (bool, error) {
+	timeout := 10 * time.Second
+	conn, err := net.DialTimeout("tcp", fmt.Sprintf("%s:%d", ipAddress, port), timeout)
+	if err != nil {
+		return false, err
+	}
+	defer conn.Close()
+	return true, nil
+}
+
+// testHTTPConnection 测试HTTP连接
+func (s *ServerService) testHTTPConnection(ipAddress string, port int, protocol string) (bool, error) {
+	url := fmt.Sprintf("%s://%s:%d", strings.ToLower(protocol), ipAddress, port)
+	client := &http.Client{
+		Timeout: 10 * time.Second,
+	}
+
+	resp, err := client.Get(url)
+	if err != nil {
+		return false, err
+	}
+	defer resp.Body.Close()
+
+	return resp.StatusCode < 500, nil
+}
+
+// testTCPConnection 测试TCP连接
+func (s *ServerService) testTCPConnection(ipAddress string, port int) (bool, error) {
+	timeout := 10 * time.Second
+	conn, err := net.DialTimeout("tcp", fmt.Sprintf("%s:%d", ipAddress, port), timeout)
+	if err != nil {
+		return false, err
+	}
+	defer conn.Close()
+	return true, nil
 }

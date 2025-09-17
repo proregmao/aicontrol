@@ -35,14 +35,16 @@ func NewServerRepository(db *gorm.DB) ServerRepository {
 // FindAll 获取所有服务器
 func (r *serverRepository) FindAll() ([]models.Server, error) {
 	var servers []models.Server
-	err := r.db.Preload("Device").Find(&servers).Error
+	// 移除 Preload("Device") 避免关联查询问题
+	err := r.db.Find(&servers).Error
 	return servers, err
 }
 
 // FindByID 根据ID获取服务器
 func (r *serverRepository) FindByID(id uint) (*models.Server, error) {
 	var server models.Server
-	err := r.db.Preload("Device").Where("id = ?", id).First(&server).Error
+	// 移除 Preload("Device") 避免关联查询问题
+	err := r.db.Where("id = ?", id).First(&server).Error
 	if err != nil {
 		if err == gorm.ErrRecordNotFound {
 			return nil, nil
