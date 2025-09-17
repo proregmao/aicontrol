@@ -241,7 +241,7 @@ func setupRouter() *gin.Engine {
 	}
 
 	// 断路器管理路由
-	breakerController := controllers.NewBreakerController(services.NewBreakerService(repositories.NewBreakerRepository(database.GetDB()), repositories.NewServerRepository(database.GetDB()), logger.GetLogger()))
+	breakerController := controllers.NewBreakerController(services.NewBreakerService(repositories.NewBreakerRepository(database.GetDB()), repositories.NewServerRepository(database.GetDB()), logger.GetLogger(), database.GetDB()))
 	breakerGroup := apiV1.Group("/breakers")
 	{
 		breakerGroup.GET("", middleware.AuthMiddleware(), breakerController.GetBreakers)
@@ -249,6 +249,7 @@ func setupRouter() *gin.Engine {
 		breakerGroup.GET("/:id", middleware.AuthMiddleware(), breakerController.GetBreaker)
 		breakerGroup.PUT("/:id", middleware.AuthMiddleware(), middleware.RequireOperator(), breakerController.UpdateBreaker)
 		breakerGroup.DELETE("/:id", middleware.AuthMiddleware(), middleware.RequireOperator(), breakerController.DeleteBreaker)
+		breakerGroup.GET("/:id/realtime", middleware.AuthMiddleware(), breakerController.GetBreakerRealTimeData)
 		breakerGroup.POST("/:id/control", middleware.AuthMiddleware(), middleware.RequireOperator(), breakerController.ControlBreaker)
 		breakerGroup.GET("/:id/control/:control_id", middleware.AuthMiddleware(), breakerController.GetControlStatus)
 		breakerGroup.GET("/:id/bindings", middleware.AuthMiddleware(), breakerController.GetBindings)

@@ -29,7 +29,7 @@ type Breaker struct {
 	ID             uint           `json:"id" gorm:"primaryKey"`
 	DeviceID       uint           `json:"device_id" gorm:"not null"`
 	BreakerName    string         `json:"breaker_name" gorm:"size:100;not null"`
-	IPAddress      string         `json:"ip_address" gorm:"size:45;not null"` // 断路器IP地址
+	IPAddress      string         `json:"ip_address" gorm:"size:45;not null"`  // 断路器IP地址
 	Port           int            `json:"port" gorm:"default:502"`             // Modbus端口，默认502
 	StationID      int            `json:"station_id" gorm:"default:1"`         // Modbus站号，默认1
 	RatedVoltage   *float64       `json:"rated_voltage"`                       // 额定电压
@@ -46,14 +46,29 @@ type Breaker struct {
 	DeletedAt      gorm.DeletedAt `json:"-" gorm:"index"`
 
 	// 关联
-	Device   *Device                  `json:"device,omitempty" gorm:"foreignKey:DeviceID"`
-	Bindings []BreakerServerBinding   `json:"bindings,omitempty" gorm:"foreignKey:BreakerID"`
-	Controls []BreakerControl         `json:"controls,omitempty" gorm:"foreignKey:BreakerID"`
+	Device   *Device                `json:"device,omitempty" gorm:"foreignKey:DeviceID"`
+	Bindings []BreakerServerBinding `json:"bindings,omitempty" gorm:"foreignKey:BreakerID"`
+	Controls []BreakerControl       `json:"controls,omitempty" gorm:"foreignKey:BreakerID"`
 }
 
 // TableName 指定表名
 func (Breaker) TableName() string {
 	return "breakers"
+}
+
+// BreakerRealTimeData 断路器实时数据
+type BreakerRealTimeData struct {
+	BreakerID      uint      `json:"breaker_id"`      // 断路器ID
+	Voltage        float64   `json:"voltage"`         // 电压 (V)
+	Current        float64   `json:"current"`         // 电流 (A)
+	Power          float64   `json:"power"`           // 有功功率 (kW)
+	PowerFactor    float64   `json:"power_factor"`    // 功率因数
+	Frequency      float64   `json:"frequency"`       // 频率 (Hz)
+	LeakageCurrent float64   `json:"leakage_current"` // 漏电流 (mA)
+	Temperature    float64   `json:"temperature"`     // 温度 (°C)
+	Status         string    `json:"status"`          // 断路器状态 (on/off/unknown)
+	IsLocked       bool      `json:"is_locked"`       // 是否锁定
+	LastUpdate     time.Time `json:"last_update"`     // 最后更新时间
 }
 
 // BreakerServerBinding 断路器服务器绑定
@@ -82,20 +97,20 @@ func (BreakerServerBinding) TableName() string {
 
 // BreakerControl 断路器控制记录
 type BreakerControl struct {
-	ID          uint           `json:"id" gorm:"primaryKey"`
-	BreakerID   uint           `json:"breaker_id" gorm:"not null"`
-	ControlID   string         `json:"control_id" gorm:"size:50;uniqueIndex"` // 控制ID
-	Action      BreakerAction  `json:"action" gorm:"not null"`                // 控制动作
-	Status      string         `json:"status" gorm:"size:20;default:'pending'"` // 控制状态
-	Reason      string         `json:"reason" gorm:"type:text"`               // 控制原因
-	StartTime   time.Time      `json:"start_time"`                            // 开始时间
-	EndTime     *time.Time     `json:"end_time"`                              // 结束时间
-	Duration    int            `json:"duration"`                              // 持续时间（秒）
-	Success     bool           `json:"success" gorm:"default:false"`          // 是否成功
-	ErrorMsg    string         `json:"error_msg" gorm:"type:text"`            // 错误信息
-	CreatedAt   time.Time      `json:"created_at"`
-	UpdatedAt   time.Time      `json:"updated_at"`
-	DeletedAt   gorm.DeletedAt `json:"-" gorm:"index"`
+	ID        uint           `json:"id" gorm:"primaryKey"`
+	BreakerID uint           `json:"breaker_id" gorm:"not null"`
+	ControlID string         `json:"control_id" gorm:"size:50;uniqueIndex"`   // 控制ID
+	Action    BreakerAction  `json:"action" gorm:"not null"`                  // 控制动作
+	Status    string         `json:"status" gorm:"size:20;default:'pending'"` // 控制状态
+	Reason    string         `json:"reason" gorm:"type:text"`                 // 控制原因
+	StartTime time.Time      `json:"start_time"`                              // 开始时间
+	EndTime   *time.Time     `json:"end_time"`                                // 结束时间
+	Duration  int            `json:"duration"`                                // 持续时间（秒）
+	Success   bool           `json:"success" gorm:"default:false"`            // 是否成功
+	ErrorMsg  string         `json:"error_msg" gorm:"type:text"`              // 错误信息
+	CreatedAt time.Time      `json:"created_at"`
+	UpdatedAt time.Time      `json:"updated_at"`
+	DeletedAt gorm.DeletedAt `json:"-" gorm:"index"`
 
 	// 关联
 	Breaker *Breaker `json:"breaker,omitempty" gorm:"foreignKey:BreakerID"`
@@ -181,7 +196,7 @@ type BreakerListResponse struct {
 	LastUpdate     *time.Time   `json:"last_update"`
 	Description    string       `json:"description"`
 	CreatedAt      time.Time    `json:"created_at"`
-	
+
 	// 绑定的服务器信息
 	BoundServers []BoundServerInfo `json:"bound_servers,omitempty"`
 }

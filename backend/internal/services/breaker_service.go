@@ -9,21 +9,24 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"gorm.io/gorm"
 )
 
 // BreakerService 断路器服务
 type BreakerService struct {
-	breakerRepo repositories.BreakerRepository
-	serverRepo  repositories.ServerRepository
-	logger      *logger.Logger
+	breakerRepo   repositories.BreakerRepository
+	serverRepo    repositories.ServerRepository
+	modbusService *ModbusService
+	logger        *logger.Logger
 }
 
 // NewBreakerService 创建断路器服务
-func NewBreakerService(breakerRepo repositories.BreakerRepository, serverRepo repositories.ServerRepository, logger *logger.Logger) *BreakerService {
+func NewBreakerService(breakerRepo repositories.BreakerRepository, serverRepo repositories.ServerRepository, logger *logger.Logger, db *gorm.DB) *BreakerService {
 	return &BreakerService{
-		breakerRepo: breakerRepo,
-		serverRepo:  serverRepo,
-		logger:      logger,
+		breakerRepo:   breakerRepo,
+		serverRepo:    serverRepo,
+		modbusService: NewModbusService(logger, db),
+		logger:        logger,
 	}
 }
 
@@ -44,6 +47,97 @@ func (s *BreakerService) GetBreakers() ([]models.BreakerListResponse, error) {
 
 	s.logger.Info("成功获取断路器列表", "count", len(responses))
 	return responses, nil
+}
+
+// GetBreakerRealTimeData 获取断路器实时数据
+func (s *BreakerService) GetBreakerRealTimeData(id uint) (*models.BreakerRealTimeData, error) {
+	s.logger.Info("获取断路器实时数据", "breaker_id", id)
+
+	// 获取断路器配置信息
+	breaker, err := s.breakerRepo.GetByID(id)
+	if err != nil {
+		s.logger.Error("获取断路器配置失败", "breaker_id", id, "error", err)
+		return nil, fmt.Errorf("获取断路器配置失败: %w", err)
+	}
+
+	// 读取MODBUS实时数据
+	realTimeData, err := s.readModbusData(breaker)
+	if err != nil {
+		s.logger.Error("读取MODBUS数据失败", "breaker_id", id, "error", err)
+		// 如果读取失败，返回默认数据
+		return s.getDefaultRealTimeData(breaker), nil
+	}
+
+	s.logger.Info("成功获取断路器实时数据", "breaker_id", id)
+	return realTimeData, nil
+}
+
+// readModbusData 读取MODBUS数据
+func (s *BreakerService) readModbusData(breaker *models.Breaker) (*models.BreakerRealTimeData, error) {
+	// 使用MODBUS服务读取真实数据
+	return s.modbusService.ReadBreakerData(breaker)
+}
+
+// simulateModbusData 模拟MODBUS数据
+func (s *BreakerService) simulateModbusData(breaker *models.Breaker) *models.BreakerRealTimeData {
+	// 基于断路器配置生成模拟数据
+	isOn := time.Now().Unix()%3 != 0 // 大约66%的概率为开启状态
+
+	voltage := 220.0
+	if breaker.RatedVoltage != nil {
+		voltage = *breaker.RatedVoltage + (float64(time.Now().Unix()%20) - 10) // ±10V波动
+	}
+
+	var current float64
+	if isOn && breaker.RatedCurrent != nil {
+		// 模拟负载电流，通常为额定电流的20-80%
+		loadFactor := 0.2 + float64(time.Now().Unix()%60)/100.0 // 20%-80%
+		current = *breaker.RatedCurrent * loadFactor
+	}
+
+	powerFactor := 0.85 + float64(time.Now().Unix()%15)/100.0 // 0.85-1.00
+	power := voltage * current * powerFactor / 1000           // kW
+
+	status := "off"
+	if isOn {
+		status = "on"
+	}
+
+	return &models.BreakerRealTimeData{
+		BreakerID:      breaker.ID,
+		Voltage:        voltage,
+		Current:        current,
+		Power:          power,
+		PowerFactor:    powerFactor,
+		Frequency:      49.8 + float64(time.Now().Unix()%5)/10.0, // 49.8-50.2Hz
+		LeakageCurrent: float64(time.Now().Unix() % 5),           // 0-5mA
+		Temperature:    25.0 + float64(time.Now().Unix()%30),     // 25-55°C
+		Status:         status,
+		IsLocked:       time.Now().Unix()%10 == 0, // 10%概率锁定
+		LastUpdate:     time.Now(),
+	}
+}
+
+// getDefaultRealTimeData 获取默认实时数据
+func (s *BreakerService) getDefaultRealTimeData(breaker *models.Breaker) *models.BreakerRealTimeData {
+	voltage := 220.0
+	if breaker.RatedVoltage != nil {
+		voltage = *breaker.RatedVoltage
+	}
+
+	return &models.BreakerRealTimeData{
+		BreakerID:      breaker.ID,
+		Voltage:        voltage,
+		Current:        0,
+		Power:          0,
+		PowerFactor:    0,
+		Frequency:      50.0,
+		LeakageCurrent: 0,
+		Temperature:    25.0,
+		Status:         "unknown",
+		IsLocked:       false,
+		LastUpdate:     time.Now(),
+	}
 }
 
 // GetBreaker 获取单个断路器
@@ -313,32 +407,50 @@ func (s *BreakerService) executeControl(breaker *models.Breaker, control *models
 		time.Sleep(time.Duration(delaySeconds) * time.Second)
 	}
 
-	// 这里可以实现真实的Modbus控制逻辑
-	// 目前模拟执行过程
-	time.Sleep(2 * time.Second)
+	// 更新控制状态为运行中
+	control.Status = "running"
+	if err := s.breakerRepo.UpdateControl(control); err != nil {
+		s.logger.Error("更新控制状态失败", "control_id", control.ControlID, "error", err)
+	}
+
+	// 使用MODBUS服务执行真实的控制操作
+	var controlErr error
+	actionStr := string(control.Action)
+	if err := s.modbusService.ControlBreaker(breaker, actionStr); err != nil {
+		s.logger.Error("MODBUS控制失败", "breaker_id", breaker.ID, "error", err)
+		controlErr = err
+	}
 
 	// 更新控制记录
 	now := time.Now()
-	control.Status = "completed"
 	control.EndTime = &now
 	control.Duration = int(now.Sub(control.StartTime).Seconds())
-	control.Success = true
 
-	// 更新断路器状态
-	if control.Action == models.BreakerActionOn {
-		breaker.Status = models.SwitchStatusOn
+	if controlErr != nil {
+		control.Status = "failed"
+		control.Success = false
+		control.ErrorMsg = controlErr.Error()
 	} else {
-		breaker.Status = models.SwitchStatusOff
-	}
-	breaker.LastUpdate = &now
+		control.Status = "completed"
+		control.Success = true
 
-	// 保存更新
+		// 更新断路器状态
+		if control.Action == models.BreakerActionOn {
+			breaker.Status = models.SwitchStatusOn
+		} else {
+			breaker.Status = models.SwitchStatusOff
+		}
+		breaker.LastUpdate = &now
+
+		// 保存断路器状态更新
+		if err := s.breakerRepo.Update(breaker); err != nil {
+			s.logger.Error("更新断路器状态失败", "breaker_id", breaker.ID, "error", err)
+		}
+	}
+
+	// 保存控制记录更新
 	if err := s.breakerRepo.UpdateControl(control); err != nil {
 		s.logger.Error("更新控制记录失败", "control_id", control.ControlID, "error", err)
-	}
-
-	if err := s.breakerRepo.Update(breaker); err != nil {
-		s.logger.Error("更新断路器状态失败", "breaker_id", breaker.ID, "error", err)
 	}
 
 	s.logger.Info("断路器控制执行完成", "breaker_id", breaker.ID, "control_id", control.ControlID, "success", control.Success)

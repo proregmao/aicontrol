@@ -48,6 +48,47 @@ func (c *BreakerController) GetBreakers(ctx *gin.Context) {
 	})
 }
 
+// GetBreakerRealTimeData 获取断路器实时数据
+// @Summary 获取断路器实时数据
+// @Description 通过MODBUS协议读取断路器实时电气参数
+// @Tags breakers
+// @Accept json
+// @Produce json
+// @Param id path int true "断路器ID"
+// @Success 200 {object} models.APIResponse{data=models.BreakerRealTimeData}
+// @Failure 400 {object} models.APIResponse
+// @Failure 404 {object} models.APIResponse
+// @Failure 500 {object} models.APIResponse
+// @Router /api/v1/breakers/{id}/realtime [get]
+func (c *BreakerController) GetBreakerRealTimeData(ctx *gin.Context) {
+	idStr := ctx.Param("id")
+	id, err := strconv.ParseUint(idStr, 10, 32)
+	if err != nil {
+		ctx.JSON(http.StatusBadRequest, models.APIResponse{
+			Code:    http.StatusBadRequest,
+			Message: "无效的断路器ID",
+			Error:   err.Error(),
+		})
+		return
+	}
+
+	realTimeData, err := c.breakerService.GetBreakerRealTimeData(uint(id))
+	if err != nil {
+		ctx.JSON(http.StatusInternalServerError, models.APIResponse{
+			Code:    http.StatusInternalServerError,
+			Message: "获取断路器实时数据失败",
+			Error:   err.Error(),
+		})
+		return
+	}
+
+	ctx.JSON(http.StatusOK, models.APIResponse{
+		Code:    http.StatusOK,
+		Message: "获取断路器实时数据成功",
+		Data:    realTimeData,
+	})
+}
+
 // GetBreaker 获取单个断路器
 // @Summary 获取断路器详情
 // @Description 获取指定断路器的详细信息
