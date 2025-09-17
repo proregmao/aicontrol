@@ -53,8 +53,8 @@ apiClient.interceptors.response.use(
 
     const { code, message, data } = response.data
 
-    // 处理业务错误码 (后端成功状态码为20000)
-    if (code !== 20000 && code !== 200) {
+    // 处理业务错误码 (后端成功状态码为200, 201, 20000)
+    if (code !== 20000 && code !== 200 && code !== 201) {
       ElMessage.error(message || '请求失败')
       return Promise.reject(new Error(message || '请求失败'))
     }

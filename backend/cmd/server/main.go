@@ -230,6 +230,9 @@ func setupRouter() *gin.Engine {
 		serverGroup.PUT("/:id", middleware.AuthMiddleware(), middleware.RequireOperator(), serverController.UpdateServer)
 		serverGroup.DELETE("/:id", middleware.AuthMiddleware(), middleware.RequireOperator(), serverController.DeleteServer)
 		serverGroup.GET("/:id/status", middleware.AuthMiddleware(), serverController.GetServerStatus)
+		serverGroup.GET("/:id/hardware", middleware.AuthMiddleware(), serverController.GetServerHardware)
+		serverGroup.POST("/:id/test", middleware.AuthMiddleware(), serverController.TestServerConnection)
+		serverGroup.POST("/detect-hardware", middleware.AuthMiddleware(), serverController.DetectServerHardware)
 		serverGroup.POST("/:id/execute", middleware.AuthMiddleware(), middleware.RequireOperator(), serverController.ExecuteCommand)
 		serverGroup.GET("/:id/executions/:execution_id", middleware.AuthMiddleware(), serverController.GetExecutionStatus)
 		serverGroup.GET("/:id/connections", middleware.AuthMiddleware(), serverController.GetServerConnections)
@@ -238,7 +241,7 @@ func setupRouter() *gin.Engine {
 	}
 
 	// 断路器管理路由
-	breakerController := controllers.NewBreakerController()
+	breakerController := controllers.NewBreakerController(services.NewBreakerService(repositories.NewBreakerRepository(database.GetDB()), repositories.NewServerRepository(database.GetDB()), logger.GetLogger()))
 	breakerGroup := apiV1.Group("/breakers")
 	{
 		breakerGroup.GET("", middleware.AuthMiddleware(), breakerController.GetBreakers)
@@ -347,6 +350,9 @@ func autoMigrate() error {
 		&models.DeviceConnection{},
 		&models.TemperatureSensor{},
 		&models.Server{},
+		&models.Breaker{},
+		&models.BreakerServerBinding{},
+		&models.BreakerControl{},
 		// 这里会在后面添加更多模型
 	)
 

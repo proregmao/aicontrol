@@ -639,3 +639,148 @@ func (c *ServerController) UpdateServerConnection(ctx *gin.Context) {
 		Data:    connection,
 	})
 }
+
+// GetServerHardware 获取服务器硬件信息
+// @Summary 获取服务器硬件信息
+// @Description 获取指定服务器的硬件信息，包括CPU、内存、磁盘、网络等
+// @Tags servers
+// @Accept json
+// @Produce json
+// @Param id path int true "服务器ID"
+// @Success 200 {object} models.APIResponse{data=models.ServerHardwareInfo}
+// @Failure 400 {object} models.APIResponse
+// @Failure 404 {object} models.APIResponse
+// @Failure 500 {object} models.APIResponse
+// @Router /api/v1/servers/{id}/hardware [get]
+func (c *ServerController) GetServerHardware(ctx *gin.Context) {
+	idStr := ctx.Param("id")
+	id, err := strconv.ParseUint(idStr, 10, 32)
+	if err != nil {
+		ctx.JSON(http.StatusBadRequest, models.APIResponse{
+			Code:    http.StatusBadRequest,
+			Message: "无效的服务器ID",
+			Error:   err.Error(),
+		})
+		return
+	}
+
+	// 获取服务器硬件信息
+	hardwareInfo, err := c.serverService.GetServerHardware(uint(id))
+	if err != nil {
+		ctx.JSON(http.StatusInternalServerError, models.APIResponse{
+			Code:    http.StatusInternalServerError,
+			Message: "获取服务器硬件信息失败",
+			Error:   err.Error(),
+		})
+		return
+	}
+
+	ctx.JSON(http.StatusOK, models.APIResponse{
+		Code:    http.StatusOK,
+		Message: "获取服务器硬件信息成功",
+		Data:    hardwareInfo,
+	})
+}
+
+// TestServerConnection 测试服务器连接
+// @Summary 测试服务器连接
+// @Description 测试指定服务器的连接状态
+// @Tags servers
+// @Accept json
+// @Produce json
+// @Param id path int true "服务器ID"
+// @Success 200 {object} models.APIResponse{data=bool}
+// @Failure 400 {object} models.APIResponse
+// @Failure 404 {object} models.APIResponse
+// @Failure 500 {object} models.APIResponse
+// @Router /api/v1/servers/{id}/test [post]
+func (c *ServerController) TestServerConnection(ctx *gin.Context) {
+	idStr := ctx.Param("id")
+	if idStr == "" {
+		ctx.JSON(http.StatusBadRequest, models.APIResponse{
+			Code:    http.StatusBadRequest,
+			Message: "服务器ID不能为空",
+		})
+		return
+	}
+
+	// 获取服务器信息
+	server, err := c.serverService.GetServerByID(idStr)
+	if err != nil {
+		ctx.JSON(http.StatusNotFound, models.APIResponse{
+			Code:    http.StatusNotFound,
+			Message: "服务器不存在",
+			Error:   err.Error(),
+		})
+		return
+	}
+
+	// 测试服务器连接
+	success, err := c.serverService.TestConnection(
+		server.IPAddress,
+		server.Port,
+		server.Protocol,
+		server.Username,
+		server.Password,
+		server.PrivateKey,
+	)
+	if err != nil {
+		ctx.JSON(http.StatusInternalServerError, models.APIResponse{
+			Code:    http.StatusInternalServerError,
+			Message: "测试服务器连接失败",
+			Error:   err.Error(),
+		})
+		return
+	}
+
+	message := "服务器连接测试成功"
+	if !success {
+		message = "服务器连接测试失败"
+	}
+
+	ctx.JSON(http.StatusOK, models.APIResponse{
+		Code:    http.StatusOK,
+		Message: message,
+		Data:    success,
+	})
+}
+
+// DetectServerHardware 检测服务器硬件信息
+// @Summary 检测服务器硬件信息
+// @Description 通过SSH连接检测服务器的硬件信息
+// @Tags servers
+// @Accept json
+// @Produce json
+// @Param request body models.ServerHardwareDetectRequest true "硬件检测请求"
+// @Success 200 {object} models.APIResponse{data=models.ServerHardwareInfo}
+// @Failure 400 {object} models.APIResponse
+// @Failure 500 {object} models.APIResponse
+// @Router /api/v1/servers/detect-hardware [post]
+func (c *ServerController) DetectServerHardware(ctx *gin.Context) {
+	var req models.ServerHardwareDetectRequest
+	if err := ctx.ShouldBindJSON(&req); err != nil {
+		ctx.JSON(http.StatusBadRequest, models.APIResponse{
+			Code:    http.StatusBadRequest,
+			Message: "请求参数无效",
+			Error:   err.Error(),
+		})
+		return
+	}
+
+	// 检测服务器硬件信息
+	hardwareInfo, err := c.serverService.DetectServerHardware(req)
+	if err != nil {
+		ctx.JSON(http.StatusInternalServerError, models.APIResponse{
+			Code:    http.StatusInternalServerError,
+			Message: "检测服务器硬件信息失败",
+			Error:   err.Error(),
+		})
+		return
+	}
+
+	ctx.JSON(http.StatusOK, models.APIResponse{
+		Code:    http.StatusOK,
+		Message: "检测服务器硬件信息成功",
+		Data:    hardwareInfo,
+	})
+}

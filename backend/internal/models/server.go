@@ -38,13 +38,15 @@ type Server struct {
 	IsMonitored  bool           `json:"is_monitored" gorm:"default:true"`
 	TestInterval int            `json:"test_interval" gorm:"default:300"` // 测试间隔（秒），默认5分钟
 	LastTestAt   *time.Time     `json:"last_test_at"`                     // 最后测试时间
+	BreakerID    *uint          `json:"breaker_id" gorm:"index"`          // 绑定的断路器ID
 	Description  string         `json:"description" gorm:"type:text"`
 	CreatedAt    time.Time      `json:"created_at"`
 	UpdatedAt    time.Time      `json:"updated_at"`
 	DeletedAt    gorm.DeletedAt `json:"-" gorm:"index"`
 
 	// 关联关系
-	Device *Device `json:"device,omitempty" gorm:"foreignKey:DeviceID"`
+	Device  *Device `json:"device,omitempty" gorm:"foreignKey:DeviceID"`
+	Breaker *Device `json:"breaker,omitempty" gorm:"foreignKey:BreakerID"`
 }
 
 // TableName 指定表名
@@ -63,6 +65,7 @@ type CreateServerRequest struct {
 	Password     string `json:"password" binding:"omitempty,max=255"`
 	PrivateKey   string `json:"private_key" binding:"omitempty"`
 	TestInterval int    `json:"test_interval" binding:"omitempty,min=60,max=3600"` // 测试间隔60秒-1小时
+	BreakerID    *uint  `json:"breaker_id" binding:"omitempty"`                    // 绑定的断路器ID
 	OSType       string `json:"os_type" binding:"omitempty,max=50"`
 	OSVersion    string `json:"os_version" binding:"omitempty,max=100"`
 	Description  string `json:"description" binding:"omitempty,max=1000"`
@@ -79,6 +82,7 @@ type UpdateServerRequest struct {
 	Password     string `json:"password" binding:"omitempty,max=255"`
 	PrivateKey   string `json:"private_key" binding:"omitempty"`
 	TestInterval int    `json:"test_interval" binding:"omitempty,min=60,max=3600"` // 测试间隔60秒-1小时
+	BreakerID    *uint  `json:"breaker_id" binding:"omitempty"`                    // 绑定的断路器ID
 	OSType       string `json:"os_type" binding:"omitempty,max=50"`
 	OSVersion    string `json:"os_version" binding:"omitempty,max=100"`
 	Description  string `json:"description" binding:"omitempty,max=1000"`
@@ -96,6 +100,8 @@ type ServerListResponse struct {
 	PrivateKey   string       `json:"private_key"`
 	TestInterval int          `json:"test_interval"`
 	LastTestAt   *time.Time   `json:"last_test_at"`
+	BreakerID    *uint        `json:"breaker_id"`
+	BreakerName  string       `json:"breaker_name,omitempty"`
 	Status       ServerStatus `json:"status"`
 	Connected    bool         `json:"connected"`
 	OSType       string       `json:"os_type"`
@@ -105,7 +111,7 @@ type ServerListResponse struct {
 
 // ToListResponse 转换为列表响应格式
 func (s *Server) ToListResponse() ServerListResponse {
-	return ServerListResponse{
+	response := ServerListResponse{
 		ID:           s.ID,
 		ServerName:   s.ServerName,
 		IPAddress:    s.IPAddress,
@@ -116,10 +122,89 @@ func (s *Server) ToListResponse() ServerListResponse {
 		PrivateKey:   s.PrivateKey,
 		TestInterval: s.TestInterval,
 		LastTestAt:   s.LastTestAt,
+		BreakerID:    s.BreakerID,
 		Status:       s.Status,
 		Connected:    s.Connected,
 		OSType:       s.OSType,
 		Description:  s.Description,
 		CreatedAt:    s.CreatedAt,
 	}
+
+	// 如果有绑定的断路器，添加断路器名称
+	if s.Breaker != nil {
+		response.BreakerName = s.Breaker.DeviceName
+	}
+
+	return response
+}
+
+// ServerHardwareInfo 服务器硬件信息
+type ServerHardwareInfo struct {
+	CPU     CPUInfo       `json:"cpu"`
+	Memory  MemoryInfo    `json:"memory"`
+	Load    LoadInfo      `json:"load"`
+	Disks   []DiskInfo    `json:"disks"`
+	Network []NetworkInfo `json:"network"`
+	System  SystemInfo    `json:"system"`
+}
+
+// ServerHardwareDetectRequest 服务器硬件检测请求
+type ServerHardwareDetectRequest struct {
+	IPAddress  string `json:"ip_address" binding:"required"`
+	Port       int    `json:"port" binding:"required"`
+	Protocol   string `json:"protocol" binding:"required"`
+	Username   string `json:"username" binding:"required"`
+	Password   string `json:"password"`
+	PrivateKey string `json:"private_key"`
+}
+
+// CPUInfo CPU信息
+type CPUInfo struct {
+	Model string  `json:"model"`
+	Cores int     `json:"cores"`
+	Usage float64 `json:"usage"`
+}
+
+// MemoryInfo 内存信息
+type MemoryInfo struct {
+	Total     uint64  `json:"total"`
+	Used      uint64  `json:"used"`
+	Available uint64  `json:"available"`
+	Usage     float64 `json:"usage"`
+}
+
+// LoadInfo 系统负载信息
+type LoadInfo struct {
+	Load1  string `json:"load1"`
+	Load5  string `json:"load5"`
+	Load15 string `json:"load15"`
+}
+
+// DiskInfo 磁盘信息
+type DiskInfo struct {
+	Device     string  `json:"device"`
+	Mountpoint string  `json:"mountpoint"`
+	Fstype     string  `json:"fstype"`
+	Total      uint64  `json:"total"`
+	Used       uint64  `json:"used"`
+	Usage      float64 `json:"usage"`
+}
+
+// NetworkInfo 网络接口信息
+type NetworkInfo struct {
+	Name   string `json:"name"`
+	IP     string `json:"ip"`
+	MAC    string `json:"mac"`
+	Status string `json:"status"`
+	Speed  string `json:"speed"`
+}
+
+// SystemInfo 系统信息
+type SystemInfo struct {
+	OS       string `json:"os"`
+	Version  string `json:"version"`
+	Kernel   string `json:"kernel"`
+	Arch     string `json:"arch"`
+	Uptime   string `json:"uptime"`
+	Hostname string `json:"hostname"`
 }

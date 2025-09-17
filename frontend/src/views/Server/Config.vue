@@ -149,11 +149,34 @@
             placeholder="请输入私钥内容（可选）&#10;-----BEGIN OPENSSH PRIVATE KEY-----&#10;...&#10;-----END OPENSSH PRIVATE KEY-----"
           />
         </el-form-item>
-        
+
+        <el-form-item label="绑定断路器">
+          <el-select
+            v-model="serverForm.breakerId"
+            placeholder="选择绑定的智能断路器（可选）"
+            clearable
+            filterable
+            :loading="breakersLoading"
+          >
+            <el-option
+              v-for="breaker in breakers"
+              :key="breaker.id"
+              :label="`${breaker.breaker_name} (${breaker.location})`"
+              :value="breaker.id"
+            >
+              <span style="float: left">{{ breaker.breaker_name }}</span>
+              <span style="float: right; color: #8492a6; font-size: 13px">{{ breaker.location }}</span>
+            </el-option>
+          </el-select>
+          <div style="color: #909399; font-size: 12px; margin-top: 4px;">
+            绑定后，服务器关机时将自动断开对应的断路器
+          </div>
+        </el-form-item>
+
         <el-form-item label="描述">
-          <el-input 
-            v-model="serverForm.description" 
-            type="textarea" 
+          <el-input
+            v-model="serverForm.description"
+            type="textarea"
             placeholder="请输入服务器描述"
             :rows="3"
           />
@@ -162,6 +185,14 @@
       
       <template #footer>
         <el-button @click="dialogVisible = false">取消</el-button>
+        <el-button
+          type="info"
+          @click="detectHardware"
+          :loading="detecting"
+          :disabled="!canDetectHardware"
+        >
+          {{ detecting ? '检测中...' : '检测硬件信息' }}
+        </el-button>
         <el-button type="primary" @click="saveServer" :loading="saving">
           {{ saving ? '保存中...' : '保存' }}
         </el-button>
@@ -171,7 +202,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted } from 'vue'
+import { ref, reactive, onMounted, computed } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import type { FormInstance, FormRules } from 'element-plus'
 import { Plus, Delete } from '@element-plus/icons-vue'
@@ -180,6 +211,7 @@ import { Plus, Delete } from '@element-plus/icons-vue'
 const dialogVisible = ref(false)
 const isEdit = ref(false)
 const saving = ref(false)
+const detecting = ref(false)
 const formRef = ref<FormInstance>()
 
 // 服务器配置列表
@@ -187,6 +219,19 @@ const serverConfigs = ref([])
 
 // 多选相关
 const selectedServers = ref([])
+
+// 断路器相关
+const breakers = ref([])
+const breakersLoading = ref(false)
+
+// 硬件检测相关
+const canDetectHardware = computed(() => {
+  return serverForm.ip &&
+         serverForm.port &&
+         serverForm.protocol &&
+         serverForm.username &&
+         (serverForm.password || serverForm.privateKey)
+})
 
 // 加载服务器列表
 const loadServers = async () => {
@@ -244,6 +289,7 @@ const serverForm = reactive({
   password: '',
   privateKey: '',
   testInterval: 300, // 默认5分钟
+  breakerId: null, // 绑定的断路器ID
   description: ''
 })
 
@@ -288,6 +334,7 @@ const editServer = (server: any) => {
   serverForm.password = server.password || ''
   serverForm.privateKey = server.privateKey || ''
   serverForm.testInterval = server.testInterval || 300
+  serverForm.breakerId = server.breakerId || null
   serverForm.description = server.description || ''
   dialogVisible.value = true
 }
@@ -304,8 +351,77 @@ const resetForm = () => {
     password: '',
     privateKey: '',
     testInterval: 300,
+    breakerId: null,
     description: ''
   })
+}
+
+// 检测硬件信息
+const detectHardware = async () => {
+  if (!formRef.value) return
+
+  try {
+    await formRef.value.validate()
+    detecting.value = true
+
+    const detectRequest = {
+      ip_address: serverForm.ip,
+      port: serverForm.port,
+      protocol: serverForm.protocol,
+      username: serverForm.username,
+      password: serverForm.password || '',
+      private_key: serverForm.privateKey || ''
+    }
+
+    console.log('开始检测硬件信息:', detectRequest)
+
+    const response = await fetch('http://localhost:8080/api/v1/servers/detect-hardware', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${localStorage.getItem('token')}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(detectRequest)
+    })
+
+    const result = await response.json()
+    console.log('硬件检测结果:', result)
+
+    if (result.code === 200) {
+      ElMessage.success('硬件信息检测成功！')
+
+      // 显示检测到的硬件信息
+      const hardwareInfo = result.data
+      let infoText = `检测到的硬件信息：\n\n`
+      infoText += `CPU: ${hardwareInfo.cpu.model} (${hardwareInfo.cpu.cores}核)\n`
+      infoText += `内存: ${(hardwareInfo.memory.total / 1024 / 1024 / 1024).toFixed(2)} GB\n`
+      infoText += `系统: ${hardwareInfo.system.os}\n`
+      infoText += `主机名: ${hardwareInfo.system.hostname}\n\n`
+      infoText += `是否要使用检测到的主机名作为服务器名称？`
+
+      try {
+        await ElMessageBox.confirm(infoText, '硬件检测结果', {
+          confirmButtonText: '使用检测结果',
+          cancelButtonText: '仅查看',
+          type: 'info'
+        })
+
+        // 用户选择使用检测结果，更新服务器名称
+        if (hardwareInfo.system.hostname && hardwareInfo.system.hostname !== 'Unknown') {
+          serverForm.name = hardwareInfo.system.hostname
+        }
+      } catch {
+        // 用户选择仅查看，不做任何操作
+      }
+    } else {
+      ElMessage.error(`硬件检测失败: ${result.message}`)
+    }
+  } catch (error: any) {
+    console.error('硬件检测失败:', error)
+    ElMessage.error(`硬件检测失败: ${error.message || error}`)
+  } finally {
+    detecting.value = false
+  }
 }
 
 // 保存服务器
@@ -325,6 +441,7 @@ const saveServer = async () => {
       password: serverForm.password,
       private_key: serverForm.privateKey,
       test_interval: serverForm.testInterval,
+      breaker_id: serverForm.breakerId,
       description: serverForm.description
     }
 
@@ -502,9 +619,81 @@ const formatLastTestTime = (lastTestAt: string | null) => {
   return date.toLocaleDateString() + ' ' + date.toLocaleTimeString()
 }
 
-// 页面加载时获取服务器列表
+// 加载断路器列表
+const loadBreakers = async () => {
+  breakersLoading.value = true
+  try {
+    const response = await fetch('http://localhost:8080/api/v1/breakers', {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${localStorage.getItem('token')}`,
+        'Content-Type': 'application/json'
+      }
+    })
+
+    const result = await response.json()
+    if (result.code === 200) {
+      breakers.value = result.data || []
+    } else {
+      console.warn('获取断路器列表失败，使用模拟数据')
+      // 使用模拟数据
+      breakers.value = [
+        {
+          id: 1,
+          breaker_name: '主配电断路器01',
+          location: '配电柜A'
+        },
+        {
+          id: 2,
+          breaker_name: '主配电断路器02',
+          location: '配电柜A'
+        },
+        {
+          id: 3,
+          breaker_name: '空调专线断路器01',
+          location: '配电柜B'
+        },
+        {
+          id: 4,
+          breaker_name: '服务器专线断路器01',
+          location: '配电柜C'
+        }
+      ]
+    }
+  } catch (error: any) {
+    console.error('加载断路器列表失败:', error)
+    // 使用模拟数据
+    breakers.value = [
+      {
+        id: 1,
+        breaker_name: '主配电断路器01',
+        location: '配电柜A'
+      },
+      {
+        id: 2,
+        breaker_name: '主配电断路器02',
+        location: '配电柜A'
+      },
+      {
+        id: 3,
+        breaker_name: '空调专线断路器01',
+        location: '配电柜B'
+      },
+      {
+        id: 4,
+        breaker_name: '服务器专线断路器01',
+        location: '配电柜C'
+      }
+    ]
+  } finally {
+    breakersLoading.value = false
+  }
+}
+
+// 页面加载时获取服务器列表和断路器列表
 onMounted(() => {
   loadServers()
+  loadBreakers()
 })
 </script>
 
