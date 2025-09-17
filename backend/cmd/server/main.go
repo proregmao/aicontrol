@@ -12,6 +12,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/sirupsen/logrus"
 
+	"smart-device-management/internal/api"
 	"smart-device-management/internal/config"
 	"smart-device-management/internal/controllers"
 	"smart-device-management/internal/middleware"
@@ -183,6 +184,29 @@ func setupRouter() *gin.Engine {
 		dashboardGroup.GET("/statistics", middleware.AuthMiddleware(), dashboardController.GetStatistics)
 	}
 
+	// 系统信息路由
+	systemGroup := apiV1.Group("/system")
+	{
+		systemGroup.GET("/info", middleware.AuthMiddleware(), api.GetSystemInfo)
+		systemGroup.GET("/host", middleware.AuthMiddleware(), api.GetHostInfo)
+	}
+
+	// 设置传感器API的数据库连接
+	api.SetDB(database.GetDB())
+
+	// 传感器检测路由
+	sensorsGroup := apiV1.Group("/sensors")
+	{
+		sensorsGroup.POST("/detect", middleware.AuthMiddleware(), api.DetectSensor)
+		sensorsGroup.POST("", middleware.AuthMiddleware(), api.CreateTemperatureSensor)
+		sensorsGroup.GET("", middleware.AuthMiddleware(), api.GetTemperatureSensors)
+		sensorsGroup.GET("/channels", middleware.AuthMiddleware(), api.GetTemperatureChannels)
+		sensorsGroup.PUT("/:id", middleware.AuthMiddleware(), api.UpdateTemperatureSensor)
+		sensorsGroup.DELETE("/:id", middleware.AuthMiddleware(), api.DeleteTemperatureSensor)
+		sensorsGroup.DELETE("/:id/channels/:channel", middleware.AuthMiddleware(), api.DeleteTemperatureChannel)
+		sensorsGroup.POST("/:id/test", middleware.AuthMiddleware(), api.TestTemperatureSensor)
+	}
+
 	// 温度监控路由
 	temperatureController := controllers.NewTemperatureController()
 	temperatureGroup := apiV1.Group("/temperature")
@@ -197,7 +221,7 @@ func setupRouter() *gin.Engine {
 	}
 
 	// 服务器管理路由
-	serverController := controllers.NewServerController()
+	serverController := controllers.NewServerController(services.NewServerService(repositories.NewServerRepository(database.GetDB()), logger.GetLogger()))
 	serverGroup := apiV1.Group("/servers")
 	{
 		serverGroup.GET("", middleware.AuthMiddleware(), serverController.GetServers)
@@ -321,6 +345,8 @@ func autoMigrate() error {
 		&models.User{},
 		&models.Device{},
 		&models.DeviceConnection{},
+		&models.TemperatureSensor{},
+		&models.Server{},
 		// 这里会在后面添加更多模型
 	)
 

@@ -32,10 +32,17 @@ services:
     environment:
       - NODE_ENV=production
       - PORT=8080
-      - DB_TYPE=sqlite
-      - DB_PATH=/app/data/smart_device_management.db
-      - REDIS_HOST=redis
+      - DB_TYPE=postgres
+      - DB_HOST=192.168.110.21
+      - DB_PORT=5432
+      - DB_USER=postgres
+      - DB_PASSWORD=abcd1234
+      - DB_NAME=smart_device_management
+      - DB_SSLMODE=disable
+      - DB_TIMEZONE=Asia/Shanghai
+      - REDIS_HOST=192.168.110.21
       - REDIS_PORT=6379
+      - REDIS_PASSWORD=abcd1234
       - JWT_SECRET=${JWT_SECRET:-your-super-secret-jwt-key}
       - LOG_LEVEL=info
     volumes:

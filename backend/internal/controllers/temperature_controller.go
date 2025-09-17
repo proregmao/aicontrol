@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net/http"
 	"smart-device-management/internal/models"
+	"smart-device-management/pkg/database"
 	"strconv"
 	"time"
 
@@ -113,32 +114,22 @@ func (c *TemperatureController) GetHistory(ctx *gin.Context) {
 	startTime := ctx.Query("start_time")
 	endTime := ctx.Query("end_time")
 	interval := ctx.Query("interval")
+	hoursStr := ctx.Query("hours")
 
 	// 参数验证
 	if interval == "" {
 		interval = "minute"
 	}
 
-	// 临时模拟数据
-	historyData := []gin.H{
-		{
-			"timestamp":   "2025-09-15T10:00:00Z",
-			"sensor_id":   1,
-			"temperature": 23.2,
-			"humidity":    45.0,
-		},
-		{
-			"timestamp":   "2025-09-15T10:01:00Z",
-			"sensor_id":   1,
-			"temperature": 23.5,
-			"humidity":    45.2,
-		},
-		{
-			"timestamp":   "2025-09-15T10:02:00Z",
-			"sensor_id":   1,
-			"temperature": 23.8,
-			"humidity":    45.5,
-		},
+	// 获取真实的历史数据
+	historyData, err := c.getRealHistoryData(sensorIDStr, startTime, endTime, hoursStr)
+	if err != nil {
+		ctx.JSON(http.StatusInternalServerError, models.APIResponse{
+			Code:    http.StatusInternalServerError,
+			Message: fmt.Sprintf("获取历史数据失败: %v", err),
+			Data:    nil,
+		})
+		return
 	}
 
 	ctx.JSON(http.StatusOK, models.APIResponse{
@@ -164,30 +155,15 @@ func (c *TemperatureController) GetHistory(ctx *gin.Context) {
 // @Failure 500 {object} models.APIResponse
 // @Router /api/v1/temperature/realtime [get]
 func (c *TemperatureController) GetRealtime(ctx *gin.Context) {
-	// 临时模拟数据
-	realtimeData := gin.H{
-		"timestamp": "2025-09-15T10:30:00Z",
-		"sensors": []gin.H{
-			{
-				"sensor_id":   1,
-				"temperature": 23.5,
-				"humidity":    45.2,
-				"status":      "online",
-			},
-			{
-				"sensor_id":   2,
-				"temperature": 28.2,
-				"humidity":    42.8,
-				"status":      "online",
-			},
-		},
-		"summary": gin.H{
-			"avg_temperature": 25.85,
-			"max_temperature": 28.2,
-			"min_temperature": 23.5,
-			"online_count":    2,
-			"total_count":     2,
-		},
+	// 获取真实的实时数据
+	realtimeData, err := c.getRealRealtimeData()
+	if err != nil {
+		ctx.JSON(http.StatusInternalServerError, models.APIResponse{
+			Code:    http.StatusInternalServerError,
+			Message: fmt.Sprintf("获取实时数据失败: %v", err),
+			Data:    nil,
+		})
+		return
 	}
 
 	ctx.JSON(http.StatusOK, models.APIResponse{
@@ -195,6 +171,179 @@ func (c *TemperatureController) GetRealtime(ctx *gin.Context) {
 		Message: "获取实时数据成功",
 		Data:    realtimeData,
 	})
+}
+
+// TemperatureReading 温度记录结构（与采集服务保持一致）
+type TemperatureReading struct {
+	ID          uint      `gorm:"primaryKey"`
+	SensorID    uint      `gorm:"not null"`
+	Channel     int       `gorm:"not null"`
+	Temperature float64   `gorm:"type:decimal(5,2);not null"`
+	Status      string    `gorm:"size:20;default:'normal'"`
+	RecordedAt  time.Time `gorm:"default:CURRENT_TIMESTAMP"`
+}
+
+// getRealHistoryData 获取真实的历史温度数据
+func (c *TemperatureController) getRealHistoryData(sensorIDStr, startTime, endTime, hoursStr string) ([]gin.H, error) {
+	db := database.GetDB()
+	if db == nil {
+		return nil, fmt.Errorf("数据库连接未初始化")
+	}
+
+	// 解析传感器ID
+	var sensorID uint
+	if sensorIDStr != "" {
+		if id, err := strconv.ParseUint(sensorIDStr, 10, 32); err == nil {
+			sensorID = uint(id)
+		}
+	}
+
+	// 计算时间范围
+	endTimeObj := time.Now()
+	var startTimeObj time.Time
+
+	if hoursStr != "" {
+		if hours, err := strconv.Atoi(hoursStr); err == nil {
+			startTimeObj = endTimeObj.Add(-time.Duration(hours) * time.Hour)
+		} else {
+			startTimeObj = endTimeObj.Add(-1 * time.Hour) // 默认1小时
+		}
+	} else {
+		startTimeObj = endTimeObj.Add(-1 * time.Hour) // 默认1小时
+	}
+
+	// 查询数据库
+	var readings []TemperatureReading
+	query := db.Where("recorded_at BETWEEN ? AND ?", startTimeObj, endTimeObj)
+
+	if sensorID > 0 {
+		query = query.Where("sensor_id = ?", sensorID)
+	}
+
+	err := query.Order("recorded_at ASC").Find(&readings).Error
+	if err != nil {
+		return nil, fmt.Errorf("查询历史数据失败: %v", err)
+	}
+
+	// 转换为API响应格式
+	var historyData []gin.H
+	for _, reading := range readings {
+		historyData = append(historyData, gin.H{
+			"timestamp":   reading.RecordedAt.Format(time.RFC3339),
+			"sensor_id":   reading.SensorID,
+			"channel":     reading.Channel,
+			"temperature": reading.Temperature,
+			"status":      reading.Status,
+		})
+	}
+
+	return historyData, nil
+}
+
+// getRealRealtimeData 获取真实的实时温度数据
+func (c *TemperatureController) getRealRealtimeData() (gin.H, error) {
+	db := database.GetDB()
+	if db == nil {
+		return nil, fmt.Errorf("数据库连接未初始化")
+	}
+
+	// 首先尝试获取最近5分钟的温度数据
+	var readings []TemperatureReading
+	err := db.Raw(`
+		SELECT DISTINCT ON (sensor_id, channel)
+			sensor_id, channel, temperature, status, recorded_at
+		FROM temperature_readings
+		WHERE recorded_at > NOW() - INTERVAL '5 minutes'
+		ORDER BY sensor_id, channel, recorded_at DESC
+	`).Scan(&readings).Error
+
+	if err != nil {
+		return nil, fmt.Errorf("查询实时数据失败: %v", err)
+	}
+
+	// 如果没有最近5分钟的数据，查询数据库中的最新数据（不限时间）
+	if len(readings) == 0 {
+		err = db.Raw(`
+			SELECT DISTINCT ON (sensor_id, channel)
+				sensor_id, channel, temperature, status, recorded_at
+			FROM temperature_readings
+			ORDER BY sensor_id, channel, recorded_at DESC
+		`).Scan(&readings).Error
+
+		if err != nil {
+			return nil, fmt.Errorf("查询历史数据失败: %v", err)
+		}
+	}
+
+	// 按传感器分组数据
+	sensorMap := make(map[uint][]gin.H)
+	var allTemps []float64
+
+	for _, reading := range readings {
+		if _, exists := sensorMap[reading.SensorID]; !exists {
+			sensorMap[reading.SensorID] = []gin.H{}
+		}
+
+		sensorMap[reading.SensorID] = append(sensorMap[reading.SensorID], gin.H{
+			"channel":     reading.Channel,
+			"temperature": reading.Temperature,
+			"status":      reading.Status,
+			"recorded_at": reading.RecordedAt.Format(time.RFC3339),
+		})
+
+		allTemps = append(allTemps, reading.Temperature)
+	}
+
+	// 构建传感器列表
+	var sensors []gin.H
+	for sensorID, channels := range sensorMap {
+		// 计算该传感器的平均温度
+		var totalTemp float64
+		for _, channel := range channels {
+			totalTemp += channel["temperature"].(float64)
+		}
+		avgTemp := totalTemp / float64(len(channels))
+
+		sensors = append(sensors, gin.H{
+			"sensor_id":   sensorID,
+			"temperature": avgTemp,
+			"channels":    channels,
+			"status":      "online",
+		})
+	}
+
+	// 计算统计信息
+	var avgTemp, maxTemp, minTemp float64
+	if len(allTemps) > 0 {
+		totalTemp := 0.0
+		maxTemp = allTemps[0]
+		minTemp = allTemps[0]
+
+		for _, temp := range allTemps {
+			totalTemp += temp
+			if temp > maxTemp {
+				maxTemp = temp
+			}
+			if temp < minTemp {
+				minTemp = temp
+			}
+		}
+		avgTemp = totalTemp / float64(len(allTemps))
+	}
+
+	realtimeData := gin.H{
+		"timestamp": time.Now().Format(time.RFC3339),
+		"sensors":   sensors,
+		"summary": gin.H{
+			"avg_temperature": avgTemp,
+			"max_temperature": maxTemp,
+			"min_temperature": minTemp,
+			"online_count":    len(sensors),
+			"total_count":     len(sensors),
+		},
+	}
+
+	return realtimeData, nil
 }
 
 // CreateSensor 创建传感器配置

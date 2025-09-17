@@ -240,42 +240,113 @@ const updateChart = () => {
 
 const fetchSensors = async () => {
   try {
-    // 使用模拟数据
-    sensors.value = [
-      { id: 'sensor1', name: '探头1 (室温)', location: '室温监测' },
-      { id: 'sensor2', name: '探头2 (进风口)', location: '进风口' },
-      { id: 'sensor3', name: '探头3 (出风口)', location: '出风口' },
-      { id: 'sensor4', name: '探头4 (网络设备)', location: '网络设备' }
-    ]
+    // 获取真实的传感器数据
+    const response = await fetch('/api/v1/sensors', {
+      headers: {
+        'Authorization': `Bearer ${localStorage.getItem('token')}`
+      }
+    })
+
+    if (response.ok) {
+      const result = await response.json()
+      if (result.code === 20000 && result.data.sensors.length > 0) {
+        const sensor = result.data.sensors[0]
+        sensors.value = sensor.channels.map((channel: any) => ({
+          id: `sensor${channel.channel}`,
+          name: `${channel.name} (${sensor.location})`,
+          location: sensor.location,
+          sensorId: sensor.id,
+          channel: channel.channel
+        }))
+      }
+    } else {
+      // 如果API失败，使用默认数据
+      sensors.value = [
+        { id: 'sensor1', name: '通道1 (192.168.110.50:504)', location: '192.168.110.50:504', sensorId: 24, channel: 1 },
+        { id: 'sensor2', name: '通道2 (192.168.110.50:504)', location: '192.168.110.50:504', sensorId: 24, channel: 2 },
+        { id: 'sensor3', name: '通道3 (192.168.110.50:504)', location: '192.168.110.50:504', sensorId: 24, channel: 3 },
+        { id: 'sensor4', name: '通道4 (192.168.110.50:504)', location: '192.168.110.50:504', sensorId: 24, channel: 4 }
+      ]
+    }
+
     if (sensors.value.length > 0 && !selectedSensor.value) {
       selectedSensor.value = sensors.value[0].id
     }
   } catch (error) {
     console.error('获取传感器列表失败:', error)
+    // 使用默认数据
+    sensors.value = [
+      { id: 'sensor1', name: '通道1 (192.168.110.50:504)', location: '192.168.110.50:504', sensorId: 24, channel: 1 },
+      { id: 'sensor2', name: '通道2 (192.168.110.50:504)', location: '192.168.110.50:504', sensorId: 24, channel: 2 },
+      { id: 'sensor3', name: '通道3 (192.168.110.50:504)', location: '192.168.110.50:504', sensorId: 24, channel: 3 },
+      { id: 'sensor4', name: '通道4 (192.168.110.50:504)', location: '192.168.110.50:504', sensorId: 24, channel: 4 }
+    ]
+    if (sensors.value.length > 0 && !selectedSensor.value) {
+      selectedSensor.value = sensors.value[0].id
+    }
   }
 }
 
 const fetchTemperatureData = async () => {
   if (!selectedSensor.value) return
-  
+
   loading.value = true
   try {
-    // 生成模拟温度数据
-    const now = new Date()
-    const mockData = []
-    const baseTemp = selectedSensor.value === 'sensor3' ? 35 : 25
+    // 获取真实的历史温度数据
+    const selectedSensorObj = sensors.value.find(s => s.id === selectedSensor.value)
+    if (!selectedSensorObj) return
 
-    for (let i = 23; i >= 0; i--) {
-      const time = new Date(now.getTime() - i * 60 * 60 * 1000)
-      const temp = baseTemp + (Math.random() - 0.5) * 6
-      mockData.push({
-        timestamp: time.toISOString(),
-        temperature: +temp.toFixed(1),
-        humidity: +(50 + (Math.random() - 0.5) * 20).toFixed(1)
-      })
+    // 计算时间范围（小时）
+    let hours = 1
+    switch (timeRange.value) {
+      case '1h': hours = 1; break
+      case '6h': hours = 6; break
+      case '12h': hours = 12; break
+      case '24h': hours = 24; break
+      case '7d': hours = 24 * 7; break
+      default: hours = 6; break
     }
 
-    temperatureData.value = mockData
+    const response = await fetch(`/api/v1/temperature/history?sensor_id=${selectedSensorObj.sensorId}&hours=${hours}`, {
+      headers: {
+        'Authorization': `Bearer ${localStorage.getItem('token')}`
+      }
+    })
+
+    if (response.ok) {
+      const result = await response.json()
+      if (result.code === 200 && result.data.data) {
+        // 过滤出当前选中通道的数据
+        const channelData = result.data.data.filter((item: any) =>
+          item.channel === selectedSensorObj.channel
+        )
+
+        temperatureData.value = channelData.map((item: any) => ({
+          timestamp: item.timestamp,
+          temperature: item.temperature,
+          humidity: 50 // 暂时使用固定值，因为没有湿度数据
+        }))
+      } else {
+        temperatureData.value = []
+      }
+    } else {
+      // API失败时使用模拟数据
+      const now = new Date()
+      const mockData = []
+      const baseTemp = selectedSensor.value === 'sensor3' ? 30 : 25
+
+      for (let i = hours - 1; i >= 0; i--) {
+        const time = new Date(now.getTime() - i * 60 * 60 * 1000)
+        const temp = baseTemp + (Math.random() - 0.5) * 6
+        mockData.push({
+          timestamp: time.toISOString(),
+          temperature: +temp.toFixed(1),
+          humidity: +(50 + (Math.random() - 0.5) * 20).toFixed(1)
+        })
+      }
+      temperatureData.value = mockData
+    }
+
     hasData.value = temperatureData.value.length > 0
 
     await nextTick()

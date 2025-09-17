@@ -1,9 +1,9 @@
 package controllers
 
 import (
-	"fmt"
 	"net/http"
 	"smart-device-management/internal/models"
+	"smart-device-management/internal/services"
 	"strconv"
 	"time"
 
@@ -11,11 +11,13 @@ import (
 )
 
 type ServerController struct {
-	// serverService *services.ServerService
+	serverService *services.ServerService
 }
 
-func NewServerController() *ServerController {
-	return &ServerController{}
+func NewServerController(serverService *services.ServerService) *ServerController {
+	return &ServerController{
+		serverService: serverService,
+	}
 }
 
 // GetServers 获取服务器列表
@@ -32,45 +34,22 @@ func NewServerController() *ServerController {
 func (c *ServerController) GetServers(ctx *gin.Context) {
 	status := ctx.Query("status")
 
-	// 临时模拟数据
-	servers := []gin.H{
-		{
-			"id":           1,
-			"device_id":    2,
-			"server_name":  "Web服务器01",
-			"hostname":     "web01.local",
-			"ip_address":   "192.168.1.100",
-			"os_type":      "Ubuntu",
-			"os_version":   "20.04 LTS",
-			"status":       "online",
-			"cpu_usage":    45.2,
-			"memory_usage": 68.5,
-			"disk_usage":   32.1,
-			"uptime":       86400,
-			"last_update":  "2025-09-15T10:30:00Z",
-		},
-		{
-			"id":           2,
-			"device_id":    3,
-			"server_name":  "数据库服务器01",
-			"hostname":     "db01.local",
-			"ip_address":   "192.168.1.101",
-			"os_type":      "CentOS",
-			"os_version":   "8.4",
-			"status":       "online",
-			"cpu_usage":    32.8,
-			"memory_usage": 75.2,
-			"disk_usage":   45.6,
-			"uptime":       172800,
-			"last_update":  "2025-09-15T10:30:00Z",
-		},
+	// 获取所有服务器
+	servers, err := c.serverService.GetAllServers()
+	if err != nil {
+		ctx.JSON(http.StatusInternalServerError, models.APIResponse{
+			Code:    http.StatusInternalServerError,
+			Message: "获取服务器列表失败",
+			Error:   err.Error(),
+		})
+		return
 	}
 
-	// 如果指定了状态，过滤数据
+	// 根据状态过滤
 	if status != "" {
-		filteredServers := []gin.H{}
+		var filteredServers []models.ServerListResponse
 		for _, server := range servers {
-			if server["status"] == status {
+			if string(server.Status) == status {
 				filteredServers = append(filteredServers, server)
 			}
 		}
@@ -328,7 +307,7 @@ func (c *ServerController) GetExecutionStatus(ctx *gin.Context) {
 // @Failure 500 {object} models.APIResponse
 // @Router /api/v1/servers [post]
 func (c *ServerController) CreateServer(ctx *gin.Context) {
-	var req gin.H
+	var req models.CreateServerRequest
 	if err := ctx.ShouldBindJSON(&req); err != nil {
 		ctx.JSON(http.StatusBadRequest, models.APIResponse{
 			Code:    http.StatusBadRequest,
@@ -338,17 +317,24 @@ func (c *ServerController) CreateServer(ctx *gin.Context) {
 		return
 	}
 
-	// 临时实现：返回创建成功的服务器信息
-	server := gin.H{
-		"id":          3,
-		"device_id":   req["device_id"],
-		"server_name": req["server_name"],
-		"hostname":    req["hostname"],
-		"ip_address":  req["ip_address"],
-		"os_type":     req["os_type"],
-		"os_version":  req["os_version"],
-		"status":      "offline",
-		"created_at":  "2025-09-15T10:30:00Z",
+	// 创建服务器
+	server, err := c.serverService.CreateServer(&req)
+	if err != nil {
+		if err.Error() == "服务器IP地址已存在" {
+			ctx.JSON(http.StatusConflict, models.APIResponse{
+				Code:    http.StatusConflict,
+				Message: "服务器IP地址已存在",
+				Error:   err.Error(),
+			})
+			return
+		}
+
+		ctx.JSON(http.StatusInternalServerError, models.APIResponse{
+			Code:    http.StatusInternalServerError,
+			Message: "创建服务器失败",
+			Error:   err.Error(),
+		})
+		return
 	}
 
 	ctx.JSON(http.StatusCreated, models.APIResponse{
@@ -435,21 +421,31 @@ func (c *ServerController) UpdateServer(ctx *gin.Context) {
 // @Router /api/v1/servers/{id} [delete]
 func (c *ServerController) DeleteServer(ctx *gin.Context) {
 	idStr := ctx.Param("id")
-	id, err := strconv.Atoi(idStr)
+
+	// 删除服务器
+	err := c.serverService.DeleteServer(idStr)
 	if err != nil {
-		ctx.JSON(http.StatusBadRequest, models.APIResponse{
-			Code:    http.StatusBadRequest,
-			Message: "无效的服务器ID",
+		if err.Error() == "服务器不存在" {
+			ctx.JSON(http.StatusNotFound, models.APIResponse{
+				Code:    http.StatusNotFound,
+				Message: "服务器不存在",
+				Error:   err.Error(),
+			})
+			return
+		}
+
+		ctx.JSON(http.StatusInternalServerError, models.APIResponse{
+			Code:    http.StatusInternalServerError,
+			Message: "删除服务器失败",
 			Error:   err.Error(),
 		})
 		return
 	}
 
-	// 模拟删除操作
 	ctx.JSON(http.StatusOK, models.APIResponse{
 		Code:    http.StatusOK,
-		Message: fmt.Sprintf("服务器 %d 删除成功", id),
-		Data:    gin.H{"deleted_id": id},
+		Message: "服务器删除成功",
+		Data:    gin.H{"deleted_id": idStr},
 	})
 }
 

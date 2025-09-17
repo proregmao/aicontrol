@@ -97,28 +97,33 @@ check_dependencies() {
     log_success "依赖检查完成"
 }
 
-# 检查端口是否被占用
-check_port() {
+# 检查端口是否被占用并强制清理
+check_and_kill_port() {
     local port=$1
     local service=$2
 
     if lsof -Pi :$port -sTCP:LISTEN -t >/dev/null 2>&1; then
         log_warning "$service 端口 $port 已被占用"
-        log_info "正在尝试停止占用端口的进程..."
+        log_info "正在强制停止占用端口的进程..."
 
-        # 尝试优雅停止
-        local pid=$(lsof -ti:$port)
-        if [ -n "$pid" ]; then
-            kill -TERM $pid 2>/dev/null || true
-            sleep 2
-
-            # 如果还在运行，强制停止
-            if kill -0 $pid 2>/dev/null; then
-                kill -KILL $pid 2>/dev/null || true
-                log_info "已强制停止占用端口 $port 的进程"
-            fi
+        # 获取占用端口的所有进程
+        local pids=$(lsof -ti:$port)
+        if [ -n "$pids" ]; then
+            # 强制杀掉所有占用端口的进程
+            echo "$pids" | xargs kill -9 2>/dev/null || true
+            sleep 1
+            log_success "已强制停止占用端口 $port 的所有进程"
         fi
+
+        # 再次检查端口是否已释放
+        if lsof -Pi :$port -sTCP:LISTEN -t >/dev/null 2>&1; then
+            log_error "无法释放端口 $port，请手动检查"
+            return 1
+        fi
+    else
+        log_info "$service 端口 $port 可用"
     fi
+    return 0
 }
 
 # 获取配置的端口
@@ -134,9 +139,12 @@ get_frontend_port() {
 start_backend() {
     log_step "启动后端服务..."
 
-    # 检查后端端口
+    # 检查并清理后端端口
     local backend_port=$(get_backend_port)
-    check_port $backend_port "后端服务"
+    if ! check_and_kill_port $backend_port "后端服务"; then
+        log_error "无法清理后端端口 $backend_port"
+        exit 1
+    fi
 
     cd backend
 
@@ -183,6 +191,13 @@ start_backend() {
     BACKEND_PID=$!
     echo $BACKEND_PID > ../backend.pid
 
+    # 启动温度数据采集服务
+    log_info "启动温度数据采集服务..."
+    nohup go run cmd/temperature-collector/main.go > ../logs/temperature-collector.log 2>&1 &
+    COLLECTOR_PID=$!
+    echo $COLLECTOR_PID > ../temperature-collector.pid
+    log_success "温度数据采集服务启动完成 (PID: $COLLECTOR_PID)"
+
     cd ..
 
     # 等待后端启动
@@ -203,9 +218,12 @@ start_backend() {
 start_frontend() {
     log_step "启动前端服务..."
 
-    # 检查前端端口
+    # 检查并清理前端端口
     local frontend_port=$(get_frontend_port)
-    check_port $frontend_port "前端服务"
+    if ! check_and_kill_port $frontend_port "前端服务"; then
+        log_error "无法清理前端端口 $frontend_port"
+        exit 1
+    fi
 
     cd frontend
 
@@ -295,6 +313,7 @@ show_logs_info() {
     echo -e "${CYAN}📋 日志查看命令:${NC}"
     echo -e "  后端日志: ${YELLOW}tail -f logs/backend.log${NC}"
     echo -e "  前端日志: ${YELLOW}tail -f logs/frontend.log${NC}"
+    echo -e "  温度采集日志: ${YELLOW}tail -f logs/temperature-collector.log${NC}"
     echo -e "  查看所有日志: ${YELLOW}tail -f logs/*.log${NC}"
     echo ""
 }
@@ -318,6 +337,22 @@ cleanup() {
         fi
         rm -f backend.pid
         log_success "后端服务已停止"
+    fi
+
+    # 停止温度数据采集服务
+    if [ -f "temperature-collector.pid" ]; then
+        COLLECTOR_PID=$(cat temperature-collector.pid)
+        if kill -0 $COLLECTOR_PID 2>/dev/null; then
+            kill -TERM $COLLECTOR_PID 2>/dev/null || true
+            sleep 2
+
+            # 如果还在运行，强制停止
+            if kill -0 $COLLECTOR_PID 2>/dev/null; then
+                kill -KILL $COLLECTOR_PID 2>/dev/null || true
+            fi
+        fi
+        rm -f temperature-collector.pid
+        log_success "温度数据采集服务已停止"
     fi
 
     # 停止前端服务
@@ -348,6 +383,32 @@ cleanup() {
 # 设置信号处理
 trap cleanup SIGINT SIGTERM
 
+# 强制清理所有相关进程和端口
+force_cleanup() {
+    log_step "强制清理所有相关进程和端口..."
+
+    # 清理8080端口
+    fuser -k 8080/tcp 2>/dev/null || true
+    lsof -ti:8080 | xargs kill -9 2>/dev/null || true
+
+    # 清理3005端口
+    fuser -k 3005/tcp 2>/dev/null || true
+    lsof -ti:3005 | xargs kill -9 2>/dev/null || true
+
+    # 清理可能的进程
+    pkill -f "go run cmd/server/main.go" 2>/dev/null || true
+    pkill -f "go run cmd/temperature-collector/main.go" 2>/dev/null || true
+    pkill -f "npm run dev" 2>/dev/null || true
+    pkill -f "vite" 2>/dev/null || true
+    pkill -f "bin/server" 2>/dev/null || true
+
+    # 清理PID文件
+    rm -f backend.pid frontend.pid temperature-collector.pid 2>/dev/null || true
+
+    sleep 2
+    log_success "强制清理完成"
+}
+
 # 主执行流程
 main() {
     # 检查命令行参数
@@ -362,6 +423,7 @@ main() {
             echo "  --status, -s   显示服务状态"
             echo "  --logs, -l     显示日志查看命令"
             echo "  --stop         停止所有服务"
+            echo "  --cleanup      强制清理所有进程和端口"
             echo ""
             echo "示例:"
             echo "  $0              启动开发环境"
@@ -380,10 +442,17 @@ main() {
         --stop)
             cleanup
             ;;
+        --cleanup)
+            force_cleanup
+            exit 0
+            ;;
     esac
 
     # 检查依赖
     check_dependencies
+
+    # 强制清理所有相关进程和端口
+    force_cleanup
 
     echo ""
     log_step "启动服务..."
@@ -424,13 +493,11 @@ main() {
     # 显示日志信息
     show_logs_info
 
-    echo -e "${PURPLE}💡 按 Ctrl+C 停止所有服务${NC}"
+    echo -e "${PURPLE}💡 服务已在后台运行${NC}"
+    echo -e "${PURPLE}💡 停止服务请运行: ${YELLOW}$0 --stop${NC}"
     echo ""
 
-    # 等待用户中断
-    while true; do
-        sleep 1
-    done
+    log_success "开发环境已启动并在后台运行"
 }
 
 # 执行主函数

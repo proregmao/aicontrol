@@ -126,7 +126,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive } from 'vue'
+import { ref, reactive, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import type { FormInstance, FormRules } from 'element-plus'
 import { Plus } from '@element-plus/icons-vue'
@@ -138,38 +138,41 @@ const saving = ref(false)
 const formRef = ref<FormInstance>()
 
 // 服务器配置列表
-const serverConfigs = ref([
-  {
-    id: 1,
-    name: 'WEB-SERVER-01',
-    ip: '192.168.1.10',
-    port: 22,
-    protocol: 'ssh',
-    username: 'admin',
-    connected: true,
-    description: 'Web服务器'
-  },
-  {
-    id: 2,
-    name: 'DB-SERVER-01',
-    ip: '192.168.1.11',
-    port: 22,
-    protocol: 'ssh',
-    username: 'root',
-    connected: true,
-    description: '数据库服务器'
-  },
-  {
-    id: 3,
-    name: 'APP-SERVER-01',
-    ip: '192.168.1.12',
-    port: 3389,
-    protocol: 'rdp',
-    username: 'administrator',
-    connected: false,
-    description: '应用服务器'
+const serverConfigs = ref([])
+
+// 加载服务器列表
+const loadServers = async () => {
+  try {
+    const response = await fetch('http://localhost:8080/api/v1/servers', {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${localStorage.getItem('token')}`,
+        'Content-Type': 'application/json'
+      }
+    })
+
+    const result = await response.json()
+
+    if (result.code === 200) {
+      serverConfigs.value = result.data.map((server: any) => ({
+        id: server.id,
+        name: server.server_name,
+        ip: server.ip_address,
+        port: server.port,
+        protocol: server.protocol,
+        username: server.username,
+        connected: server.connected,
+        status: server.status,
+        description: server.description
+      }))
+    } else {
+      ElMessage.error(result.message || '加载服务器列表失败')
+    }
+  } catch (error) {
+    console.error('加载服务器列表失败:', error)
+    ElMessage.error('加载服务器列表失败')
   }
-])
+}
 
 // 表单数据
 const serverForm = reactive({
@@ -239,17 +242,38 @@ const resetForm = () => {
 // 保存服务器
 const saveServer = async () => {
   if (!formRef.value) return
-  
+
   try {
     await formRef.value.validate()
     saving.value = true
-    
+
     // 这里将调用API保存服务器配置
     await new Promise(resolve => setTimeout(resolve, 1000))
-    
-    ElMessage.success(isEdit.value ? '服务器更新成功' : '服务器添加成功')
+
+    if (isEdit.value) {
+      // 编辑模式：更新现有服务器
+      const index = serverConfigs.value.findIndex(s => s.id === serverForm.id)
+      if (index > -1) {
+        serverConfigs.value[index] = {
+          ...serverConfigs.value[index],
+          ...serverForm,
+          connected: serverConfigs.value[index].connected // 保持原有连接状态
+        }
+      }
+      ElMessage.success('服务器更新成功')
+    } else {
+      // 添加模式：添加新服务器
+      const newServer = {
+        ...serverForm,
+        id: Date.now(), // 生成临时ID
+        connected: false // 新服务器默认未连接
+      }
+      serverConfigs.value.push(newServer)
+      ElMessage.success('服务器添加成功')
+    }
+
     dialogVisible.value = false
-    
+
   } catch (error) {
     console.error('保存服务器失败:', error)
   } finally {
@@ -286,12 +310,37 @@ const deleteServer = async (server: any) => {
         type: 'warning'
       }
     )
-    
-    ElMessage.success('服务器删除成功')
-  } catch (error) {
-    // 用户取消删除
+
+    // 调用后端API删除服务器
+    const response = await fetch(`http://localhost:8080/api/v1/servers/${server.id}`, {
+      method: 'DELETE',
+      headers: {
+        'Authorization': `Bearer ${localStorage.getItem('token')}`,
+        'Content-Type': 'application/json'
+      }
+    })
+
+    const result = await response.json()
+
+    if (result.code === 200) {
+      ElMessage.success('服务器删除成功')
+      // 重新加载服务器列表
+      await loadServers()
+    } else {
+      ElMessage.error(result.message || '删除服务器失败')
+    }
+  } catch (error: any) {
+    if (error !== 'cancel') {
+      console.error('删除服务器失败:', error)
+      ElMessage.error('删除服务器失败')
+    }
   }
 }
+
+// 页面加载时获取服务器列表
+onMounted(() => {
+  loadServers()
+})
 </script>
 
 <style scoped>

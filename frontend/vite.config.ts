@@ -26,11 +26,12 @@ export default defineConfig(({ mode }) => {
       strictPort: true, // 强制使用指定端口，如果被占用则报错
       proxy: {
         '/api': {
-          target: env.VITE_API_BASE_URL || env.API_BASE_URL || `http://${env.BACKEND_HOST || 'localhost'}:${env.BACKEND_PORT || '8080'}/api/v1`,
+          target: `http://${env.BACKEND_HOST || 'localhost'}:${env.BACKEND_PORT || '8080'}`,
           changeOrigin: true,
+          secure: false,
         },
         '/ws': {
-          target: env.VITE_WS_URL || env.WS_URL || `ws://${env.BACKEND_HOST || 'localhost'}:${env.BACKEND_PORT || '8080'}/ws`,
+          target: `ws://${env.BACKEND_HOST || 'localhost'}:${env.BACKEND_PORT || '8080'}`,
           ws: true,
           changeOrigin: true,
         },

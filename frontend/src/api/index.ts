@@ -10,10 +10,8 @@ export interface ApiResponse<T = any> {
 
 // 获取API基础URL
 const getApiBaseUrl = () => {
-  // 优先使用Vite环境变量，然后是根目录环境变量，最后是默认值
-  return import.meta.env.VITE_API_BASE_URL ||
-         `http://${import.meta.env.VITE_BACKEND_HOST || 'localhost'}:${import.meta.env.VITE_BACKEND_PORT || '8080'}/api/v1` ||
-         'http://localhost:8080/api/v1'
+  // 使用正确的8080端口，与后端服务一致
+  return 'http://localhost:8080/api/v1'
 }
 
 // 创建axios实例

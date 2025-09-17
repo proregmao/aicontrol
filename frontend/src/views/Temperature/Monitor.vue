@@ -143,10 +143,10 @@ const showAlarmModal = ref(false)
 
 // 传感器数据
 const sensorData = ref({
-  sensor1: { temperature: 23.5, status: 'normal' },
-  sensor2: { temperature: 21.2, status: 'normal' },
-  sensor3: { temperature: 35.8, status: 'warning' },
-  sensor4: { temperature: 28.3, status: 'normal' }
+  sensor1: { temperature: 0, status: 'normal' },
+  sensor2: { temperature: 0, status: 'normal' },
+  sensor3: { temperature: 0, status: 'normal' },
+  sensor4: { temperature: 0, status: 'normal' }
 })
 
 // 时间范围选项
@@ -204,20 +204,62 @@ const editAlarmRule = (row: any) => {
   ElMessage.info(`编辑告警规则: ${row.probe}`)
 }
 
-// 模拟数据更新
+// 真实数据更新
 let updateTimer: NodeJS.Timeout | null = null
 
-const updateSensorData = () => {
-  // 模拟温度变化
-  sensorData.value.sensor1.temperature = +(23.5 + (Math.random() - 0.5) * 2).toFixed(1)
-  sensorData.value.sensor2.temperature = +(21.2 + (Math.random() - 0.5) * 2).toFixed(1)
-  sensorData.value.sensor3.temperature = +(35.8 + (Math.random() - 0.5) * 3).toFixed(1)
-  sensorData.value.sensor4.temperature = +(28.3 + (Math.random() - 0.5) * 2).toFixed(1)
+const updateSensorData = async () => {
+  try {
+    // 调用真实的实时温度API
+    const response = await fetch('/api/v1/temperature/realtime', {
+      headers: {
+        'Authorization': `Bearer ${localStorage.getItem('token')}`
+      }
+    })
+
+    if (response.ok) {
+      const result = await response.json()
+      if (result.code === 200 && result.data && result.data.sensors && Array.isArray(result.data.sensors) && result.data.sensors.length > 0) {
+        const sensor = result.data.sensors[0] // 获取第一个传感器
+        const channels = sensor.channels
+
+        // 更新传感器数据
+        if (channels && Array.isArray(channels) && channels.length >= 4) {
+          sensorData.value.sensor1.temperature = channels.find(c => c.channel === 1)?.temperature || 0
+          sensorData.value.sensor2.temperature = channels.find(c => c.channel === 2)?.temperature || 0
+          sensorData.value.sensor3.temperature = channels.find(c => c.channel === 3)?.temperature || 0
+          sensorData.value.sensor4.temperature = channels.find(c => c.channel === 4)?.temperature || 0
+
+          // 更新状态
+          sensorData.value.sensor1.status = channels.find(c => c.channel === 1)?.status === 'normal' ? 'normal' : 'warning'
+          sensorData.value.sensor2.status = channels.find(c => c.channel === 2)?.status === 'normal' ? 'normal' : 'warning'
+          sensorData.value.sensor3.status = channels.find(c => c.channel === 3)?.status === 'normal' ? 'normal' : 'warning'
+          sensorData.value.sensor4.status = channels.find(c => c.channel === 4)?.status === 'normal' ? 'normal' : 'warning'
+        }
+      } else {
+        // 如果没有传感器数据，显示默认值
+        console.log('没有传感器数据，显示默认值')
+        sensorData.value.sensor1.temperature = 0
+        sensorData.value.sensor2.temperature = 0
+        sensorData.value.sensor3.temperature = 0
+        sensorData.value.sensor4.temperature = 0
+
+        sensorData.value.sensor1.status = 'offline'
+        sensorData.value.sensor2.status = 'offline'
+        sensorData.value.sensor3.status = 'offline'
+        sensorData.value.sensor4.status = 'offline'
+      }
+    }
+  } catch (error) {
+    console.error('获取实时温度数据失败:', error)
+  }
 }
 
 // 生命周期
-onMounted(() => {
-  updateTimer = setInterval(updateSensorData, 5000) // 5秒更新一次
+onMounted(async () => {
+  // 立即获取一次数据
+  await updateSensorData()
+  // 然后每5秒更新一次
+  updateTimer = setInterval(updateSensorData, 5000)
 })
 
 onUnmounted(() => {

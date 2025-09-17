@@ -113,9 +113,15 @@ FRONTEND_PORT=3005
 API_BASE_URL=http://localhost:8080/api/v1
 WS_URL=ws://localhost:8080/ws
 
-# 数据库配置 (开发环境使用SQLite)
-DB_TYPE=sqlite
-DB_PATH=./backend/data/smart_device_management.db
+# 数据库配置 (使用PostgreSQL)
+DB_TYPE=postgres
+DB_HOST=192.168.110.21
+DB_PORT=5432
+DB_USER=postgres
+DB_PASSWORD=abcd1234
+DB_NAME=smart_device_management
+DB_SSLMODE=disable
+DB_TIMEZONE=Asia/Shanghai
 
 # JWT配置
 JWT_SECRET=your_super_secret_jwt_key_change_in_production

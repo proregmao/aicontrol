@@ -179,6 +179,8 @@
 import { ref, onMounted, onUnmounted } from 'vue'
 import { Refresh } from '@element-plus/icons-vue'
 import DataTable from '@/components/common/DataTable.vue'
+import { getSystemInfo, formatNumber, type SystemInfo } from '@/services/systemApi'
+import { ElMessage } from 'element-plus'
 
 // 系统统计数据
 const systemStats = ref({
@@ -192,27 +194,35 @@ const systemStats = ref({
 })
 
 // 硬件信息
-const hardwareInfo = ref({
+const hardwareInfo = ref<SystemInfo>({
   cpu: {
     model: 'Intel Core i7-12700',
-    usage: 15.2,
-    temperature: 42
+    cores: 8,
+    usage: 15.20,
+    temperature: 42.00
   },
   memory: {
-    total: 32,
-    usage: 68.5,
-    used: 21.9
+    total: 32.00,
+    used: 21.90,
+    available: 10.10,
+    usage: 68.50
   },
   disk: {
-    total: 1000,
-    type: 'NVMe SSD',
-    usage: 45.8,
-    available: 542
+    total: 1000.00,
+    used: 458.00,
+    available: 542.00,
+    usage: 45.80,
+    type: 'NVMe SSD'
   },
   network: {
     type: '千兆以太网',
-    upload: 2.5,
-    download: 15.8
+    upload: 2.50,
+    download: 15.80
+  },
+  load: {
+    load1: 0.85,
+    load5: 1.20,
+    load15: 1.45
   }
 })
 
@@ -280,16 +290,74 @@ const recentAlarms = ref([])
 const loading = ref(false)
 
 // 刷新硬件信息
-const refreshHardwareInfo = () => {
-  // 模拟数据更新
-  hardwareInfo.value.cpu.usage = Math.random() * 30 + 10
-  hardwareInfo.value.cpu.temperature = Math.random() * 20 + 35
-  hardwareInfo.value.memory.usage = Math.random() * 30 + 50
-  hardwareInfo.value.memory.used = (hardwareInfo.value.memory.usage / 100) * hardwareInfo.value.memory.total
-  hardwareInfo.value.disk.usage = Math.random() * 20 + 35
-  hardwareInfo.value.disk.available = hardwareInfo.value.disk.total * (1 - hardwareInfo.value.disk.usage / 100)
-  hardwareInfo.value.network.upload = Math.random() * 3 + 1
-  hardwareInfo.value.network.download = Math.random() * 20 + 5
+const refreshHardwareInfo = async () => {
+  try {
+    loading.value = true
+
+    // 尝试获取真实系统信息，如果失败则使用模拟数据
+    try {
+      const systemInfo = await getSystemInfo()
+
+      // 更新硬件信息，保留两位小数
+      hardwareInfo.value = {
+        cpu: {
+          model: systemInfo.cpu.model,
+          cores: systemInfo.cpu.cores,
+          usage: formatNumber(systemInfo.cpu.usage, 2),
+          temperature: formatNumber(systemInfo.cpu.temperature, 2)
+        },
+        memory: {
+          total: formatNumber(systemInfo.memory.total, 2),
+          used: formatNumber(systemInfo.memory.used, 2),
+          available: formatNumber(systemInfo.memory.available, 2),
+          usage: formatNumber(systemInfo.memory.usage, 2)
+        },
+        disk: {
+          total: formatNumber(systemInfo.disk.total, 2),
+          used: formatNumber(systemInfo.disk.used, 2),
+          available: formatNumber(systemInfo.disk.available, 2),
+          usage: formatNumber(systemInfo.disk.usage, 2),
+          type: systemInfo.disk.type
+        },
+        network: {
+          type: systemInfo.network.type,
+          upload: formatNumber(systemInfo.network.upload, 2),
+          download: formatNumber(systemInfo.network.download, 2)
+        },
+        load: {
+          load1: formatNumber(systemInfo.load.load1, 2),
+          load5: formatNumber(systemInfo.load.load5, 2),
+          load15: formatNumber(systemInfo.load.load15, 2)
+        }
+      }
+
+      ElMessage.success('硬件信息刷新成功')
+    } catch (apiError) {
+      console.warn('API调用失败，使用模拟数据:', apiError)
+
+      // 使用模拟数据，但保留两位小数格式
+      hardwareInfo.value.cpu.usage = formatNumber(Math.random() * 30 + 10, 2)
+      hardwareInfo.value.cpu.temperature = formatNumber(Math.random() * 20 + 35, 2)
+      hardwareInfo.value.memory.usage = formatNumber(Math.random() * 30 + 50, 2)
+      hardwareInfo.value.memory.used = formatNumber((hardwareInfo.value.memory.usage / 100) * hardwareInfo.value.memory.total, 2)
+      hardwareInfo.value.memory.available = formatNumber(hardwareInfo.value.memory.total - hardwareInfo.value.memory.used, 2)
+      hardwareInfo.value.disk.usage = formatNumber(Math.random() * 20 + 35, 2)
+      hardwareInfo.value.disk.used = formatNumber((hardwareInfo.value.disk.usage / 100) * hardwareInfo.value.disk.total, 2)
+      hardwareInfo.value.disk.available = formatNumber(hardwareInfo.value.disk.total - hardwareInfo.value.disk.used, 2)
+      hardwareInfo.value.network.upload = formatNumber(Math.random() * 3 + 1, 2)
+      hardwareInfo.value.network.download = formatNumber(Math.random() * 20 + 5, 2)
+      hardwareInfo.value.load.load1 = formatNumber(Math.random() * 2 + 0.5, 2)
+      hardwareInfo.value.load.load5 = formatNumber(Math.random() * 2.5 + 0.8, 2)
+      hardwareInfo.value.load.load15 = formatNumber(Math.random() * 3 + 1, 2)
+
+      ElMessage.info('使用模拟硬件数据（保留两位小数）')
+    }
+  } catch (error: any) {
+    console.error('刷新硬件信息失败:', error)
+    ElMessage.error('刷新硬件信息失败: ' + (error.message || '未知错误'))
+  } finally {
+    loading.value = false
+  }
 }
 
 // 刷新系统状态
@@ -315,7 +383,10 @@ const handleDeviceAction = (actionName: string, row: any) => {
 // 定时更新数据
 let timer: NodeJS.Timeout | null = null
 
-onMounted(() => {
+onMounted(async () => {
+  // 页面加载时立即获取硬件信息
+  await refreshHardwareInfo()
+
   // 每30秒更新一次数据
   timer = setInterval(() => {
     refreshHardwareInfo()

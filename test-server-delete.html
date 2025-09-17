@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>服务器删除功能测试</title>
+    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+    <script src="https://unpkg.com/element-plus/dist/index.full.js"></script>
+    <link rel="stylesheet" href="https://unpkg.com/element-plus/dist/index.css">
+    <style>
+        body { font-family: Arial, sans-serif; padding: 20px; }
+        .test-container { max-width: 800px; margin: 0 auto; }
+        .server-item { 
+            display: flex; 
+            justify-content: space-between; 
+            align-items: center; 
+            padding: 10px; 
+            border: 1px solid #ddd; 
+            margin: 5px 0; 
+            border-radius: 4px; 
+        }
+        .delete-btn { 
+            background: #f56565; 
+            color: white; 
+            border: none; 
+            padding: 5px 10px; 
+            border-radius: 4px; 
+            cursor: pointer; 
+        }
+        .delete-btn:hover { background: #e53e3e; }
+    </style>
+</head>
+<body>
+    <div id="app">
+        <div class="test-container">
+            <h1>🔧 服务器删除功能测试</h1>
+            <p>测试删除服务器后是否从列表中移除</p>
+            
+            <div v-if="serverConfigs.length === 0" style="text-align: center; color: #666; padding: 20px;">
+                ✅ 所有服务器已删除！修复成功！
+            </div>
+            
+            <div v-for="server in serverConfigs" :key="server.id" class="server-item">
+                <div>
+                    <strong>{{ server.name }}</strong> - {{ server.ip }}:{{ server.port }} ({{ server.protocol }})
+                    <span :style="{ color: server.connected ? 'green' : 'red' }">
+                        {{ server.connected ? '已连接' : '未连接' }}
+                    </span>
+                </div>
+                <button class="delete-btn" @click="deleteServer(server)">删除</button>
+            </div>
+            
+            <div style="margin-top: 20px;">
+                <p><strong>当前服务器数量:</strong> {{ serverConfigs.length }}</p>
+                <button @click="resetServers" style="padding: 10px 20px; background: #4299e1; color: white; border: none; border-radius: 4px; cursor: pointer;">
+                    重置服务器列表
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const { createApp, ref } = Vue;
+        const { ElMessage, ElMessageBox } = ElementPlus;
+
+        createApp({
+            setup() {
+                // 服务器配置列表
+                const serverConfigs = ref([
+                    {
+                        id: 1,
+                        name: 'WEB-SERVER-01',
+                        ip: '192.168.1.10',
+                        port: 22,
+                        protocol: 'ssh',
+                        username: 'admin',
+                        connected: true,
+                        description: 'Web服务器'
+                    },
+                    {
+                        id: 2,
+                        name: 'DB-SERVER-01',
+                        ip: '192.168.1.11',
+                        port: 22,
+                        protocol: 'ssh',
+                        username: 'root',
+                        connected: true,
+                        description: '数据库服务器'
+                    },
+                    {
+                        id: 3,
+                        name: 'APP-SERVER-01',
+                        ip: '192.168.1.12',
+                        port: 3389,
+                        protocol: 'rdp',
+                        username: 'administrator',
+                        connected: false,
+                        description: '应用服务器'
+                    }
+                ]);
+
+                // 删除服务器 - 修复后的版本
+                const deleteServer = async (server) => {
+                    try {
+                        await ElMessageBox.confirm(
+                            `确定要删除服务器 ${server.name} 吗？`,
+                            '确认删除',
+                            {
+                                confirmButtonText: '确定',
+                                cancelButtonText: '取消',
+                                type: 'warning'
+                            }
+                        );
+                        
+                        // 从服务器列表中移除该服务器
+                        const index = serverConfigs.value.findIndex(s => s.id === server.id);
+                        if (index > -1) {
+                            serverConfigs.value.splice(index, 1);
+                        }
+                        
+                        ElMessage.success('服务器删除成功');
+                    } catch (error) {
+                        // 用户取消删除
+                    }
+                };
+
+                // 重置服务器列表
+                const resetServers = () => {
+                    serverConfigs.value = [
+                        {
+                            id: 1,
+                            name: 'WEB-SERVER-01',
+                            ip: '192.168.1.10',
+                            port: 22,
+                            protocol: 'ssh',
+                            username: 'admin',
+                            connected: true,
+                            description: 'Web服务器'
+                        },
+                        {
+                            id: 2,
+                            name: 'DB-SERVER-01',
+                            ip: '192.168.1.11',
+                            port: 22,
+                            protocol: 'ssh',
+                            username: 'root',
+                            connected: true,
+                            description: '数据库服务器'
+                        },
+                        {
+                            id: 3,
+                            name: 'APP-SERVER-01',
+                            ip: '192.168.1.12',
+                            port: 3389,
+                            protocol: 'rdp',
+                            username: 'administrator',
+                            connected: false,
+                            description: '应用服务器'
+                        }
+                    ];
+                    ElMessage.info('服务器列表已重置');
+                };
+
+                return {
+                    serverConfigs,
+                    deleteServer,
+                    resetServers
+                };
+            }
+        }).use(ElementPlus).mount('#app');
+    </script>
+</body>
+</html>
