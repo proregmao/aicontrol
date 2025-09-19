@@ -443,26 +443,71 @@ const recentExecutions = computed(() => {
 })
 
 // 方法
-const refreshData = async () => {
-  loading.value = true
+const refreshData = async (isAutoRefresh = false) => {
+  if (!isAutoRefresh) {
+    loading.value = true
+  }
+
   try {
     const [tasksResponse, executionsResponse] = await Promise.all([
       scheduledTaskApi.getTasks(),
       scheduledTaskApi.getExecutions()
     ])
-    
+
     if (tasksResponse.code === 200) {
-      tasks.value = tasksResponse.data.items || []
+      const newTasks = tasksResponse.data.items || []
+
+      // 如果是首次加载或列表为空，直接设置
+      if (tasks.value.length === 0) {
+        tasks.value = newTasks
+        if (!isAutoRefresh) {
+          console.log('初始化定时任务列表完成:', tasks.value.length, '个任务')
+        }
+      } else {
+        // 增量更新：只更新变化的任务
+        newTasks.forEach((newTask: any) => {
+          const existingIndex = tasks.value.findIndex(t => t.id === newTask.id)
+          if (existingIndex >= 0) {
+            // 检查是否有变化
+            const currentTask = tasks.value[existingIndex]
+            if (currentTask.status !== newTask.status ||
+                currentTask.last_run !== newTask.last_run ||
+                currentTask.next_run !== newTask.next_run) {
+              // 使用Object.assign保持响应式
+              Object.assign(tasks.value[existingIndex], newTask)
+            }
+          } else {
+            // 新增任务
+            tasks.value.push(newTask)
+          }
+        })
+
+        // 移除已删除的任务
+        tasks.value = tasks.value.filter(task =>
+          newTasks.some((newTask: any) => newTask.id === task.id)
+        )
+
+        if (!isAutoRefresh) {
+          console.log('增量更新定时任务列表完成:', tasks.value.length, '个任务')
+        }
+      }
     }
-    
+
     if (executionsResponse.code === 200) {
-      executions.value = executionsResponse.data.items || []
+      const newExecutions = executions.data.items || []
+
+      // 执行记录通常只需要最新的，可以直接替换
+      executions.value = newExecutions
     }
-  } catch (error) {
-    ElMessage.error('获取定时任务数据失败')
+  } catch (error: any) {
+    if (!isAutoRefresh) {
+      ElMessage.error('获取定时任务数据失败')
+    }
     console.error('获取定时任务数据失败:', error)
   } finally {
-    loading.value = false
+    if (!isAutoRefresh) {
+      loading.value = false
+    }
   }
 }
 

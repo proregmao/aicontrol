@@ -54,6 +54,11 @@ func main() {
 	// 初始化WebSocket Hub
 	websocket.InitWebSocketHub()
 
+	// 启动断路器状态监控服务
+	if err := startBreakerStatusMonitor(); err != nil {
+		logrus.Warn("启动断路器状态监控失败: ", err)
+	}
+
 	// 设置Gin模式
 	if cfg.App.Env == "production" {
 		gin.SetMode(gin.ReleaseMode)
@@ -91,6 +96,33 @@ func main() {
 	}
 
 	logrus.Info("服务器已关闭")
+}
+
+// 全局变量保存监控服务引用
+var globalBreakerStatusMonitor *services.BreakerStatusMonitor
+
+// startBreakerStatusMonitor 启动断路器状态监控服务
+func startBreakerStatusMonitor() error {
+	db := database.GetDB()
+	appLogger := logger.GetLogger()
+
+	// 创建仓库和服务
+	breakerRepo := repositories.NewBreakerRepository(db)
+	modbusService := services.NewModbusService(appLogger, db)
+
+	// 创建状态监控服务
+	statusMonitor := services.NewBreakerStatusMonitor(db, logrus.StandardLogger(), breakerRepo, modbusService)
+
+	// 启动监控
+	if err := statusMonitor.Start(); err != nil {
+		return fmt.Errorf("启动断路器状态监控失败: %w", err)
+	}
+
+	// 保存全局引用
+	globalBreakerStatusMonitor = statusMonitor
+
+	logrus.Info("断路器状态监控服务已启动")
+	return nil
 }
 
 // initLogger 初始化日志配置
@@ -241,7 +273,8 @@ func setupRouter() *gin.Engine {
 	}
 
 	// 断路器管理路由
-	breakerController := controllers.NewBreakerController(services.NewBreakerService(repositories.NewBreakerRepository(database.GetDB()), repositories.NewServerRepository(database.GetDB()), logger.GetLogger(), database.GetDB()))
+	breakerService := services.NewBreakerService(repositories.NewBreakerRepository(database.GetDB()), repositories.NewServerRepository(database.GetDB()), logger.GetLogger(), database.GetDB())
+	breakerController := controllers.NewBreakerController(breakerService)
 	breakerGroup := apiV1.Group("/breakers")
 	{
 		breakerGroup.GET("", middleware.AuthMiddleware(), breakerController.GetBreakers)
@@ -252,10 +285,24 @@ func setupRouter() *gin.Engine {
 		breakerGroup.GET("/:id/realtime", middleware.AuthMiddleware(), breakerController.GetBreakerRealTimeData)
 		breakerGroup.POST("/:id/control", middleware.AuthMiddleware(), middleware.RequireOperator(), breakerController.ControlBreaker)
 		breakerGroup.GET("/:id/control/:control_id", middleware.AuthMiddleware(), breakerController.GetControlStatus)
+		breakerGroup.POST("/:id/lock", middleware.AuthMiddleware(), middleware.RequireOperator(), breakerController.ControlBreakerLock)
 		breakerGroup.GET("/:id/bindings", middleware.AuthMiddleware(), breakerController.GetBindings)
 		breakerGroup.POST("/:id/bindings", middleware.AuthMiddleware(), middleware.RequireOperator(), breakerController.CreateBinding)
 		breakerGroup.PUT("/:id/bindings/:binding_id", middleware.AuthMiddleware(), middleware.RequireOperator(), breakerController.UpdateBinding)
 		breakerGroup.DELETE("/:id/bindings/:binding_id", middleware.AuthMiddleware(), middleware.RequireOperator(), breakerController.DeleteBinding)
+	}
+
+	// 状态监控路由
+	statusMonitorController := controllers.NewStatusMonitorController(breakerService.GetStatusMonitorService(), globalBreakerStatusMonitor)
+	statusMonitorGroup := apiV1.Group("/status-monitor")
+	{
+		statusMonitorGroup.GET("", middleware.AuthMiddleware(), statusMonitorController.GetMonitorStatus)
+		statusMonitorGroup.POST("/start", middleware.AuthMiddleware(), middleware.RequireOperator(), statusMonitorController.StartMonitor)
+		statusMonitorGroup.POST("/stop", middleware.AuthMiddleware(), middleware.RequireOperator(), statusMonitorController.StopMonitor)
+		statusMonitorGroup.POST("/interval", middleware.AuthMiddleware(), middleware.RequireOperator(), statusMonitorController.SetMonitorInterval)
+		statusMonitorGroup.GET("/interval-options", middleware.AuthMiddleware(), statusMonitorController.GetMonitorIntervalOptions)
+		statusMonitorGroup.POST("/check", middleware.AuthMiddleware(), middleware.RequireOperator(), statusMonitorController.TriggerManualCheck)
+		statusMonitorGroup.GET("/history", middleware.AuthMiddleware(), statusMonitorController.GetMonitorHistory)
 	}
 
 	// 告警管理路由

@@ -263,6 +263,7 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 
 // 服务器列表数据
 const servers = ref([])
+const loading = ref(false)
 
 // 对话框状态
 const detailDialogVisible = ref(false)
@@ -273,9 +274,13 @@ const hardwareInfo = ref(null)
 const hardwareLoading = ref(false)
 const detectingHardware = ref(false)
 
-// 加载服务器列表
-const loadServers = async () => {
+// 加载服务器列表（增量更新版本）
+const loadServers = async (isAutoRefresh = false) => {
   try {
+    if (!isAutoRefresh) {
+      loading.value = true
+    }
+
     const response = await fetch('http://localhost:8080/api/v1/servers', {
       method: 'GET',
       headers: {
@@ -287,7 +292,7 @@ const loadServers = async () => {
     const result = await response.json()
     if (result.code === 200) {
       if (result.data && Array.isArray(result.data)) {
-        servers.value = result.data.map((server: any) => ({
+        const newServers = result.data.map((server: any) => ({
           id: server.id,
           server: server.server_name, // 添加server字段用于显示
           name: server.server_name,
@@ -301,6 +306,39 @@ const loadServers = async () => {
           lastTestAt: server.last_test_at,
           description: server.description
         }))
+
+        // 如果是首次加载或列表为空，直接设置
+        if (servers.value.length === 0) {
+          servers.value = newServers
+          console.log('初始化服务器列表完成:', servers.value.length, '个服务器')
+        } else {
+          // 增量更新：只更新变化的服务器
+          newServers.forEach((newServer: any) => {
+            const existingIndex = servers.value.findIndex(s => s.id === newServer.id)
+            if (existingIndex >= 0) {
+              // 检查是否有变化
+              const currentServer = servers.value[existingIndex]
+              if (currentServer.connected !== newServer.connected ||
+                  currentServer.status !== newServer.status ||
+                  currentServer.lastTestAt !== newServer.lastTestAt) {
+                // 使用Object.assign保持响应式
+                Object.assign(servers.value[existingIndex], newServer)
+              }
+            } else {
+              // 新增服务器
+              servers.value.push(newServer)
+            }
+          })
+
+          // 移除已删除的服务器
+          servers.value = servers.value.filter(server =>
+            newServers.some((newServer: any) => newServer.id === server.id)
+          )
+
+          if (!isAutoRefresh) {
+            console.log('增量更新服务器列表完成:', servers.value.length, '个服务器')
+          }
+        }
       } else {
         servers.value = []
       }
@@ -309,8 +347,16 @@ const loadServers = async () => {
     }
   } catch (error: any) {
     console.error('加载服务器列表失败:', error)
-    ElMessage.error(`加载服务器列表失败: ${error.message || error}`)
-    servers.value = []
+    if (!isAutoRefresh) {
+      ElMessage.error(`加载服务器列表失败: ${error.message || error}`)
+    }
+    if (servers.value.length === 0) {
+      servers.value = []
+    }
+  } finally {
+    if (!isAutoRefresh) {
+      loading.value = false
+    }
   }
 }
 

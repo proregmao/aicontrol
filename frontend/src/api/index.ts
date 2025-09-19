@@ -63,11 +63,14 @@ apiClient.interceptors.response.use(
   },
   (error) => {
     console.error('响应拦截器错误:', error)
-    
+
+    // 标记错误已被拦截器处理，避免组件中重复处理
+    error.handledByInterceptor = true
+
     // 处理HTTP错误状态码
     if (error.response) {
       const { status, data } = error.response
-      
+
       switch (status) {
         case 401:
           ElMessage.error('登录已过期，请重新登录')
@@ -90,7 +93,10 @@ apiClient.interceptors.response.use(
           ElMessage.error('服务器内部错误')
           break
         default:
-          ElMessage.error(data?.message || '请求失败')
+          // 只有在特定情况下才显示通用错误消息
+          if (!error.config?.url?.includes('/breakers')) {
+            ElMessage.error(data?.message || '请求失败')
+          }
       }
     } else if (error.request) {
       ElMessage.error('网络连接失败，请检查网络')

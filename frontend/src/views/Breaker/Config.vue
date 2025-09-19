@@ -25,14 +25,24 @@
               {{ scope.row.port || '--' }}
             </template>
           </el-table-column>
-          <el-table-column prop="rated_current" label="额定电流" width="100">
+          <el-table-column label="额定电流" width="120">
             <template #default="scope">
-              {{ scope.row.rated_current || '--' }}A
+              <div>
+                <div>配置: {{ scope.row.rated_current || '--' }}A</div>
+                <div style="color: #666; font-size: 12px;">
+                  设备: {{ formatDeviceValue(scope.row.device_rated_current) }}A
+                </div>
+              </div>
             </template>
           </el-table-column>
-          <el-table-column prop="alarm_current" label="告警电流" width="100">
+          <el-table-column label="告警电流" width="120">
             <template #default="scope">
-              {{ scope.row.alarm_current || '--' }}A
+              <div>
+                <div>配置: {{ scope.row.alarm_current || '--' }}A</div>
+                <div style="color: #666; font-size: 12px;">
+                  设备: {{ formatDeviceValue(scope.row.device_alarm_current) }}mA
+                </div>
+              </div>
             </template>
           </el-table-column>
           <el-table-column label="绑定服务器" width="150">
@@ -271,6 +281,10 @@ interface BreakerConfig {
   status: string
   description: string
   bound_servers?: BoundServerInfo[]
+  // 设备配置参数（从MODBUS设备读取）
+  device_rated_current?: number    // 设备额定电流 (A) - 从40005寄存器读取
+  device_alarm_current?: number    // 设备告警电流阈值 (mA) - 从40006寄存器读取
+  device_over_temp_threshold?: number // 设备过温阈值 (°C) - 从40007寄存器读取
 }
 
 interface BoundServerInfo {
@@ -326,10 +340,37 @@ const fetchBreakers = async () => {
     const response = await apiClient.get('/breakers')
     if (response.data.code === 200) {
       breakerConfigs.value = response.data.data || []
+      console.log('成功获取断路器列表:', breakerConfigs.value.length, '个断路器')
+    } else {
+      console.error('API响应错误:', response.data)
+      ElMessage.error(response.data.message || '获取断路器列表失败')
     }
-  } catch (error) {
+  } catch (error: any) {
     console.error('获取断路器列表失败:', error)
-    ElMessage.error('获取断路器列表失败')
+
+    // 如果错误已被拦截器处理，不重复显示错误消息
+    if (!error.handledByInterceptor) {
+      // 详细的错误处理
+      if (error.response) {
+        // 服务器响应了错误状态码
+        const { status, data } = error.response
+        if (status === 401) {
+          ElMessage.error('登录已过期，请重新登录')
+          // 跳转到登录页面
+          window.location.href = '/login'
+        } else if (status === 403) {
+          ElMessage.error('权限不足')
+        } else {
+          ElMessage.error(data?.message || `服务器错误 (${status})`)
+        }
+      } else if (error.request) {
+        // 请求已发出但没有收到响应
+        ElMessage.error('网络连接失败，请检查网络')
+      } else {
+        // 其他错误
+        ElMessage.error('请求失败: ' + error.message)
+      }
+    }
   } finally {
     loading.value = false
   }
@@ -516,6 +557,14 @@ const formatBoundServers = (boundServers?: BoundServerInfo[]) => {
     return '未绑定'
   }
   return boundServers.map(server => server.server_name).join(', ')
+}
+
+// 格式化设备参数值显示
+const formatDeviceValue = (value?: number) => {
+  if (value === undefined || value === null) {
+    return '--'
+  }
+  return value.toFixed(2)
 }
 
 // 页面加载时获取数据

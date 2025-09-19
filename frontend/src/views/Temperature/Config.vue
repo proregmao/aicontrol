@@ -572,10 +572,13 @@ const saveSensor = async () => {
   }
 }
 
-// 加载通道列表
-const loadChannels = async () => {
+// 加载通道列表（增量更新版本）
+const loadChannels = async (isAutoRefresh = false) => {
   try {
-    loading.value = true
+    if (!isAutoRefresh) {
+      loading.value = true
+    }
+
     const token = localStorage.getItem('token')
     const response = await fetch('http://localhost:8080/api/v1/sensors/channels', {
       headers: {
@@ -588,21 +591,62 @@ const loadChannels = async () => {
     }
 
     const result = await response.json()
-    console.log('通道列表:', result)
+    if (!isAutoRefresh) {
+      console.log('通道列表:', result)
+    }
 
     if (result.code === 20000 && result.data.channels) {
-      channelConfigs.value = result.data.channels
+      const newChannels = result.data.channels
+
+      // 如果是首次加载或列表为空，直接设置
+      if (channelConfigs.value.length === 0) {
+        channelConfigs.value = newChannels
+        console.log('初始化通道列表完成:', channelConfigs.value.length, '个通道')
+      } else {
+        // 增量更新：只更新变化的通道
+        newChannels.forEach((newChannel: any) => {
+          const existingIndex = channelConfigs.value.findIndex(c => c.id === newChannel.id && c.channel_number === newChannel.channel_number)
+          if (existingIndex >= 0) {
+            // 检查是否有变化
+            const currentChannel = channelConfigs.value[existingIndex]
+            if (currentChannel.channel_name !== newChannel.channel_name ||
+                currentChannel.temperature !== newChannel.temperature ||
+                currentChannel.status !== newChannel.status) {
+              // 使用Object.assign保持响应式
+              Object.assign(channelConfigs.value[existingIndex], newChannel)
+            }
+          } else {
+            // 新增通道
+            channelConfigs.value.push(newChannel)
+          }
+        })
+
+        // 移除已删除的通道
+        channelConfigs.value = channelConfigs.value.filter(channel =>
+          newChannels.some((newChannel: any) =>
+            newChannel.id === channel.id && newChannel.channel_number === channel.channel_number
+          )
+        )
+
+        if (!isAutoRefresh) {
+          console.log('增量更新通道列表完成:', channelConfigs.value.length, '个通道')
+        }
+      }
     }
-  } catch (error) {
+  } catch (error: any) {
     console.error('加载通道列表失败:', error)
-    ElMessage.error('加载通道列表失败: ' + error.message)
+    if (!isAutoRefresh) {
+      ElMessage.error('加载通道列表失败: ' + error.message)
+    }
   } finally {
-    loading.value = false
+    if (!isAutoRefresh) {
+      loading.value = false
+    }
   }
 }
 
-// 加载传感器列表（保留用于编辑功能）
-const loadSensors = async () => {
+// 加载传感器列表（增量更新版本）
+const loadSensors = async (isAutoRefresh = false) => {
   try {
     const token = localStorage.getItem('token')
     const response = await fetch('http://localhost:8080/api/v1/sensors', {
@@ -618,11 +662,48 @@ const loadSensors = async () => {
 
     const result = await response.json()
     if (result.code === 20000 && result.data) {
-      sensorConfigs.value = result.data.sensors
+      const newSensors = result.data.sensors || []
+
+      // 如果是首次加载或列表为空，直接设置
+      if (sensorConfigs.value.length === 0) {
+        sensorConfigs.value = newSensors
+        if (!isAutoRefresh) {
+          console.log('初始化传感器列表完成:', sensorConfigs.value.length, '个传感器')
+        }
+      } else {
+        // 增量更新：只更新变化的传感器
+        newSensors.forEach((newSensor: any) => {
+          const existingIndex = sensorConfigs.value.findIndex(s => s.id === newSensor.id)
+          if (existingIndex >= 0) {
+            // 检查是否有变化
+            const currentSensor = sensorConfigs.value[existingIndex]
+            if (currentSensor.name !== newSensor.name ||
+                currentSensor.status !== newSensor.status ||
+                currentSensor.last_update !== newSensor.last_update) {
+              // 使用Object.assign保持响应式
+              Object.assign(sensorConfigs.value[existingIndex], newSensor)
+            }
+          } else {
+            // 新增传感器
+            sensorConfigs.value.push(newSensor)
+          }
+        })
+
+        // 移除已删除的传感器
+        sensorConfigs.value = sensorConfigs.value.filter(sensor =>
+          newSensors.some((newSensor: any) => newSensor.id === sensor.id)
+        )
+
+        if (!isAutoRefresh) {
+          console.log('增量更新传感器列表完成:', sensorConfigs.value.length, '个传感器')
+        }
+      }
     }
-  } catch (error) {
+  } catch (error: any) {
     console.error('加载传感器列表失败:', error)
-    ElMessage.error('加载传感器列表失败: ' + error.message)
+    if (!isAutoRefresh) {
+      ElMessage.error('加载传感器列表失败: ' + error.message)
+    }
   }
 }
 

@@ -11,15 +11,17 @@ type BreakerRepository interface {
 	GetAll() ([]models.Breaker, error)
 	GetByID(id uint) (*models.Breaker, error)
 	GetByIPAddress(ipAddress string, port int) (*models.Breaker, error)
+	GetEnabledBreakers() ([]*models.Breaker, error)
 	Create(breaker *models.Breaker, device *models.Device) error
 	Update(breaker *models.Breaker) error
 	Delete(id uint) error
-	
+	UpdateBreakerLockStatus(id uint, isLocked bool) error
+
 	// 控制相关
 	CreateControl(control *models.BreakerControl) error
 	UpdateControl(control *models.BreakerControl) error
 	GetControl(controlID string) (*models.BreakerControl, error)
-	
+
 	// 绑定相关
 	GetBindings(breakerID uint) ([]models.BreakerServerBinding, error)
 	CreateBinding(binding *models.BreakerServerBinding) error
@@ -44,6 +46,7 @@ func (r *breakerRepository) GetAll() ([]models.Breaker, error) {
 	err := r.db.Preload("Device").
 		Preload("Bindings").
 		Preload("Bindings.Server").
+		Order("id ASC").  // 按ID升序排序，确保添加先后顺序
 		Find(&breakers).Error
 	return breakers, err
 }
@@ -66,6 +69,15 @@ func (r *breakerRepository) GetByIPAddress(ipAddress string, port int) (*models.
 		return nil, err
 	}
 	return &breaker, nil
+}
+
+// GetEnabledBreakers 获取所有启用的断路器
+func (r *breakerRepository) GetEnabledBreakers() ([]*models.Breaker, error) {
+	var breakers []*models.Breaker
+	err := r.db.Where("is_enabled = ?", true).
+		Order("id ASC").
+		Find(&breakers).Error
+	return breakers, err
 }
 
 // Create 创建断路器
@@ -166,4 +178,9 @@ func (r *breakerRepository) GetBinding(id uint) (*models.BreakerServerBinding, e
 		Preload("Server").
 		First(&binding, id).Error
 	return &binding, err
+}
+
+// UpdateBreakerLockStatus 更新断路器锁定状态
+func (r *breakerRepository) UpdateBreakerLockStatus(id uint, isLocked bool) error {
+	return r.db.Model(&models.Breaker{}).Where("id = ?", id).Update("is_locked", isLocked).Error
 }

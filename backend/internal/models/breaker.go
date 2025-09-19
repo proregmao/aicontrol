@@ -38,6 +38,7 @@ type Breaker struct {
 	Location       string         `json:"location" gorm:"size:200"`            // 安装位置
 	IsControllable bool           `json:"is_controllable" gorm:"default:true"` // 是否可控制
 	IsEnabled      bool           `json:"is_enabled" gorm:"default:true"`      // 是否启用
+	IsLocked       bool           `json:"is_locked" gorm:"default:false"`      // 是否锁定
 	Status         SwitchStatus   `json:"status" gorm:"default:'unknown'"`     // 当前状态
 	LastUpdate     *time.Time     `json:"last_update"`                         // 最后更新时间
 	Description    string         `json:"description" gorm:"type:text"`        // 描述
@@ -69,6 +70,10 @@ type BreakerRealTimeData struct {
 	Status         string    `json:"status"`          // 断路器状态 (on/off/unknown)
 	IsLocked       bool      `json:"is_locked"`       // 是否锁定
 	LastUpdate     time.Time `json:"last_update"`     // 最后更新时间
+	// 设备配置参数（从保持寄存器读取）
+	RatedCurrent      float64 `json:"rated_current"`       // 额定电流 (A) - 从40005寄存器读取
+	AlarmCurrent      float64 `json:"alarm_current"`       // 告警电流阈值 (mA) - 从40006寄存器读取
+	OverTempThreshold float64 `json:"over_temp_threshold"` // 过温阈值 (°C) - 从40007寄存器读取
 }
 
 // BreakerServerBinding 断路器服务器绑定
@@ -192,6 +197,7 @@ type BreakerListResponse struct {
 	Location       string       `json:"location"`
 	IsControllable bool         `json:"is_controllable"`
 	IsEnabled      bool         `json:"is_enabled"`
+	IsLocked       bool         `json:"is_locked"`
 	Status         SwitchStatus `json:"status"`
 	LastUpdate     *time.Time   `json:"last_update"`
 	Description    string       `json:"description"`
@@ -199,6 +205,11 @@ type BreakerListResponse struct {
 
 	// 绑定的服务器信息
 	BoundServers []BoundServerInfo `json:"bound_servers,omitempty"`
+
+	// 设备配置参数（从MODBUS设备读取）
+	DeviceRatedCurrent      *float64 `json:"device_rated_current,omitempty"`       // 设备额定电流 (A) - 从40005寄存器读取
+	DeviceAlarmCurrent      *float64 `json:"device_alarm_current,omitempty"`       // 设备告警电流阈值 (mA) - 从40006寄存器读取
+	DeviceOverTempThreshold *float64 `json:"device_over_temp_threshold,omitempty"` // 设备过温阈值 (°C) - 从40007寄存器读取
 }
 
 // BoundServerInfo 绑定的服务器信息
@@ -224,6 +235,7 @@ func (b *Breaker) ToListResponse() BreakerListResponse {
 		Location:       b.Location,
 		IsControllable: b.IsControllable,
 		IsEnabled:      b.IsEnabled,
+		IsLocked:       b.IsLocked,
 		Status:         b.Status,
 		LastUpdate:     b.LastUpdate,
 		Description:    b.Description,

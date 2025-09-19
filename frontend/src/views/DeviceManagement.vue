@@ -788,24 +788,49 @@ const loadDevices = async (isAutoRefresh = false) => {
         return a.name.localeCompare(b.name)
       })
 
-      // 如果是自动刷新，只在数据真正变化时更新
-      if (isAutoRefresh) {
-        // 比较设备状态和最后通信时间（保持原有的比较逻辑）
-        const hasChanges = !devices.value.length ||
-          devices.value.length !== newDevices.length ||
-          !devices.value.every((device, index) => {
-            const newDevice = newDevices[index]
-            return newDevice &&
-              device.status === newDevice.status &&
-              device.lastCommunication === newDevice.lastCommunication &&
-              device.id === newDevice.id
-          })
+      // 如果是首次加载或列表为空，直接设置
+      if (devices.value.length === 0) {
+        devices.value = newDevices
+        console.log('初始化设备列表完成:', devices.value.length, '个设备')
+      } else if (isAutoRefresh) {
+        // 自动刷新时使用增量更新
+        let hasChanges = false
+
+        newDevices.forEach((newDevice: any) => {
+          const existingIndex = devices.value.findIndex(d => d.id === newDevice.id)
+          if (existingIndex >= 0) {
+            // 检查关键字段是否有变化
+            const currentDevice = devices.value[existingIndex]
+            if (currentDevice.status !== newDevice.status ||
+                currentDevice.lastCommunication !== newDevice.lastCommunication ||
+                currentDevice.lastSeen !== newDevice.lastSeen) {
+              // 使用Object.assign保持响应式
+              Object.assign(devices.value[existingIndex], newDevice)
+              hasChanges = true
+            }
+          } else {
+            // 新增设备
+            devices.value.push(newDevice)
+            hasChanges = true
+          }
+        })
+
+        // 移除已删除的设备
+        const originalLength = devices.value.length
+        devices.value = devices.value.filter(device =>
+          newDevices.some((newDevice: any) => newDevice.id === device.id)
+        )
+        if (devices.value.length !== originalLength) {
+          hasChanges = true
+        }
 
         if (hasChanges) {
-          devices.value = newDevices
+          console.log('设备列表增量更新完成')
         }
       } else {
+        // 手动刷新时直接替换
         devices.value = newDevices
+        console.log('设备列表手动刷新完成:', devices.value.length, '个设备')
       }
     }
   } catch (error) {

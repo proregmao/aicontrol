@@ -233,9 +233,13 @@ const canDetectHardware = computed(() => {
          (serverForm.password || serverForm.privateKey)
 })
 
-// 加载服务器列表
-const loadServers = async () => {
+// 加载服务器列表（增量更新版本）
+const loadServers = async (isAutoRefresh = false) => {
   try {
+    if (!isAutoRefresh) {
+      loading.value = true
+    }
+
     const response = await fetch('http://localhost:8080/api/v1/servers', {
       method: 'GET',
       headers: {
@@ -249,7 +253,7 @@ const loadServers = async () => {
     if (result.code === 200) {
       // 检查 result.data 是否为 null 或不是数组
       if (result.data && Array.isArray(result.data)) {
-        serverConfigs.value = result.data.map((server: any) => ({
+        const newServers = result.data.map((server: any) => ({
           id: server.id,
           name: server.server_name,
           ip: server.ip_address,
@@ -264,17 +268,62 @@ const loadServers = async () => {
           status: server.status,
           description: server.description
         }))
+
+        // 如果是首次加载或列表为空，直接设置
+        if (serverConfigs.value.length === 0) {
+          serverConfigs.value = newServers
+          console.log('初始化服务器配置列表完成:', serverConfigs.value.length, '个服务器')
+        } else {
+          // 增量更新：只更新变化的服务器
+          newServers.forEach((newServer: any) => {
+            const existingIndex = serverConfigs.value.findIndex(s => s.id === newServer.id)
+            if (existingIndex >= 0) {
+              // 检查是否有变化
+              const currentServer = serverConfigs.value[existingIndex]
+              if (currentServer.connected !== newServer.connected ||
+                  currentServer.status !== newServer.status ||
+                  currentServer.lastTestAt !== newServer.lastTestAt ||
+                  currentServer.name !== newServer.name ||
+                  currentServer.ip !== newServer.ip) {
+                // 使用Object.assign保持响应式
+                Object.assign(serverConfigs.value[existingIndex], newServer)
+              }
+            } else {
+              // 新增服务器
+              serverConfigs.value.push(newServer)
+            }
+          })
+
+          // 移除已删除的服务器
+          serverConfigs.value = serverConfigs.value.filter(server =>
+            newServers.some((newServer: any) => newServer.id === server.id)
+          )
+
+          if (!isAutoRefresh) {
+            console.log('增量更新服务器配置列表完成:', serverConfigs.value.length, '个服务器')
+          }
+        }
       } else {
         // 如果没有数据，设置为空数组
         serverConfigs.value = []
-        console.log('服务器列表为空')
+        if (!isAutoRefresh) {
+          console.log('服务器列表为空')
+        }
       }
     } else {
-      ElMessage.error(result.message || '加载服务器列表失败')
+      if (!isAutoRefresh) {
+        ElMessage.error(result.message || '加载服务器列表失败')
+      }
     }
-  } catch (error) {
+  } catch (error: any) {
     console.error('加载服务器列表失败:', error)
-    ElMessage.error('加载服务器列表失败')
+    if (!isAutoRefresh) {
+      ElMessage.error('加载服务器列表失败')
+    }
+  } finally {
+    if (!isAutoRefresh) {
+      loading.value = false
+    }
   }
 }
 
@@ -619,9 +668,12 @@ const formatLastTestTime = (lastTestAt: string | null) => {
   return date.toLocaleDateString() + ' ' + date.toLocaleTimeString()
 }
 
-// 加载断路器列表
-const loadBreakers = async () => {
-  breakersLoading.value = true
+// 加载断路器列表（增量更新版本）
+const loadBreakers = async (isAutoRefresh = false) => {
+  if (!isAutoRefresh) {
+    breakersLoading.value = true
+  }
+
   try {
     const response = await fetch('http://localhost:8080/api/v1/breakers', {
       method: 'GET',
@@ -633,10 +685,78 @@ const loadBreakers = async () => {
 
     const result = await response.json()
     if (result.code === 200) {
-      breakers.value = result.data || []
+      const newBreakers = result.data || []
+
+      // 如果是首次加载或列表为空，直接设置
+      if (breakers.value.length === 0) {
+        breakers.value = newBreakers
+        if (!isAutoRefresh) {
+          console.log('初始化断路器列表完成:', breakers.value.length, '个断路器')
+        }
+      } else {
+        // 增量更新：只更新变化的断路器
+        newBreakers.forEach((newBreaker: any) => {
+          const existingIndex = breakers.value.findIndex(b => b.id === newBreaker.id)
+          if (existingIndex >= 0) {
+            // 检查是否有变化
+            const currentBreaker = breakers.value[existingIndex]
+            if (currentBreaker.breaker_name !== newBreaker.breaker_name ||
+                currentBreaker.location !== newBreaker.location ||
+                currentBreaker.status !== newBreaker.status) {
+              // 使用Object.assign保持响应式
+              Object.assign(breakers.value[existingIndex], newBreaker)
+            }
+          } else {
+            // 新增断路器
+            breakers.value.push(newBreaker)
+          }
+        })
+
+        // 移除已删除的断路器
+        breakers.value = breakers.value.filter(breaker =>
+          newBreakers.some((newBreaker: any) => newBreaker.id === breaker.id)
+        )
+
+        if (!isAutoRefresh) {
+          console.log('增量更新断路器列表完成:', breakers.value.length, '个断路器')
+        }
+      }
     } else {
-      console.warn('获取断路器列表失败，使用模拟数据')
-      // 使用模拟数据
+      if (!isAutoRefresh) {
+        console.warn('获取断路器列表失败，使用模拟数据')
+      }
+
+      // 只在首次加载时使用模拟数据
+      if (breakers.value.length === 0) {
+        breakers.value = [
+          {
+            id: 1,
+            breaker_name: '主配电断路器01',
+            location: '配电柜A'
+          },
+          {
+            id: 2,
+            breaker_name: '主配电断路器02',
+            location: '配电柜A'
+          },
+          {
+            id: 3,
+            breaker_name: '空调专线断路器01',
+            location: '配电柜B'
+          },
+          {
+            id: 4,
+            breaker_name: '服务器专线断路器01',
+            location: '配电柜C'
+          }
+        ]
+      }
+    }
+  } catch (error: any) {
+    console.error('加载断路器列表失败:', error)
+
+    // 只在首次加载时使用模拟数据
+    if (breakers.value.length === 0) {
       breakers.value = [
         {
           id: 1,
@@ -660,33 +780,10 @@ const loadBreakers = async () => {
         }
       ]
     }
-  } catch (error: any) {
-    console.error('加载断路器列表失败:', error)
-    // 使用模拟数据
-    breakers.value = [
-      {
-        id: 1,
-        breaker_name: '主配电断路器01',
-        location: '配电柜A'
-      },
-      {
-        id: 2,
-        breaker_name: '主配电断路器02',
-        location: '配电柜A'
-      },
-      {
-        id: 3,
-        breaker_name: '空调专线断路器01',
-        location: '配电柜B'
-      },
-      {
-        id: 4,
-        breaker_name: '服务器专线断路器01',
-        location: '配电柜C'
-      }
-    ]
   } finally {
-    breakersLoading.value = false
+    if (!isAutoRefresh) {
+      breakersLoading.value = false
+    }
   }
 }
 

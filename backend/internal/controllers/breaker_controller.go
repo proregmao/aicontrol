@@ -1,6 +1,7 @@
 package controllers
 
 import (
+	"fmt"
 	"net/http"
 	"smart-device-management/internal/models"
 	"smart-device-management/internal/services"
@@ -535,5 +536,63 @@ func (c *BreakerController) DeleteBinding(ctx *gin.Context) {
 	ctx.JSON(http.StatusOK, models.APIResponse{
 		Code:    http.StatusOK,
 		Message: "绑定关系删除成功",
+	})
+}
+
+// ControlBreakerLock 控制断路器锁定状态
+// @Summary 控制断路器锁定状态
+// @Description 控制指定断路器的锁定/解锁状态
+// @Tags breakers
+// @Accept json
+// @Produce json
+// @Param id path int true "断路器ID"
+// @Param lock body object{lock=bool} true "锁定状态"
+// @Success 200 {object} models.APIResponse
+// @Failure 400 {object} models.APIResponse
+// @Failure 404 {object} models.APIResponse
+// @Failure 500 {object} models.APIResponse
+// @Router /api/v1/breakers/{id}/lock [post]
+func (c *BreakerController) ControlBreakerLock(ctx *gin.Context) {
+	idStr := ctx.Param("id")
+	id, err := strconv.ParseUint(idStr, 10, 32)
+	if err != nil {
+		ctx.JSON(http.StatusBadRequest, models.APIResponse{
+			Code:    http.StatusBadRequest,
+			Message: "无效的断路器ID",
+			Error:   err.Error(),
+		})
+		return
+	}
+
+	var req struct {
+		Lock *bool `json:"lock" binding:"required"`
+	}
+	if err := ctx.ShouldBindJSON(&req); err != nil {
+		ctx.JSON(http.StatusBadRequest, models.APIResponse{
+			Code:    http.StatusBadRequest,
+			Message: "请求参数错误",
+			Error:   err.Error(),
+		})
+		return
+	}
+
+	err = c.breakerService.ControlBreakerLock(uint(id), *req.Lock)
+	if err != nil {
+		ctx.JSON(http.StatusInternalServerError, models.APIResponse{
+			Code:    http.StatusInternalServerError,
+			Message: "断路器锁定控制失败",
+			Error:   err.Error(),
+		})
+		return
+	}
+
+	action := "解锁"
+	if *req.Lock {
+		action = "锁定"
+	}
+
+	ctx.JSON(http.StatusOK, models.APIResponse{
+		Code:    http.StatusOK,
+		Message: fmt.Sprintf("断路器%s成功", action),
 	})
 }

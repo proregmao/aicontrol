@@ -390,18 +390,60 @@ const hasInactiveStrategies = computed(() =>
 )
 
 // 方法
-const fetchStrategies = async () => {
-  loading.value = true
+const fetchStrategies = async (isAutoRefresh = false) => {
+  if (!isAutoRefresh) {
+    loading.value = true
+  }
+
   try {
     const response = await aiControlApi.getStrategies()
     if (response.code === 200) {
-      strategies.value = response.data.items || []
+      const newStrategies = response.data.items || []
+
+      // 如果是首次加载或列表为空，直接设置
+      if (strategies.value.length === 0) {
+        strategies.value = newStrategies
+        if (!isAutoRefresh) {
+          console.log('初始化AI策略列表完成:', strategies.value.length, '个策略')
+        }
+      } else {
+        // 增量更新：只更新变化的策略
+        newStrategies.forEach((newStrategy: any) => {
+          const existingIndex = strategies.value.findIndex(s => s.id === newStrategy.id)
+          if (existingIndex >= 0) {
+            // 检查是否有变化
+            const currentStrategy = strategies.value[existingIndex]
+            if (currentStrategy.status !== newStrategy.status ||
+                currentStrategy.last_executed !== newStrategy.last_executed ||
+                currentStrategy.execution_count !== newStrategy.execution_count) {
+              // 使用Object.assign保持响应式
+              Object.assign(strategies.value[existingIndex], newStrategy)
+            }
+          } else {
+            // 新增策略
+            strategies.value.push(newStrategy)
+          }
+        })
+
+        // 移除已删除的策略
+        strategies.value = strategies.value.filter(strategy =>
+          newStrategies.some((newStrategy: any) => newStrategy.id === strategy.id)
+        )
+
+        if (!isAutoRefresh) {
+          console.log('增量更新AI策略列表完成:', strategies.value.length, '个策略')
+        }
+      }
     }
-  } catch (error) {
+  } catch (error: any) {
     console.error('获取AI策略失败:', error)
-    ElMessage.error('获取AI策略失败')
+    if (!isAutoRefresh) {
+      ElMessage.error('获取AI策略失败')
+    }
   } finally {
-    loading.value = false
+    if (!isAutoRefresh) {
+      loading.value = false
+    }
   }
 }
 
