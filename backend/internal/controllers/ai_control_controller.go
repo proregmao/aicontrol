@@ -3,19 +3,117 @@ package controllers
 import (
 	"fmt"
 	"net/http"
-	"smart-device-management/internal/models"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/sirupsen/logrus"
+
+	"smart-device-management/internal/models"
+	"smart-device-management/internal/repositories"
+	"smart-device-management/internal/services"
+	"smart-device-management/pkg/ssh"
 )
 
 type AIControlController struct {
-	// aiControlService *services.AIControlService
+	strategyRepo        repositories.AIStrategyRepository
+	actionTemplateRepo  repositories.ActionTemplateRepository
+	breakerService      *services.BreakerService
+	serverService       *services.ServerService
 }
 
-func NewAIControlController() *AIControlController {
-	return &AIControlController{}
+// NewAIControlController 创建AI控制控制器实例
+func NewAIControlController(breakerService *services.BreakerService, serverService *services.ServerService, actionTemplateRepo repositories.ActionTemplateRepository) *AIControlController {
+	return &AIControlController{
+		strategyRepo:       repositories.NewAIStrategyRepository(),
+		actionTemplateRepo: actionTemplateRepo,
+		breakerService:     breakerService,
+		serverService:      serverService,
+	}
+}
+
+// initializeDefaultStrategies 初始化默认策略数据
+func (c *AIControlController) initializeDefaultStrategies() error {
+	// 检查是否已有策略数据
+	strategies, err := c.strategyRepo.FindAllStrategies()
+	if err != nil {
+		return err
+	}
+
+	// 如果已有数据，不需要初始化
+	if len(strategies) > 0 {
+		return nil
+	}
+
+	// 创建默认策略
+	defaultStrategies := []*models.AIStrategy{
+		{
+			Name:        "高温自动关机策略",
+			Description: "当机房温度超过35°C时，自动关闭非关键服务器",
+			ConditionsList: []models.AIStrategyCondition{
+				{
+					Type:        "temperature",
+					SensorID:    "1",
+					SensorName:  "机房温度传感器1",
+					Operator:    ">",
+					Value:       35,
+					Description: "机房温度传感器1 > 35°C",
+				},
+			},
+			ActionsList: []models.AIStrategyAction{
+				{
+					Type:        "server_control",
+					DeviceID:    "1",
+					DeviceName:  "Web服务器1",
+					Operation:   "shutdown",
+					DelaySecond: 0,
+					Description: "关闭Web服务器1",
+				},
+			},
+			Status:    models.StrategyStatusEnabled,
+			Priority:  models.StrategyPriorityHigh,
+			CreatedBy: 1,
+			UpdatedBy: 1,
+		},
+		{
+			Name:        "夜间节能策略",
+			Description: "夜间22:00-06:00自动关闭非必要设备",
+			ConditionsList: []models.AIStrategyCondition{
+				{
+					Type:        "time",
+					StartTime:   "22:00",
+					EndTime:     "06:00",
+					Description: "时间段 22:00-06:00",
+				},
+			},
+			ActionsList: []models.AIStrategyAction{
+				{
+					Type:        "breaker_control",
+					DeviceID:    "3",
+					DeviceName:  "照明回路",
+					Operation:   "off",
+					DelaySecond: 0,
+					Description: "关闭照明回路",
+				},
+			},
+			Status:    models.StrategyStatusEnabled,
+			Priority:  models.StrategyPriorityMedium,
+			CreatedBy: 1,
+			UpdatedBy: 1,
+		},
+	}
+
+	// 保存默认策略到数据库
+	for _, strategy := range defaultStrategies {
+		if err := c.strategyRepo.CreateStrategy(strategy); err != nil {
+			logrus.WithError(err).Error("创建默认策略失败")
+			return err
+		}
+	}
+
+	logrus.Info("默认AI策略初始化完成")
+	return nil
 }
 
 // GetStrategies 获取AI控制策略列表
@@ -24,102 +122,75 @@ func NewAIControlController() *AIControlController {
 // @Tags ai-control
 // @Accept json
 // @Produce json
-// @Param enabled query bool false "是否启用"
-// @Param category query string false "策略类别" Enums(temperature,power,security,optimization)
-// @Success 200 {object} models.APIResponse{data=[]models.AIStrategy}
+// @Param status query string false "策略状态" Enums(启用,禁用)
+// @Param priority query string false "策略优先级" Enums(高,中,低)
+// @Param page query int false "页码" default(1)
+// @Param size query int false "每页数量" default(10)
+// @Success 200 {object} models.APIResponse{data=models.AIStrategyListResponse}
 // @Failure 400 {object} models.APIResponse
 // @Failure 500 {object} models.APIResponse
 // @Router /api/v1/ai-control/strategies [get]
 func (c *AIControlController) GetStrategies(ctx *gin.Context) {
-	enabledStr := ctx.Query("enabled")
-	category := ctx.Query("category")
-
-	// 临时模拟数据
-	strategies := []gin.H{
-		{
-			"id":          1,
-			"name":        "智能温度控制",
-			"description": "根据温度传感器数据自动调节空调和风扇",
-			"category":    "temperature",
-			"enabled":     true,
-			"priority":    1,
-			"conditions": []gin.H{
-				{
-					"metric":      "temperature",
-					"operator":    "greater_than",
-					"threshold":   25.0,
-					"device_type": "temperature_sensor",
-				},
-			},
-			"actions": []gin.H{
-				{
-					"type":        "device_control",
-					"device_type": "air_conditioner",
-					"action":      "turn_on",
-					"parameters": gin.H{
-						"target_temperature": 22.0,
-					},
-				},
-			},
-			"execution_count": 15,
-			"success_rate":    95.5,
-			"last_executed":   "2025-09-15T10:15:00Z",
-			"created_at":      "2025-09-15T08:00:00Z",
-			"updated_at":      "2025-09-15T08:00:00Z",
-		},
-		{
-			"id":          2,
-			"name":        "节能优化策略",
-			"description": "在非工作时间自动关闭非必要设备以节约能源",
-			"category":    "power",
-			"enabled":     true,
-			"priority":    2,
-			"conditions": []gin.H{
-				{
-					"metric":    "time",
-					"operator":  "between",
-					"threshold": "22:00-06:00",
-				},
-				{
-					"metric":    "server_load",
-					"operator":  "less_than",
-					"threshold": 20.0,
-				},
-			},
-			"actions": []gin.H{
-				{
-					"type":        "device_control",
-					"device_type": "server",
-					"action":      "shutdown_non_critical",
-				},
-			},
-			"execution_count": 8,
-			"success_rate":    100.0,
-			"last_executed":   "2025-09-14T22:00:00Z",
-			"created_at":      "2025-09-15T08:00:00Z",
-			"updated_at":      "2025-09-15T08:00:00Z",
-		},
+	// 确保默认策略已初始化
+	if err := c.initializeDefaultStrategies(); err != nil {
+		logrus.WithError(err).Error("初始化默认策略失败")
+		ctx.JSON(http.StatusInternalServerError, models.APIResponse{
+			Code:    http.StatusInternalServerError,
+			Message: "初始化策略数据失败",
+			Error:   err.Error(),
+		})
+		return
 	}
 
-	// 过滤数据
-	filteredStrategies := []gin.H{}
-	for _, strategy := range strategies {
-		if enabledStr != "" {
-			enabled := enabledStr == "true"
-			if strategy["enabled"] != enabled {
-				continue
-			}
-		}
-		if category != "" && strategy["category"] != category {
-			continue
-		}
-		filteredStrategies = append(filteredStrategies, strategy)
+	// 获取查询参数
+	status := ctx.Query("status")
+	priority := ctx.Query("priority")
+	pageStr := ctx.DefaultQuery("page", "1")
+	sizeStr := ctx.DefaultQuery("size", "10")
+
+	page, err := strconv.Atoi(pageStr)
+	if err != nil || page < 1 {
+		page = 1
+	}
+
+	size, err := strconv.Atoi(sizeStr)
+	if err != nil || size < 1 {
+		size = 10
+	}
+
+	// 构建过滤条件
+	filters := make(map[string]interface{})
+	if status != "" {
+		filters["status"] = status
+	}
+	if priority != "" {
+		filters["priority"] = priority
+	}
+
+	// 查询策略列表
+	strategies, total, err := c.strategyRepo.FindStrategiesList(page, size, filters)
+	if err != nil {
+		logrus.WithError(err).Error("查询策略列表失败")
+		ctx.JSON(http.StatusInternalServerError, models.APIResponse{
+			Code:    http.StatusInternalServerError,
+			Message: "查询策略列表失败",
+			Error:   err.Error(),
+		})
+		return
+	}
+
+	// 构建响应
+	response := models.AIStrategyListResponse{
+		Strategies: strategies,
+		Total:      total,
+		Page:       page,
+		Size:       size,
 	}
 
 	ctx.JSON(http.StatusOK, models.APIResponse{
 		Code:    http.StatusOK,
 		Message: "获取AI控制策略成功",
-		Data:    filteredStrategies,
+		Data:    response,
 	})
 }
 
@@ -139,110 +210,70 @@ func (c *AIControlController) GetStrategies(ctx *gin.Context) {
 // @Router /api/v1/ai-control/executions [get]
 func (c *AIControlController) GetExecutions(ctx *gin.Context) {
 	strategyIDStr := ctx.Query("strategy_id")
-	status := ctx.Query("status")
 	pageStr := ctx.DefaultQuery("page", "1")
-	limitStr := ctx.DefaultQuery("limit", "20")
+	sizeStr := ctx.DefaultQuery("size", "20")
 
-	page, _ := strconv.Atoi(pageStr)
-	limit, _ := strconv.Atoi(limitStr)
-
-	// 临时模拟数据
-	executions := []gin.H{
-		{
-			"id":             1,
-			"strategy_id":    1,
-			"strategy_name":  "智能温度控制",
-			"status":         "success",
-			"trigger_reason": "温度超过阈值",
-			"trigger_data": gin.H{
-				"temperature": 26.5,
-				"sensor_id":   1,
-				"location":    "机柜A-前端",
-			},
-			"actions_executed": []gin.H{
-				{
-					"action_type":    "device_control",
-					"device_id":      5,
-					"device_name":    "空调01",
-					"action":         "turn_on",
-					"parameters":     gin.H{"target_temperature": 22.0},
-					"status":         "success",
-					"execution_time": 2.5,
-				},
-			},
-			"start_time":    "2025-09-15T10:15:00Z",
-			"end_time":      "2025-09-15T10:15:05Z",
-			"duration":      5.2,
-			"success_count": 1,
-			"failed_count":  0,
-		},
-		{
-			"id":             2,
-			"strategy_id":    2,
-			"strategy_name":  "节能优化策略",
-			"status":         "success",
-			"trigger_reason": "进入节能时间段",
-			"trigger_data": gin.H{
-				"current_time": "22:00:00",
-				"server_load":  15.2,
-			},
-			"actions_executed": []gin.H{
-				{
-					"action_type":    "device_control",
-					"device_id":      6,
-					"device_name":    "测试服务器02",
-					"action":         "shutdown",
-					"status":         "success",
-					"execution_time": 8.1,
-				},
-			},
-			"start_time":    "2025-09-14T22:00:00Z",
-			"end_time":      "2025-09-14T22:00:15Z",
-			"duration":      15.3,
-			"success_count": 1,
-			"failed_count":  0,
-		},
+	page, err := strconv.Atoi(pageStr)
+	if err != nil || page < 1 {
+		page = 1
 	}
 
-	// 过滤数据
-	filteredExecutions := []gin.H{}
-	for _, execution := range executions {
-		if strategyIDStr != "" {
-			strategyID, _ := strconv.Atoi(strategyIDStr)
-			if execution["strategy_id"] != strategyID {
-				continue
-			}
-		}
-		if status != "" && execution["status"] != status {
-			continue
-		}
-		filteredExecutions = append(filteredExecutions, execution)
+	size, err := strconv.Atoi(sizeStr)
+	if err != nil || size < 1 {
+		size = 20
 	}
 
-	// 分页处理
-	total := len(filteredExecutions)
-	start := (page - 1) * limit
-	end := start + limit
-	if start > total {
-		filteredExecutions = []gin.H{}
-	} else if end > total {
-		filteredExecutions = filteredExecutions[start:]
+	var executions []models.AIStrategyExecution
+	var total int64
+
+	if strategyIDStr != "" {
+		// 查询特定策略的执行记录
+		strategyID, err := strconv.ParseUint(strategyIDStr, 10, 32)
+		if err != nil {
+			ctx.JSON(http.StatusBadRequest, models.APIResponse{
+				Code:    http.StatusBadRequest,
+				Message: "无效的策略ID",
+				Error:   err.Error(),
+			})
+			return
+		}
+
+		executions, total, err = c.strategyRepo.FindExecutionsByStrategyID(uint(strategyID), page, size)
+		if err != nil {
+			logrus.WithError(err).Error("查询策略执行记录失败")
+			ctx.JSON(http.StatusInternalServerError, models.APIResponse{
+				Code:    http.StatusInternalServerError,
+				Message: "查询执行记录失败",
+				Error:   err.Error(),
+			})
+			return
+		}
 	} else {
-		filteredExecutions = filteredExecutions[start:end]
+		// 查询所有执行记录
+		executions, total, err = c.strategyRepo.FindAllExecutions(page, size)
+		if err != nil {
+			logrus.WithError(err).Error("查询执行记录失败")
+			ctx.JSON(http.StatusInternalServerError, models.APIResponse{
+				Code:    http.StatusInternalServerError,
+				Message: "查询执行记录失败",
+				Error:   err.Error(),
+			})
+			return
+		}
+	}
+
+	// 构建响应
+	response := models.AIStrategyExecutionListResponse{
+		Executions: executions,
+		Total:      total,
+		Page:       page,
+		Size:       size,
 	}
 
 	ctx.JSON(http.StatusOK, models.APIResponse{
 		Code:    http.StatusOK,
 		Message: "获取执行记录成功",
-		Data: gin.H{
-			"items": filteredExecutions,
-			"pagination": gin.H{
-				"page":       page,
-				"limit":      limit,
-				"total":      total,
-				"total_page": (total + limit - 1) / limit,
-			},
-		},
+		Data:    response,
 	})
 }
 
@@ -252,13 +283,13 @@ func (c *AIControlController) GetExecutions(ctx *gin.Context) {
 // @Tags ai-control
 // @Accept json
 // @Produce json
-// @Param strategy body models.CreateStrategyRequest true "策略配置"
+// @Param strategy body models.CreateAIStrategyRequest true "策略配置"
 // @Success 201 {object} models.APIResponse{data=models.AIStrategy}
 // @Failure 400 {object} models.APIResponse
 // @Failure 500 {object} models.APIResponse
 // @Router /api/v1/ai-control/strategies [post]
 func (c *AIControlController) CreateStrategy(ctx *gin.Context) {
-	var req gin.H
+	var req models.CreateAIStrategyRequest
 	if err := ctx.ShouldBindJSON(&req); err != nil {
 		ctx.JSON(http.StatusBadRequest, models.APIResponse{
 			Code:    http.StatusBadRequest,
@@ -268,26 +299,84 @@ func (c *AIControlController) CreateStrategy(ctx *gin.Context) {
 		return
 	}
 
-	// 临时实现：返回创建成功的策略信息
-	strategy := gin.H{
-		"id":              3,
-		"name":            req["name"],
-		"description":     req["description"],
-		"category":        req["category"],
-		"enabled":         req["enabled"],
-		"priority":        req["priority"],
-		"conditions":      req["conditions"],
-		"actions":         req["actions"],
-		"execution_count": 0,
-		"success_rate":    0.0,
-		"last_executed":   nil,
-		"created_at":      "2025-09-15T10:30:00Z",
-		"updated_at":      "2025-09-15T10:30:00Z",
+	// 获取当前用户ID（从JWT中获取，这里暂时使用默认值）
+	userID := uint(1) // TODO: 从JWT token中获取实际用户ID
+
+	// 创建策略模型
+	strategy := &models.AIStrategy{
+		Name:           req.Name,
+		Description:    req.Description,
+		ConditionsList: req.Conditions,
+		ActionsList:    req.Actions,
+		Status:         req.Status,
+		Priority:       req.Priority,
+		CreatedBy:      userID,
+		UpdatedBy:      userID,
 	}
+
+	// 保存到数据库
+	if err := c.strategyRepo.CreateStrategy(strategy); err != nil {
+		logrus.WithError(err).Error("创建策略失败")
+		ctx.JSON(http.StatusInternalServerError, models.APIResponse{
+			Code:    http.StatusInternalServerError,
+			Message: "创建策略失败",
+			Error:   err.Error(),
+		})
+		return
+	}
+
+	logrus.WithFields(logrus.Fields{
+		"strategy_id":   strategy.ID,
+		"strategy_name": strategy.Name,
+		"user_id":       userID,
+	}).Info("AI控制策略创建成功")
 
 	ctx.JSON(http.StatusCreated, models.APIResponse{
 		Code:    http.StatusCreated,
 		Message: "AI控制策略创建成功",
+		Data:    strategy,
+	})
+}
+
+// GetStrategy 获取单个AI控制策略
+// @Summary 获取单个AI控制策略
+// @Description 根据ID获取指定的AI控制策略详细信息
+// @Tags ai-control
+// @Accept json
+// @Produce json
+// @Param id path int true "策略ID"
+// @Success 200 {object} models.APIResponse{data=models.AIStrategy}
+// @Failure 400 {object} models.APIResponse
+// @Failure 404 {object} models.APIResponse
+// @Failure 500 {object} models.APIResponse
+// @Router /api/v1/ai-control/strategies/{id} [get]
+func (c *AIControlController) GetStrategy(ctx *gin.Context) {
+	idStr := ctx.Param("id")
+	id, err := strconv.ParseUint(idStr, 10, 32)
+	if err != nil {
+		ctx.JSON(http.StatusBadRequest, models.APIResponse{
+			Code:    http.StatusBadRequest,
+			Message: "无效的策略ID",
+			Error:   err.Error(),
+		})
+		return
+	}
+
+	// 查找策略
+	strategy, err := c.strategyRepo.FindStrategyByID(uint(id))
+	if err != nil {
+		logrus.WithError(err).Error("查找策略失败")
+		ctx.JSON(http.StatusNotFound, models.APIResponse{
+			Code:    http.StatusNotFound,
+			Message: "策略不存在",
+			Error:   err.Error(),
+		})
+		return
+	}
+
+	ctx.JSON(http.StatusOK, models.APIResponse{
+		Code:    http.StatusOK,
+		Message: "获取AI控制策略成功",
 		Data:    strategy,
 	})
 }
@@ -307,7 +396,7 @@ func (c *AIControlController) CreateStrategy(ctx *gin.Context) {
 // @Router /api/v1/ai-control/strategies/{id} [put]
 func (c *AIControlController) UpdateStrategy(ctx *gin.Context) {
 	idStr := ctx.Param("id")
-	id, err := strconv.Atoi(idStr)
+	id, err := strconv.ParseUint(idStr, 10, 32)
 	if err != nil {
 		ctx.JSON(http.StatusBadRequest, models.APIResponse{
 			Code:    http.StatusBadRequest,
@@ -317,7 +406,7 @@ func (c *AIControlController) UpdateStrategy(ctx *gin.Context) {
 		return
 	}
 
-	var req gin.H
+	var req models.UpdateAIStrategyRequest
 	if err := ctx.ShouldBindJSON(&req); err != nil {
 		ctx.JSON(http.StatusBadRequest, models.APIResponse{
 			Code:    http.StatusBadRequest,
@@ -327,18 +416,58 @@ func (c *AIControlController) UpdateStrategy(ctx *gin.Context) {
 		return
 	}
 
-	// 临时实现：返回更新成功的策略信息
-	strategy := gin.H{
-		"id":          id,
-		"name":        req["name"],
-		"description": req["description"],
-		"category":    req["category"],
-		"enabled":     req["enabled"],
-		"priority":    req["priority"],
-		"conditions":  req["conditions"],
-		"actions":     req["actions"],
-		"updated_at":  "2025-09-15T10:30:00Z",
+	// 查找现有策略
+	strategy, err := c.strategyRepo.FindStrategyByID(uint(id))
+	if err != nil {
+		logrus.WithError(err).Error("查找策略失败")
+		ctx.JSON(http.StatusNotFound, models.APIResponse{
+			Code:    http.StatusNotFound,
+			Message: "策略不存在",
+			Error:   err.Error(),
+		})
+		return
 	}
+
+	// 获取当前用户ID（从JWT中获取，这里暂时使用默认值）
+	userID := uint(1) // TODO: 从JWT token中获取实际用户ID
+
+	// 更新策略字段
+	if req.Name != "" {
+		strategy.Name = req.Name
+	}
+	if req.Description != "" {
+		strategy.Description = req.Description
+	}
+	if len(req.Conditions) > 0 {
+		strategy.ConditionsList = req.Conditions
+	}
+	if len(req.Actions) > 0 {
+		strategy.ActionsList = req.Actions
+	}
+	if req.Status != "" {
+		strategy.Status = req.Status
+	}
+	if req.Priority != "" {
+		strategy.Priority = req.Priority
+	}
+	strategy.UpdatedBy = userID
+
+	// 保存到数据库
+	if err := c.strategyRepo.UpdateStrategy(strategy); err != nil {
+		logrus.WithError(err).Error("更新策略失败")
+		ctx.JSON(http.StatusInternalServerError, models.APIResponse{
+			Code:    http.StatusInternalServerError,
+			Message: "更新策略失败",
+			Error:   err.Error(),
+		})
+		return
+	}
+
+	logrus.WithFields(logrus.Fields{
+		"strategy_id":   strategy.ID,
+		"strategy_name": strategy.Name,
+		"user_id":       userID,
+	}).Info("AI控制策略更新成功")
 
 	ctx.JSON(http.StatusOK, models.APIResponse{
 		Code:    http.StatusOK,
@@ -362,7 +491,7 @@ func (c *AIControlController) UpdateStrategy(ctx *gin.Context) {
 // @Router /api/v1/ai-control/strategies/{id}/execute [post]
 func (c *AIControlController) ExecuteStrategy(ctx *gin.Context) {
 	idStr := ctx.Param("id")
-	id, err := strconv.Atoi(idStr)
+	id, err := strconv.ParseUint(idStr, 10, 32)
 	if err != nil {
 		ctx.JSON(http.StatusBadRequest, models.APIResponse{
 			Code:    http.StatusBadRequest,
@@ -372,99 +501,214 @@ func (c *AIControlController) ExecuteStrategy(ctx *gin.Context) {
 		return
 	}
 
-	var req gin.H
-	if err := ctx.ShouldBindJSON(&req); err != nil {
-		ctx.JSON(http.StatusBadRequest, models.APIResponse{
-			Code:    http.StatusBadRequest,
-			Message: "请求参数错误",
+	// 获取策略信息
+	strategy, err := c.strategyRepo.FindStrategyByID(uint(id))
+	if err != nil {
+		logrus.WithError(err).Error("查找策略失败")
+		ctx.JSON(http.StatusNotFound, models.APIResponse{
+			Code:    http.StatusNotFound,
+			Message: "策略不存在",
 			Error:   err.Error(),
 		})
 		return
 	}
 
-	// 临时实现：返回执行信息
-	execution := gin.H{
-		"execution_id":       "exec_ai_123456",
-		"strategy_id":        id,
-		"trigger_reason":     "manual_execution",
-		"trigger_data":       req["trigger_data"],
-		"status":             "running",
-		"start_time":         "2025-09-15T10:30:00Z",
-		"estimated_duration": 30,
-		"progress":           0,
-		"message":            "正在执行AI控制策略...",
+	// 检查策略是否启用
+	if strategy.Status != models.StrategyStatusEnabled {
+		ctx.JSON(http.StatusBadRequest, models.APIResponse{
+			Code:    http.StatusBadRequest,
+			Message: "只能执行已启用的策略",
+		})
+		return
 	}
+
+	// 获取当前用户ID（从JWT中获取，这里暂时使用默认值）
+	userID := uint(1) // TODO: 从JWT token中获取实际用户ID
+
+	// 创建执行记录
+	execution := &models.AIStrategyExecution{
+		StrategyID: strategy.ID,
+		TriggerBy:  "manual",
+		Status:     "running",
+		Result:     "正在执行中...",
+	}
+
+	// 保存执行记录到数据库
+	if err := c.strategyRepo.CreateExecution(execution); err != nil {
+		logrus.WithError(err).Error("创建执行记录失败")
+		ctx.JSON(http.StatusInternalServerError, models.APIResponse{
+			Code:    http.StatusInternalServerError,
+			Message: "创建执行记录失败",
+			Error:   err.Error(),
+		})
+		return
+	}
+
+	// 异步执行策略
+	go c.executeStrategyAsync(execution, strategy)
+
+	logrus.WithFields(logrus.Fields{
+		"strategy_id":   strategy.ID,
+		"strategy_name": strategy.Name,
+		"execution_id":  execution.ID,
+		"user_id":       userID,
+	}).Info("AI控制策略测试执行已启动")
 
 	ctx.JSON(http.StatusOK, models.APIResponse{
 		Code:    http.StatusOK,
-		Message: "AI控制策略执行已启动",
+		Message: "AI控制策略测试执行已启动",
 		Data:    execution,
 	})
 }
 
-// GetStrategy 获取单个AI控制策略
-// @Summary 获取单个AI控制策略
-// @Description 根据策略ID获取详细信息
-// @Tags ai-control
-// @Accept json
-// @Produce json
-// @Param id path int true "策略ID"
-// @Success 200 {object} models.APIResponse{data=models.AIStrategy}
-// @Failure 400 {object} models.APIResponse
-// @Failure 404 {object} models.APIResponse
-// @Failure 500 {object} models.APIResponse
-// @Router /api/v1/ai-control/strategies/{id} [get]
-func (c *AIControlController) GetStrategy(ctx *gin.Context) {
-	idStr := ctx.Param("id")
-	id, err := strconv.Atoi(idStr)
-	if err != nil {
-		ctx.JSON(http.StatusBadRequest, models.APIResponse{
-			Code:    http.StatusBadRequest,
-			Message: "无效的策略ID",
-			Error:   err.Error(),
-		})
-		return
+// executeStrategyAsync 异步执行策略
+func (c *AIControlController) executeStrategyAsync(execution *models.AIStrategyExecution, strategy *models.AIStrategy) {
+	defer func() {
+		if r := recover(); r != nil {
+			logrus.WithField("panic", r).Error("策略执行过程中发生panic")
+			execution.Status = "failed"
+			execution.Result = fmt.Sprintf("执行失败: %v", r)
+			c.strategyRepo.UpdateExecution(execution)
+		}
+	}()
+
+	logrus.WithFields(logrus.Fields{
+		"strategy_id":   strategy.ID,
+		"strategy_name": strategy.Name,
+		"execution_id":  execution.ID,
+	}).Info("开始执行AI控制策略")
+
+	// 模拟策略执行过程
+	var results []string
+	var hasError bool
+
+	// 执行策略中的每个动作
+	for i, action := range strategy.ActionsList {
+		logrus.WithFields(logrus.Fields{
+			"action_type": action.Type,
+			"device_id":   action.DeviceID,
+			"operation":   action.Operation,
+		}).Info("执行策略动作")
+
+		result, err := c.executeAction(action)
+		if err != nil {
+			hasError = true
+			results = append(results, fmt.Sprintf("动作%d失败: %s", i+1, err.Error()))
+			logrus.WithError(err).Error("策略动作执行失败")
+		} else {
+			results = append(results, fmt.Sprintf("动作%d成功: %s", i+1, result))
+		}
+
+		// 如果有延迟，等待指定时间
+		if action.DelaySecond > 0 {
+			logrus.WithField("delay", action.DelaySecond).Info("等待延迟时间")
+			time.Sleep(time.Duration(action.DelaySecond) * time.Second)
+		}
 	}
 
-	// 模拟策略数据
-	strategy := gin.H{
-		"id":          id,
-		"name":        fmt.Sprintf("智能控制策略-%d", id),
-		"description": "基于温度和服务器状态的智能控制策略",
-		"enabled":     true,
-		"priority":    1,
-		"conditions": []gin.H{
-			{
-				"type":     "temperature",
-				"operator": ">",
-				"value":    30.0,
-				"unit":     "°C",
-			},
-			{
-				"type":     "server_cpu",
-				"operator": ">",
-				"value":    80.0,
-				"unit":     "%",
-			},
-		},
-		"actions": []gin.H{
-			{
-				"type":        "breaker_control",
-				"target_id":   1,
-				"action":      "off",
-				"delay":       30,
-				"description": "关闭断路器1",
-			},
-		},
-		"created_at": time.Now().Add(-time.Duration(id) * 24 * time.Hour).Format(time.RFC3339),
-		"updated_at": time.Now().Format(time.RFC3339),
+	// 更新执行结果
+	if hasError {
+		execution.Status = "failed"
+	} else {
+		execution.Status = "success"
 	}
 
-	ctx.JSON(http.StatusOK, models.APIResponse{
-		Code:    http.StatusOK,
-		Message: "获取AI控制策略成功",
-		Data:    strategy,
-	})
+	execution.Result = fmt.Sprintf("执行完成，结果: %s", strings.Join(results, "; "))
+
+	// 保存执行结果
+	if err := c.strategyRepo.UpdateExecution(execution); err != nil {
+		logrus.WithError(err).Error("更新执行记录失败")
+	}
+
+	logrus.WithFields(logrus.Fields{
+		"strategy_id":   strategy.ID,
+		"execution_id":  execution.ID,
+		"status":        execution.Status,
+	}).Info("AI控制策略执行完成")
+}
+
+// executeAction 执行单个动作
+func (c *AIControlController) executeAction(action models.AIStrategyAction) (string, error) {
+	switch action.Type {
+	case "server_control", "server":
+		return c.executeServerControl(action)
+	case "breaker_control", "breaker":
+		return c.executeBreakerControl(action)
+	default:
+		return "", fmt.Errorf("不支持的动作类型: %s", action.Type)
+	}
+}
+
+// executeServerControl 执行服务器控制动作
+func (c *AIControlController) executeServerControl(action models.AIStrategyAction) (string, error) {
+	logrus.WithFields(logrus.Fields{
+		"device_id": action.DeviceID,
+		"operation": action.Operation,
+	}).Info("执行服务器控制动作")
+
+	// 调用实际的服务器控制API
+	switch action.Operation {
+	case "shutdown":
+		// 调用服务器关机命令
+		err := c.executeServerCommand(action.DeviceID, "shutdown", "sudo shutdown -h now")
+		if err != nil {
+			return "", fmt.Errorf("服务器 %s 关机失败: %v", action.DeviceName, err)
+		}
+		return fmt.Sprintf("服务器 %s 关机指令已发送", action.DeviceName), nil
+	case "restart":
+		// 调用服务器重启命令
+		err := c.executeServerCommand(action.DeviceID, "restart", "sudo reboot")
+		if err != nil {
+			return "", fmt.Errorf("服务器 %s 重启失败: %v", action.DeviceName, err)
+		}
+		return fmt.Sprintf("服务器 %s 重启指令已发送", action.DeviceName), nil
+	case "reboot":
+		// 调用服务器重启命令
+		err := c.executeServerCommand(action.DeviceID, "reboot", "sudo reboot")
+		if err != nil {
+			return "", fmt.Errorf("服务器 %s 重启失败: %v", action.DeviceName, err)
+		}
+		return fmt.Sprintf("服务器 %s 重启指令已发送", action.DeviceName), nil
+	case "force_reboot":
+		// 调用服务器强制重启命令
+		err := c.executeServerCommand(action.DeviceID, "force_reboot", "sudo reboot -f")
+		if err != nil {
+			return "", fmt.Errorf("服务器 %s 强制重启失败: %v", action.DeviceName, err)
+		}
+		return fmt.Sprintf("服务器 %s 强制重启指令已发送", action.DeviceName), nil
+	case "start":
+		return fmt.Sprintf("服务器 %s 启动操作不支持远程执行", action.DeviceName), nil
+	default:
+		return "", fmt.Errorf("不支持的服务器操作: %s", action.Operation)
+	}
+}
+
+// executeBreakerControl 执行断路器控制动作
+func (c *AIControlController) executeBreakerControl(action models.AIStrategyAction) (string, error) {
+	logrus.WithFields(logrus.Fields{
+		"device_id": action.DeviceID,
+		"operation": action.Operation,
+	}).Info("执行断路器控制动作")
+
+	// 调用实际的断路器控制API
+	switch action.Operation {
+	case "on", "close":
+		// 调用断路器合闸
+		err := c.executeBreakerCommand(action.DeviceID, "on")
+		if err != nil {
+			return "", fmt.Errorf("断路器 %s 合闸失败: %v", action.DeviceName, err)
+		}
+		return fmt.Sprintf("断路器 %s 合闸指令已发送", action.DeviceName), nil
+	case "off", "trip":
+		// 调用断路器分闸
+		err := c.executeBreakerCommand(action.DeviceID, "off")
+		if err != nil {
+			return "", fmt.Errorf("断路器 %s 分闸失败: %v", action.DeviceName, err)
+		}
+		return fmt.Sprintf("断路器 %s 分闸指令已发送", action.DeviceName), nil
+	default:
+		return "", fmt.Errorf("不支持的断路器操作: %s", action.Operation)
+	}
 }
 
 // DeleteStrategy 删除AI控制策略
@@ -481,7 +725,7 @@ func (c *AIControlController) GetStrategy(ctx *gin.Context) {
 // @Router /api/v1/ai-control/strategies/{id} [delete]
 func (c *AIControlController) DeleteStrategy(ctx *gin.Context) {
 	idStr := ctx.Param("id")
-	id, err := strconv.Atoi(idStr)
+	id, err := strconv.ParseUint(idStr, 10, 32)
 	if err != nil {
 		ctx.JSON(http.StatusBadRequest, models.APIResponse{
 			Code:    http.StatusBadRequest,
@@ -491,10 +735,37 @@ func (c *AIControlController) DeleteStrategy(ctx *gin.Context) {
 		return
 	}
 
-	// 模拟删除操作
+	// 检查策略是否存在
+	strategy, err := c.strategyRepo.FindStrategyByID(uint(id))
+	if err != nil {
+		logrus.WithError(err).Error("查找策略失败")
+		ctx.JSON(http.StatusNotFound, models.APIResponse{
+			Code:    http.StatusNotFound,
+			Message: "策略不存在",
+			Error:   err.Error(),
+		})
+		return
+	}
+
+	// 删除策略
+	if err := c.strategyRepo.DeleteStrategyByID(uint(id)); err != nil {
+		logrus.WithError(err).Error("删除策略失败")
+		ctx.JSON(http.StatusInternalServerError, models.APIResponse{
+			Code:    http.StatusInternalServerError,
+			Message: "删除策略失败",
+			Error:   err.Error(),
+		})
+		return
+	}
+
+	logrus.WithFields(logrus.Fields{
+		"strategy_id":   strategy.ID,
+		"strategy_name": strategy.Name,
+	}).Info("AI控制策略删除成功")
+
 	ctx.JSON(http.StatusOK, models.APIResponse{
 		Code:    http.StatusOK,
-		Message: fmt.Sprintf("AI控制策略 %d 删除成功", id),
+		Message: fmt.Sprintf("AI控制策略 \"%s\" 删除成功", strategy.Name),
 		Data:    gin.H{"deleted_id": id},
 	})
 }
@@ -514,7 +785,7 @@ func (c *AIControlController) DeleteStrategy(ctx *gin.Context) {
 // @Router /api/v1/ai-control/strategies/{id}/toggle [put]
 func (c *AIControlController) ToggleStrategy(ctx *gin.Context) {
 	idStr := ctx.Param("id")
-	id, err := strconv.Atoi(idStr)
+	id, err := strconv.ParseUint(idStr, 10, 32)
 	if err != nil {
 		ctx.JSON(http.StatusBadRequest, models.APIResponse{
 			Code:    http.StatusBadRequest,
@@ -537,22 +808,452 @@ func (c *AIControlController) ToggleStrategy(ctx *gin.Context) {
 		return
 	}
 
-	// 模拟切换操作
-	strategy := gin.H{
-		"id":         id,
-		"name":       fmt.Sprintf("智能控制策略-%d", id),
-		"enabled":    *toggleReq.Enabled,
-		"updated_at": time.Now().Format(time.RFC3339),
+	// 查找现有策略
+	strategy, err := c.strategyRepo.FindStrategyByID(uint(id))
+	if err != nil {
+		logrus.WithError(err).Error("查找策略失败")
+		ctx.JSON(http.StatusNotFound, models.APIResponse{
+			Code:    http.StatusNotFound,
+			Message: "策略不存在",
+			Error:   err.Error(),
+		})
+		return
 	}
 
-	status := "禁用"
+	// 更新策略状态
 	if *toggleReq.Enabled {
-		status = "启用"
+		strategy.Status = models.StrategyStatusEnabled
+	} else {
+		strategy.Status = models.StrategyStatusDisabled
 	}
+
+	// 保存到数据库
+	if err := c.strategyRepo.UpdateStrategy(strategy); err != nil {
+		logrus.WithError(err).Error("更新策略状态失败")
+		ctx.JSON(http.StatusInternalServerError, models.APIResponse{
+			Code:    http.StatusInternalServerError,
+			Message: "更新策略状态失败",
+			Error:   err.Error(),
+		})
+		return
+	}
+
+	logrus.WithFields(logrus.Fields{
+		"strategy_id":   strategy.ID,
+		"strategy_name": strategy.Name,
+		"new_status":    strategy.Status,
+	}).Info("AI控制策略状态切换成功")
 
 	ctx.JSON(http.StatusOK, models.APIResponse{
 		Code:    http.StatusOK,
-		Message: fmt.Sprintf("AI控制策略已%s", status),
+		Message: fmt.Sprintf("AI控制策略已%s", strategy.Status),
 		Data:    strategy,
 	})
+}
+
+// executeServerCommand 执行服务器命令
+func (c *AIControlController) executeServerCommand(deviceID, operation, command string) error {
+	logrus.WithFields(logrus.Fields{
+		"device_id": deviceID,
+		"operation": operation,
+		"command":   command,
+	}).Info("执行服务器命令")
+
+	// 获取服务器信息
+	server, err := c.serverService.GetServerByID(deviceID)
+	if err != nil {
+		return fmt.Errorf("获取服务器信息失败: %v", err)
+	}
+
+	// 创建SSH客户端
+	sshClient := ssh.NewSSHClient(
+		server.IPAddress,
+		int(server.Port),
+		server.Username,
+		server.Password,
+	)
+
+	// 如果有私钥，使用私钥认证
+	if server.PrivateKey != "" {
+		sshClient = ssh.NewSSHClientWithKey(
+			server.IPAddress,
+			int(server.Port),
+			server.Username,
+			server.PrivateKey,
+		)
+	}
+
+	// 执行命令
+	result, err := sshClient.ExecuteCommand(command)
+	if err != nil {
+		logrus.WithFields(logrus.Fields{
+			"device_id": deviceID,
+			"operation": operation,
+			"command":   command,
+			"error":     err.Error(),
+		}).Error("服务器命令执行失败")
+		return fmt.Errorf("服务器命令执行失败: %v", err)
+	}
+
+	// 记录执行结果
+	logrus.WithFields(logrus.Fields{
+		"device_id": deviceID,
+		"operation": operation,
+		"command":   command,
+		"output":    result.Output,
+		"error":     result.Error,
+		"exit_code": result.ExitCode,
+		"duration":  result.Duration,
+	}).Info("服务器命令执行完成")
+
+	// 如果命令执行失败，返回错误
+	if result.ExitCode != 0 {
+		return fmt.Errorf("服务器命令执行失败，退出码: %d, 错误: %s", result.ExitCode, result.Error)
+	}
+
+	return nil
+}
+
+// executeBreakerCommand 执行断路器命令
+func (c *AIControlController) executeBreakerCommand(deviceID, operation string) error {
+	logrus.WithFields(logrus.Fields{
+		"device_id": deviceID,
+		"operation": operation,
+	}).Info("执行断路器命令")
+
+	// 将设备ID转换为uint
+	id, err := strconv.ParseUint(deviceID, 10, 32)
+	if err != nil {
+		return fmt.Errorf("无效的设备ID: %s", deviceID)
+	}
+
+	// 构造断路器控制请求
+	var action models.BreakerAction
+	switch operation {
+	case "on", "close":
+		action = models.BreakerActionOn
+	case "off", "trip":
+		action = models.BreakerActionOff
+	default:
+		return fmt.Errorf("不支持的断路器操作: %s", operation)
+	}
+
+	req := models.BreakerControlRequest{
+		Action:       action,
+		Confirmation: "AI策略自动执行",
+		DelaySeconds: 0,
+		Reason:       "AI智能策略触发的自动控制",
+	}
+
+	// 调用断路器服务
+	control, err := c.breakerService.ControlBreaker(uint(id), req)
+	if err != nil {
+		logrus.WithFields(logrus.Fields{
+			"device_id": deviceID,
+			"operation": operation,
+			"error":     err.Error(),
+		}).Error("断路器控制失败")
+		return fmt.Errorf("断路器控制失败: %w", err)
+	}
+
+	logrus.WithFields(logrus.Fields{
+		"device_id":  deviceID,
+		"operation":  operation,
+		"control_id": control.ControlID,
+	}).Info("断路器命令已发送")
+
+	return nil
+}
+
+// ==================== 动作模板管理 API ====================
+
+// GetActionTemplates 获取所有动作模板
+func (c *AIControlController) GetActionTemplates(ctx *gin.Context) {
+	templates, err := c.actionTemplateRepo.GetAll()
+	if err != nil {
+		ctx.JSON(http.StatusInternalServerError, gin.H{
+			"code":    500,
+			"message": "获取动作模板失败",
+			"error":   err.Error(),
+		})
+		return
+	}
+
+	// 转换为响应格式
+	var responses []models.ActionTemplateResponse
+	for _, template := range templates {
+		responses = append(responses, template.ToResponse())
+	}
+
+	ctx.JSON(http.StatusOK, gin.H{
+		"code":    200,
+		"message": "获取动作模板成功",
+		"data":    responses,
+	})
+}
+
+// GetActionTemplate 获取单个动作模板
+func (c *AIControlController) GetActionTemplate(ctx *gin.Context) {
+	idStr := ctx.Param("id")
+	id, err := strconv.ParseUint(idStr, 10, 32)
+	if err != nil {
+		ctx.JSON(http.StatusBadRequest, gin.H{
+			"code":    400,
+			"message": "无效的模板ID",
+		})
+		return
+	}
+
+	template, err := c.actionTemplateRepo.GetByID(uint(id))
+	if err != nil {
+		ctx.JSON(http.StatusNotFound, gin.H{
+			"code":    404,
+			"message": "动作模板不存在",
+		})
+		return
+	}
+
+	ctx.JSON(http.StatusOK, gin.H{
+		"code":    200,
+		"message": "获取动作模板成功",
+		"data":    template.ToResponse(),
+	})
+}
+
+// CreateActionTemplate 创建动作模板
+func (c *AIControlController) CreateActionTemplate(ctx *gin.Context) {
+	var req models.ActionTemplateRequest
+	if err := ctx.ShouldBindJSON(&req); err != nil {
+		ctx.JSON(http.StatusBadRequest, gin.H{
+			"code":    400,
+			"message": "请求参数错误",
+			"error":   err.Error(),
+		})
+		return
+	}
+
+	template := &models.ActionTemplate{
+		Name:        req.Name,
+		Type:        req.Type,
+		Operation:   req.Operation,
+		DeviceType:  req.DeviceType,
+		Description: req.Description,
+		Icon:        req.Icon,
+		Color:       req.Color,
+	}
+
+	if err := c.actionTemplateRepo.Create(template); err != nil {
+		ctx.JSON(http.StatusInternalServerError, gin.H{
+			"code":    500,
+			"message": "创建动作模板失败",
+			"error":   err.Error(),
+		})
+		return
+	}
+
+	ctx.JSON(http.StatusCreated, gin.H{
+		"code":    201,
+		"message": "创建动作模板成功",
+		"data":    template.ToResponse(),
+	})
+}
+
+// UpdateActionTemplate 更新动作模板
+func (c *AIControlController) UpdateActionTemplate(ctx *gin.Context) {
+	idStr := ctx.Param("id")
+	id, err := strconv.ParseUint(idStr, 10, 32)
+	if err != nil {
+		ctx.JSON(http.StatusBadRequest, gin.H{
+			"code":    400,
+			"message": "无效的模板ID",
+		})
+		return
+	}
+
+	var req models.ActionTemplateRequest
+	if err := ctx.ShouldBindJSON(&req); err != nil {
+		ctx.JSON(http.StatusBadRequest, gin.H{
+			"code":    400,
+			"message": "请求参数错误",
+			"error":   err.Error(),
+		})
+		return
+	}
+
+	template, err := c.actionTemplateRepo.GetByID(uint(id))
+	if err != nil {
+		ctx.JSON(http.StatusNotFound, gin.H{
+			"code":    404,
+			"message": "动作模板不存在",
+		})
+		return
+	}
+
+	// 更新字段
+	template.Name = req.Name
+	template.Type = req.Type
+	template.Operation = req.Operation
+	template.DeviceType = req.DeviceType
+	template.Description = req.Description
+	template.Icon = req.Icon
+	template.Color = req.Color
+
+	if err := c.actionTemplateRepo.Update(template); err != nil {
+		ctx.JSON(http.StatusInternalServerError, gin.H{
+			"code":    500,
+			"message": "更新动作模板失败",
+			"error":   err.Error(),
+		})
+		return
+	}
+
+	ctx.JSON(http.StatusOK, gin.H{
+		"code":    200,
+		"message": "更新动作模板成功",
+		"data":    template.ToResponse(),
+	})
+}
+
+// DeleteActionTemplate 删除动作模板
+func (c *AIControlController) DeleteActionTemplate(ctx *gin.Context) {
+	idStr := ctx.Param("id")
+	id, err := strconv.ParseUint(idStr, 10, 32)
+	if err != nil {
+		ctx.JSON(http.StatusBadRequest, gin.H{
+			"code":    400,
+			"message": "无效的模板ID",
+		})
+		return
+	}
+
+	if err := c.actionTemplateRepo.Delete(uint(id)); err != nil {
+		ctx.JSON(http.StatusInternalServerError, gin.H{
+			"code":    500,
+			"message": "删除动作模板失败",
+			"error":   err.Error(),
+		})
+		return
+	}
+
+	ctx.JSON(http.StatusOK, gin.H{
+		"code":    200,
+		"message": "删除动作模板成功",
+	})
+}
+
+// TestActionTemplate 测试动作模板
+func (c *AIControlController) TestActionTemplate(ctx *gin.Context) {
+	idStr := ctx.Param("id")
+	id, err := strconv.ParseUint(idStr, 10, 32)
+	if err != nil {
+		ctx.JSON(http.StatusBadRequest, gin.H{
+			"code":    400,
+			"message": "无效的模板ID",
+		})
+		return
+	}
+
+	template, err := c.actionTemplateRepo.GetByID(uint(id))
+	if err != nil {
+		ctx.JSON(http.StatusNotFound, gin.H{
+			"code":    404,
+			"message": "动作模板不存在",
+		})
+		return
+	}
+
+	// 获取请求参数中的设备ID
+	var testRequest struct {
+		DeviceID string `json:"deviceId" binding:"required"`
+	}
+
+	if err := ctx.ShouldBindJSON(&testRequest); err != nil {
+		ctx.JSON(http.StatusBadRequest, gin.H{
+			"code":    400,
+			"message": "请求参数错误，需要提供设备ID",
+			"error":   err.Error(),
+		})
+		return
+	}
+
+	logrus.WithFields(logrus.Fields{
+		"template_id":   template.ID,
+		"template_name": template.Name,
+		"device_id":     testRequest.DeviceID,
+		"operation":     template.Operation,
+	}).Info("开始测试动作模板")
+
+	// 根据模板类型执行相应的测试
+	var result string
+	var success bool
+
+	switch template.Type {
+	case "breaker":
+		// 测试断路器控制
+		_, err := strconv.Atoi(testRequest.DeviceID)
+		if err != nil {
+			ctx.JSON(http.StatusBadRequest, gin.H{
+				"code":    400,
+				"message": "断路器设备ID必须是数字",
+			})
+			return
+		}
+
+		err = c.executeBreakerCommand(testRequest.DeviceID, template.Operation)
+		if err != nil {
+			result = fmt.Sprintf("断路器控制测试失败: %v", err)
+			success = false
+		} else {
+			result = fmt.Sprintf("断路器 %s 操作测试成功", template.Operation)
+			success = true
+		}
+
+	case "server":
+		// 测试服务器控制（执行真实操作）
+		err = c.executeServerCommand(testRequest.DeviceID, template.Operation, c.getServerCommand(template.Operation))
+		if err != nil {
+			result = fmt.Sprintf("服务器控制测试失败: %v", err)
+			success = false
+		} else {
+			result = fmt.Sprintf("服务器 %s 操作测试成功", template.Operation)
+			success = true
+		}
+
+	default:
+		result = "不支持的模板类型"
+		success = false
+	}
+
+	logrus.WithFields(logrus.Fields{
+		"template_id": template.ID,
+		"device_id":   testRequest.DeviceID,
+		"success":     success,
+		"result":      result,
+	}).Info("动作模板测试完成")
+
+	ctx.JSON(http.StatusOK, gin.H{
+		"code":    200,
+		"message": "模板测试完成",
+		"data": gin.H{
+			"success":      success,
+			"result":       result,
+			"templateName": template.Name,
+			"operation":    template.Operation,
+			"deviceId":     testRequest.DeviceID,
+		},
+	})
+}
+
+// getServerCommand 根据操作类型获取对应的服务器命令
+func (c *AIControlController) getServerCommand(operation string) string {
+	switch operation {
+	case "shutdown":
+		return "sudo shutdown -h now"
+	case "reboot":
+		return "sudo reboot"
+	case "force_reboot":
+		return "sudo reboot -f"
+	default:
+		return ""
+	}
 }

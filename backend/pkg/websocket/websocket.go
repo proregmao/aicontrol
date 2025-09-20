@@ -352,6 +352,13 @@ func randomString(length int) string {
 	return string(b)
 }
 
+// 数据处理器类型
+type DataHandler func(data interface{})
+
+// 数据处理器注册表
+var dataHandlers = make(map[string][]DataHandler)
+var handlerMutex sync.RWMutex
+
 // 全局Hub实例
 var GlobalHub *Hub
 
@@ -360,6 +367,29 @@ func InitWebSocketHub() {
 	GlobalHub = NewHub()
 	go GlobalHub.Run()
 	log.Println("WebSocket Hub已启动")
+}
+
+// RegisterDataHandler 注册数据处理器
+func RegisterDataHandler(dataType string, handler DataHandler) {
+	handlerMutex.Lock()
+	defer handlerMutex.Unlock()
+
+	if dataHandlers[dataType] == nil {
+		dataHandlers[dataType] = make([]DataHandler, 0)
+	}
+	dataHandlers[dataType] = append(dataHandlers[dataType], handler)
+	log.Printf("注册数据处理器: %s", dataType)
+}
+
+// notifyDataHandlers 通知数据处理器
+func notifyDataHandlers(dataType string, data interface{}) {
+	handlerMutex.RLock()
+	handlers := dataHandlers[dataType]
+	handlerMutex.RUnlock()
+
+	for _, handler := range handlers {
+		go handler(data)
+	}
 }
 
 // 广播设备状态更新
@@ -378,6 +408,8 @@ func BroadcastDeviceStatusUpdate(deviceID string, status string) {
 func BroadcastTemperatureData(data interface{}) {
 	if GlobalHub != nil {
 		GlobalHub.BroadcastMessage(MessageTypeTemperatureData, data)
+		// 通知数据处理器
+		notifyDataHandlers("temperature", data)
 	}
 }
 

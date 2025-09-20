@@ -1,0 +1,469 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI控制策略编辑删除功能测试</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 15px;
+            padding: 30px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+        }
+        
+        h1 {
+            text-align: center;
+            color: #333;
+            margin-bottom: 30px;
+            font-size: 2.5em;
+        }
+        
+        .strategy-card {
+            border: 1px solid #e0e0e0;
+            border-radius: 10px;
+            padding: 20px;
+            margin: 15px 0;
+            background: #f9f9f9;
+            transition: all 0.3s ease;
+        }
+        
+        .strategy-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+        }
+        
+        .strategy-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+        }
+        
+        .strategy-name {
+            font-size: 1.3em;
+            font-weight: bold;
+            color: #333;
+        }
+        
+        .strategy-status {
+            padding: 5px 15px;
+            border-radius: 20px;
+            font-size: 0.9em;
+            font-weight: bold;
+        }
+        
+        .status-enabled {
+            background: #e8f5e8;
+            color: #4caf50;
+        }
+        
+        .status-disabled {
+            background: #ffeaa7;
+            color: #fdcb6e;
+        }
+        
+        .strategy-info {
+            margin: 10px 0;
+            color: #666;
+        }
+        
+        .strategy-actions {
+            margin-top: 15px;
+        }
+        
+        .btn {
+            padding: 8px 16px;
+            margin: 0 5px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 0.9em;
+            transition: all 0.3s ease;
+        }
+        
+        .btn-edit {
+            background: #3498db;
+            color: white;
+        }
+        
+        .btn-edit:hover {
+            background: #2980b9;
+        }
+        
+        .btn-delete {
+            background: #e74c3c;
+            color: white;
+        }
+        
+        .btn-delete:hover {
+            background: #c0392b;
+        }
+        
+        .btn-refresh {
+            background: #27ae60;
+            color: white;
+            padding: 10px 20px;
+            margin: 20px 0;
+        }
+        
+        .btn-refresh:hover {
+            background: #229954;
+        }
+        
+        .loading {
+            text-align: center;
+            padding: 20px;
+            color: #666;
+        }
+        
+        .error {
+            background: #ffebee;
+            color: #c62828;
+            padding: 15px;
+            border-radius: 5px;
+            margin: 10px 0;
+        }
+        
+        .success {
+            background: #e8f5e8;
+            color: #2e7d32;
+            padding: 15px;
+            border-radius: 5px;
+            margin: 10px 0;
+        }
+        
+        .edit-form {
+            background: #f0f8ff;
+            padding: 20px;
+            border-radius: 10px;
+            margin: 20px 0;
+            border: 2px solid #3498db;
+        }
+        
+        .form-group {
+            margin: 15px 0;
+        }
+        
+        .form-group label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+            color: #333;
+        }
+        
+        .form-group input, .form-group textarea, .form-group select {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            font-size: 1em;
+        }
+        
+        .form-group textarea {
+            height: 80px;
+            resize: vertical;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🧠 AI控制策略编辑删除功能测试</h1>
+        
+        <button class="btn btn-refresh" onclick="loadStrategies()">🔄 刷新策略列表</button>
+        
+        <div id="loading" class="loading" style="display: none;">
+            正在加载策略列表...
+        </div>
+        
+        <div id="error" class="error" style="display: none;"></div>
+        <div id="success" class="success" style="display: none;"></div>
+        
+        <div id="strategies-container"></div>
+        
+        <!-- 编辑表单 -->
+        <div id="edit-form" class="edit-form" style="display: none;">
+            <h3>📝 编辑策略</h3>
+            <form id="strategy-form">
+                <div class="form-group">
+                    <label for="edit-name">策略名称:</label>
+                    <input type="text" id="edit-name" required>
+                </div>
+                <div class="form-group">
+                    <label for="edit-description">策略描述:</label>
+                    <textarea id="edit-description"></textarea>
+                </div>
+                <div class="form-group">
+                    <label for="edit-status">状态:</label>
+                    <select id="edit-status">
+                        <option value="启用">启用</option>
+                        <option value="禁用">禁用</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="edit-priority">优先级:</label>
+                    <select id="edit-priority">
+                        <option value="高">高</option>
+                        <option value="中">中</option>
+                        <option value="低">低</option>
+                    </select>
+                </div>
+                <div class="strategy-actions">
+                    <button type="button" class="btn btn-edit" onclick="saveStrategy()">💾 保存更改</button>
+                    <button type="button" class="btn" onclick="cancelEdit()">❌ 取消</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        let currentEditingId = null;
+        let authToken = null;
+
+        // 获取认证token
+        async function getAuthToken() {
+            if (authToken) return authToken;
+            
+            try {
+                const response = await fetch('http://localhost:8080/api/v1/auth/login', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        username: 'admin',
+                        password: 'admin123'
+                    })
+                });
+                
+                const result = await response.json();
+                if (result.code === 200) {
+                    authToken = result.data.token;
+                    return authToken;
+                } else {
+                    throw new Error('登录失败: ' + result.message);
+                }
+            } catch (error) {
+                showError('获取认证token失败: ' + error.message);
+                throw error;
+            }
+        }
+
+        // 加载策略列表
+        async function loadStrategies() {
+            showLoading(true);
+            hideMessages();
+            
+            try {
+                const token = await getAuthToken();
+                const response = await fetch('http://localhost:8080/api/v1/ai-control/strategies', {
+                    headers: {
+                        'Authorization': `Bearer ${token}`
+                    }
+                });
+                
+                const result = await response.json();
+                if (result.code === 200) {
+                    displayStrategies(result.data.strategies || []);
+                    showSuccess(`成功加载 ${result.data.strategies?.length || 0} 个策略`);
+                } else {
+                    throw new Error(result.message || '加载策略失败');
+                }
+            } catch (error) {
+                showError('加载策略失败: ' + error.message);
+            } finally {
+                showLoading(false);
+            }
+        }
+
+        // 显示策略列表
+        function displayStrategies(strategies) {
+            const container = document.getElementById('strategies-container');
+            
+            if (strategies.length === 0) {
+                container.innerHTML = '<div class="loading">暂无策略数据</div>';
+                return;
+            }
+            
+            container.innerHTML = strategies.map(strategy => `
+                <div class="strategy-card">
+                    <div class="strategy-header">
+                        <div class="strategy-name">${strategy.name}</div>
+                        <div class="strategy-status ${strategy.status === '启用' ? 'status-enabled' : 'status-disabled'}">
+                            ${strategy.status}
+                        </div>
+                    </div>
+                    <div class="strategy-info">
+                        <strong>描述:</strong> ${strategy.description || '无描述'}
+                    </div>
+                    <div class="strategy-info">
+                        <strong>优先级:</strong> ${strategy.priority} | 
+                        <strong>创建时间:</strong> ${new Date(strategy.created_at).toLocaleString()}
+                    </div>
+                    <div class="strategy-actions">
+                        <button class="btn btn-edit" onclick="editStrategy(${strategy.id})">✏️ 编辑</button>
+                        <button class="btn btn-delete" onclick="deleteStrategy(${strategy.id}, '${strategy.name}')">🗑️ 删除</button>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        // 编辑策略
+        async function editStrategy(id) {
+            try {
+                const token = await getAuthToken();
+                const response = await fetch(`http://localhost:8080/api/v1/ai-control/strategies/${id}`, {
+                    headers: {
+                        'Authorization': `Bearer ${token}`
+                    }
+                });
+                
+                const result = await response.json();
+                if (result.code === 200) {
+                    const strategy = result.data;
+                    currentEditingId = id;
+                    
+                    // 填充编辑表单
+                    document.getElementById('edit-name').value = strategy.name;
+                    document.getElementById('edit-description').value = strategy.description || '';
+                    document.getElementById('edit-status').value = strategy.status;
+                    document.getElementById('edit-priority').value = strategy.priority;
+                    
+                    // 显示编辑表单
+                    document.getElementById('edit-form').style.display = 'block';
+                    document.getElementById('edit-form').scrollIntoView({ behavior: 'smooth' });
+                    
+                    showSuccess('正在编辑策略: ' + strategy.name);
+                } else {
+                    throw new Error(result.message || '获取策略详情失败');
+                }
+            } catch (error) {
+                showError('获取策略详情失败: ' + error.message);
+            }
+        }
+
+        // 保存策略
+        async function saveStrategy() {
+            if (!currentEditingId) return;
+            
+            const name = document.getElementById('edit-name').value.trim();
+            const description = document.getElementById('edit-description').value.trim();
+            const status = document.getElementById('edit-status').value;
+            const priority = document.getElementById('edit-priority').value;
+            
+            if (!name) {
+                showError('策略名称不能为空');
+                return;
+            }
+            
+            try {
+                const token = await getAuthToken();
+                const response = await fetch(`http://localhost:8080/api/v1/ai-control/strategies/${currentEditingId}`, {
+                    method: 'PUT',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${token}`
+                    },
+                    body: JSON.stringify({
+                        name: name,
+                        description: description,
+                        status: status,
+                        priority: priority
+                    })
+                });
+                
+                const result = await response.json();
+                if (result.code === 200) {
+                    showSuccess('策略更新成功!');
+                    cancelEdit();
+                    loadStrategies(); // 重新加载列表
+                } else {
+                    throw new Error(result.message || '更新策略失败');
+                }
+            } catch (error) {
+                showError('更新策略失败: ' + error.message);
+            }
+        }
+
+        // 取消编辑
+        function cancelEdit() {
+            currentEditingId = null;
+            document.getElementById('edit-form').style.display = 'none';
+            document.getElementById('strategy-form').reset();
+        }
+
+        // 删除策略
+        async function deleteStrategy(id, name) {
+            if (!confirm(`确定要删除策略 "${name}" 吗？此操作不可撤销！`)) {
+                return;
+            }
+            
+            try {
+                const token = await getAuthToken();
+                const response = await fetch(`http://localhost:8080/api/v1/ai-control/strategies/${id}`, {
+                    method: 'DELETE',
+                    headers: {
+                        'Authorization': `Bearer ${token}`
+                    }
+                });
+                
+                const result = await response.json();
+                if (result.code === 200) {
+                    showSuccess('策略删除成功!');
+                    loadStrategies(); // 重新加载列表
+                } else {
+                    throw new Error(result.message || '删除策略失败');
+                }
+            } catch (error) {
+                showError('删除策略失败: ' + error.message);
+            }
+        }
+
+        // 显示/隐藏加载状态
+        function showLoading(show) {
+            document.getElementById('loading').style.display = show ? 'block' : 'none';
+        }
+
+        // 显示错误消息
+        function showError(message) {
+            const errorDiv = document.getElementById('error');
+            errorDiv.textContent = message;
+            errorDiv.style.display = 'block';
+            setTimeout(() => {
+                errorDiv.style.display = 'none';
+            }, 5000);
+        }
+
+        // 显示成功消息
+        function showSuccess(message) {
+            const successDiv = document.getElementById('success');
+            successDiv.textContent = message;
+            successDiv.style.display = 'block';
+            setTimeout(() => {
+                successDiv.style.display = 'none';
+            }, 3000);
+        }
+
+        // 隐藏所有消息
+        function hideMessages() {
+            document.getElementById('error').style.display = 'none';
+            document.getElementById('success').style.display = 'none';
+        }
+
+        // 页面加载时自动加载策略列表
+        window.onload = function() {
+            loadStrategies();
+        };
+    </script>
+</body>
+</html>

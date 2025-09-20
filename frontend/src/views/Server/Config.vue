@@ -212,6 +212,7 @@ const dialogVisible = ref(false)
 const isEdit = ref(false)
 const saving = ref(false)
 const detecting = ref(false)
+const loading = ref(false)
 const formRef = ref<FormInstance>()
 
 // 服务器配置列表

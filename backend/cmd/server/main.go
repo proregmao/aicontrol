@@ -59,6 +59,11 @@ func main() {
 		logrus.Warn("启动断路器状态监控失败: ", err)
 	}
 
+	// 启动AI策略监控服务
+	if err := startAIStrategyMonitor(); err != nil {
+		logrus.Warn("启动AI策略监控失败: ", err)
+	}
+
 	// 设置Gin模式
 	if cfg.App.Env == "production" {
 		gin.SetMode(gin.ReleaseMode)
@@ -100,6 +105,7 @@ func main() {
 
 // 全局变量保存监控服务引用
 var globalBreakerStatusMonitor *services.BreakerStatusMonitor
+var globalAIStrategyMonitor *services.AIStrategyMonitor
 
 // startBreakerStatusMonitor 启动断路器状态监控服务
 func startBreakerStatusMonitor() error {
@@ -122,6 +128,32 @@ func startBreakerStatusMonitor() error {
 	globalBreakerStatusMonitor = statusMonitor
 
 	logrus.Info("断路器状态监控服务已启动")
+	return nil
+}
+
+// startAIStrategyMonitor 启动AI策略监控服务
+func startAIStrategyMonitor() error {
+	db := database.GetDB()
+	appLogger := logger.GetLogger()
+
+	// 创建服务依赖
+	breakerRepo := repositories.NewBreakerRepository(db)
+	serverRepo := repositories.NewServerRepository(db)
+	breakerService := services.NewBreakerService(breakerRepo, serverRepo, appLogger, db)
+	serverService := services.NewServerService(serverRepo, appLogger)
+
+	// 创建AI策略监控服务
+	aiStrategyMonitor := services.NewAIStrategyMonitor(db, logrus.StandardLogger(), breakerService, serverService)
+
+	// 启动监控
+	if err := aiStrategyMonitor.Start(); err != nil {
+		return fmt.Errorf("启动AI策略监控失败: %w", err)
+	}
+
+	// 保存全局引用
+	globalAIStrategyMonitor = aiStrategyMonitor
+
+	logrus.Info("AI策略监控服务已启动")
 	return nil
 }
 
@@ -253,7 +285,8 @@ func setupRouter() *gin.Engine {
 	}
 
 	// 服务器管理路由
-	serverController := controllers.NewServerController(services.NewServerService(repositories.NewServerRepository(database.GetDB()), logger.GetLogger()))
+	serverService := services.NewServerService(repositories.NewServerRepository(database.GetDB()), logger.GetLogger())
+	serverController := controllers.NewServerController(serverService)
 	serverGroup := apiV1.Group("/servers")
 	{
 		serverGroup.GET("", middleware.AuthMiddleware(), serverController.GetServers)
@@ -321,9 +354,11 @@ func setupRouter() *gin.Engine {
 	}
 
 	// AI智能控制路由
-	aiControlController := controllers.NewAIControlController()
+	actionTemplateRepo := repositories.NewActionTemplateRepository(database.GetDB())
+	aiControlController := controllers.NewAIControlController(breakerService, serverService, actionTemplateRepo)
 	aiControlGroup := apiV1.Group("/ai-control")
 	{
+		// 策略管理
 		aiControlGroup.GET("/strategies", middleware.AuthMiddleware(), aiControlController.GetStrategies)
 		aiControlGroup.POST("/strategies", middleware.AuthMiddleware(), middleware.RequireAdmin(), aiControlController.CreateStrategy)
 		aiControlGroup.GET("/strategies/:id", middleware.AuthMiddleware(), aiControlController.GetStrategy)
@@ -332,6 +367,14 @@ func setupRouter() *gin.Engine {
 		aiControlGroup.PUT("/strategies/:id/toggle", middleware.AuthMiddleware(), middleware.RequireAdmin(), aiControlController.ToggleStrategy)
 		aiControlGroup.POST("/strategies/:id/execute", middleware.AuthMiddleware(), middleware.RequireOperator(), aiControlController.ExecuteStrategy)
 		aiControlGroup.GET("/executions", middleware.AuthMiddleware(), aiControlController.GetExecutions)
+
+		// 动作模板管理
+		aiControlGroup.GET("/action-templates", middleware.AuthMiddleware(), aiControlController.GetActionTemplates)
+		aiControlGroup.POST("/action-templates", middleware.AuthMiddleware(), middleware.RequireAdmin(), aiControlController.CreateActionTemplate)
+		aiControlGroup.GET("/action-templates/:id", middleware.AuthMiddleware(), aiControlController.GetActionTemplate)
+		aiControlGroup.PUT("/action-templates/:id", middleware.AuthMiddleware(), middleware.RequireAdmin(), aiControlController.UpdateActionTemplate)
+		aiControlGroup.DELETE("/action-templates/:id", middleware.AuthMiddleware(), middleware.RequireAdmin(), aiControlController.DeleteActionTemplate)
+		aiControlGroup.POST("/action-templates/:id/test", middleware.AuthMiddleware(), middleware.RequireOperator(), aiControlController.TestActionTemplate)
 	}
 
 	// 定时任务管理路由
@@ -401,6 +444,9 @@ func autoMigrate() error {
 		&models.Breaker{},
 		&models.BreakerServerBinding{},
 		&models.BreakerControl{},
+		&models.AIStrategy{},
+		&models.AIStrategyExecution{},
+		&models.ActionTemplate{},
 		// 这里会在后面添加更多模型
 	)
 

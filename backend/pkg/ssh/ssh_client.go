@@ -3,7 +3,6 @@ package ssh
 import (
 	"bytes"
 	"fmt"
-	"net"
 	"strconv"
 	"strings"
 	"time"

@@ -1,0 +1,416 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>策略编辑功能修复验证</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+        }
+        
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 15px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+            overflow: hidden;
+        }
+        
+        .header {
+            background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+        
+        .header h1 {
+            margin: 0;
+            font-size: 2em;
+            font-weight: 300;
+        }
+        
+        .content {
+            padding: 30px;
+        }
+        
+        .test-section {
+            margin-bottom: 30px;
+            padding: 20px;
+            border: 2px solid #e1e8ed;
+            border-radius: 10px;
+            background: #f8fafc;
+        }
+        
+        .test-section h2 {
+            color: #2c3e50;
+            margin-top: 0;
+            font-size: 1.3em;
+            border-bottom: 2px solid #3498db;
+            padding-bottom: 10px;
+        }
+        
+        .btn {
+            padding: 12px 24px;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 500;
+            transition: all 0.3s ease;
+            margin: 5px;
+        }
+        
+        .btn-primary {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+        
+        .btn-success {
+            background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+            color: white;
+        }
+        
+        .btn-warning {
+            background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+            color: white;
+        }
+        
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 20px rgba(0,0,0,0.2);
+        }
+        
+        .result {
+            margin-top: 15px;
+            padding: 15px;
+            border-radius: 8px;
+            background: #fff;
+            border-left: 4px solid #3498db;
+            font-family: 'Courier New', monospace;
+            white-space: pre-wrap;
+            max-height: 300px;
+            overflow-y: auto;
+        }
+        
+        .success {
+            border-left-color: #27ae60;
+            background: #d5f4e6;
+        }
+        
+        .error {
+            border-left-color: #e74c3c;
+            background: #fdf2f2;
+        }
+        
+        .fix-info {
+            background: #e8f4fd;
+            border: 1px solid #bee5eb;
+            border-radius: 8px;
+            padding: 15px;
+            margin-bottom: 20px;
+        }
+        
+        .fix-info h3 {
+            color: #0c5460;
+            margin-top: 0;
+        }
+        
+        .strategy-info {
+            background: #f8f9fa;
+            border: 1px solid #dee2e6;
+            border-radius: 6px;
+            padding: 15px;
+            margin: 10px 0;
+        }
+        
+        .form-group {
+            margin-bottom: 15px;
+        }
+        
+        .form-group label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+            color: #495057;
+        }
+        
+        .form-group input, .form-group textarea, .form-group select {
+            width: 100%;
+            padding: 8px 12px;
+            border: 1px solid #ced4da;
+            border-radius: 4px;
+            font-size: 14px;
+        }
+        
+        .form-group textarea {
+            height: 80px;
+            resize: vertical;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🔧 策略编辑功能修复验证</h1>
+            <p>验证策略编辑时的数据格式修复</p>
+        </div>
+        
+        <div class="content">
+            <div class="fix-info">
+                <h3>🐛 问题修复说明</h3>
+                <p><strong>错误:</strong> PUT http://localhost:8080/api/v1/ai-control/strategies/4 400 (Bad Request)</p>
+                <p><strong>原因:</strong> 前端发送的conditions和actions被错误地转换为JSON字符串</p>
+                <p><strong>修复:</strong> 直接发送数组对象，而不是JSON字符串</p>
+                <p><strong>修复前:</strong> conditions: JSON.stringify(processedConditions)</p>
+                <p><strong>修复后:</strong> conditions: processedConditions</p>
+            </div>
+            
+            <!-- 登录测试 -->
+            <div class="test-section">
+                <h2>🔐 登录验证</h2>
+                <button class="btn btn-primary" onclick="testLogin()">获取认证Token</button>
+                <div id="auth-result" class="result"></div>
+            </div>
+            
+            <!-- 策略列表 -->
+            <div class="test-section">
+                <h2>📋 策略列表</h2>
+                <button class="btn btn-success" onclick="loadStrategies()">加载策略列表</button>
+                <div id="strategy-result" class="result"></div>
+                <div id="strategy-list"></div>
+            </div>
+            
+            <!-- 策略编辑测试 -->
+            <div class="test-section">
+                <h2>✏️ 策略编辑测试</h2>
+                <div id="edit-form" style="display: none;">
+                    <div class="form-group">
+                        <label>策略名称:</label>
+                        <input type="text" id="edit-name" placeholder="请输入策略名称">
+                    </div>
+                    <div class="form-group">
+                        <label>策略描述:</label>
+                        <textarea id="edit-description" placeholder="请输入策略描述"></textarea>
+                    </div>
+                    <div class="form-group">
+                        <label>策略状态:</label>
+                        <select id="edit-status">
+                            <option value="启用">启用</option>
+                            <option value="禁用">禁用</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>优先级:</label>
+                        <select id="edit-priority">
+                            <option value="高">高</option>
+                            <option value="中">中</option>
+                            <option value="低">低</option>
+                        </select>
+                    </div>
+                    <button class="btn btn-warning" onclick="updateStrategy()">更新策略</button>
+                    <button class="btn btn-primary" onclick="cancelEdit()">取消编辑</button>
+                </div>
+                <div id="edit-result" class="result"></div>
+            </div>
+            
+            <!-- 前端页面测试 -->
+            <div class="test-section">
+                <h2>🌐 前端页面测试</h2>
+                <button class="btn btn-primary" onclick="openFrontendPage()">打开AI控制页面</button>
+                <p>点击后在新标签页中打开前端页面，然后测试策略编辑功能</p>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let authToken = '';
+        let strategies = [];
+        let currentEditingStrategy = null;
+        
+        // 登录测试
+        async function testLogin() {
+            const resultDiv = document.getElementById('auth-result');
+            resultDiv.textContent = '正在登录...';
+            
+            try {
+                const response = await fetch('http://localhost:8080/api/v1/auth/login', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        username: 'admin',
+                        password: 'admin123'
+                    })
+                });
+                
+                const result = await response.json();
+                
+                if (result.code === 200) {
+                    authToken = result.data.token;
+                    resultDiv.className = 'result success';
+                    resultDiv.textContent = `✅ 登录成功！\nToken: ${authToken.substring(0, 30)}...`;
+                } else {
+                    resultDiv.className = 'result error';
+                    resultDiv.textContent = `❌ 登录失败: ${result.message}`;
+                }
+            } catch (error) {
+                resultDiv.className = 'result error';
+                resultDiv.textContent = `❌ 登录错误: ${error.message}`;
+            }
+        }
+        
+        // 加载策略列表
+        async function loadStrategies() {
+            if (!authToken) {
+                alert('请先登录获取Token');
+                return;
+            }
+            
+            const resultDiv = document.getElementById('strategy-result');
+            const listDiv = document.getElementById('strategy-list');
+            resultDiv.textContent = '正在加载策略列表...';
+            
+            try {
+                const response = await fetch('http://localhost:8080/api/v1/ai-control/strategies', {
+                    headers: {
+                        'Authorization': `Bearer ${authToken}`
+                    }
+                });
+                
+                const result = await response.json();
+                
+                if (result.code === 200) {
+                    strategies = result.data.strategies || [];
+                    resultDiv.className = 'result success';
+                    resultDiv.textContent = `✅ 加载成功！共找到 ${strategies.length} 个策略`;
+                    
+                    // 显示策略列表
+                    listDiv.innerHTML = strategies.map(strategy => `
+                        <div class="strategy-info">
+                            <h4>${strategy.name} (ID: ${strategy.id})</h4>
+                            <p><strong>描述:</strong> ${strategy.description}</p>
+                            <p><strong>状态:</strong> ${strategy.status} | <strong>优先级:</strong> ${strategy.priority}</p>
+                            <button class="btn btn-warning" onclick="editStrategy(${strategy.id})">编辑此策略</button>
+                        </div>
+                    `).join('');
+                } else {
+                    resultDiv.className = 'result error';
+                    resultDiv.textContent = `❌ 加载失败: ${result.message}`;
+                }
+            } catch (error) {
+                resultDiv.className = 'result error';
+                resultDiv.textContent = `❌ 加载错误: ${error.message}`;
+            }
+        }
+        
+        // 编辑策略
+        function editStrategy(strategyId) {
+            const strategy = strategies.find(s => s.id === strategyId);
+            if (!strategy) {
+                alert('策略不存在');
+                return;
+            }
+            
+            currentEditingStrategy = strategy;
+            
+            // 填充编辑表单
+            document.getElementById('edit-name').value = strategy.name;
+            document.getElementById('edit-description').value = strategy.description;
+            document.getElementById('edit-status').value = strategy.status;
+            document.getElementById('edit-priority').value = strategy.priority;
+            
+            // 显示编辑表单
+            document.getElementById('edit-form').style.display = 'block';
+            
+            const resultDiv = document.getElementById('edit-result');
+            resultDiv.className = 'result';
+            resultDiv.textContent = `正在编辑策略: ${strategy.name} (ID: ${strategy.id})`;
+        }
+        
+        // 更新策略
+        async function updateStrategy() {
+            if (!currentEditingStrategy) {
+                alert('没有选择要编辑的策略');
+                return;
+            }
+            
+            const resultDiv = document.getElementById('edit-result');
+            resultDiv.textContent = '正在更新策略...';
+            
+            const updateData = {
+                name: document.getElementById('edit-name').value,
+                description: document.getElementById('edit-description').value,
+                status: document.getElementById('edit-status').value,
+                priority: document.getElementById('edit-priority').value,
+                conditions: currentEditingStrategy.conditions || [],
+                actions: currentEditingStrategy.actions || []
+            };
+            
+            try {
+                const response = await fetch(`http://localhost:8080/api/v1/ai-control/strategies/${currentEditingStrategy.id}`, {
+                    method: 'PUT',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${authToken}`
+                    },
+                    body: JSON.stringify(updateData)
+                });
+                
+                const result = await response.json();
+                
+                if (result.code === 200) {
+                    resultDiv.className = 'result success';
+                    resultDiv.textContent = `✅ 策略更新成功！
+策略ID: ${result.data.id}
+新名称: ${result.data.name}
+新描述: ${result.data.description}
+新状态: ${result.data.status}
+新优先级: ${result.data.priority}
+更新时间: ${new Date(result.data.updated_at).toLocaleString()}`;
+                    
+                    // 隐藏编辑表单
+                    document.getElementById('edit-form').style.display = 'none';
+                    currentEditingStrategy = null;
+                    
+                    // 重新加载策略列表
+                    loadStrategies();
+                } else {
+                    resultDiv.className = 'result error';
+                    resultDiv.textContent = `❌ 更新失败: ${result.message}
+错误详情: ${result.error || '无详细错误信息'}`;
+                }
+            } catch (error) {
+                resultDiv.className = 'result error';
+                resultDiv.textContent = `❌ 更新错误: ${error.message}`;
+            }
+        }
+        
+        // 取消编辑
+        function cancelEdit() {
+            document.getElementById('edit-form').style.display = 'none';
+            currentEditingStrategy = null;
+            
+            const resultDiv = document.getElementById('edit-result');
+            resultDiv.className = 'result';
+            resultDiv.textContent = '已取消编辑';
+        }
+        
+        // 打开前端页面
+        function openFrontendPage() {
+            window.open('http://localhost:3005/ai-control', '_blank');
+        }
+        
+        // 页面加载时自动登录
+        window.onload = function() {
+            testLogin();
+        };
+    </script>
+</body>
+</html>

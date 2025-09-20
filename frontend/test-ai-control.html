@@ -1,0 +1,376 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI控制页面测试</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            background-color: #f5f5f5;
+        }
+        .test-container {
+            max-width: 800px;
+            margin: 0 auto;
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+        .test-section {
+            margin-bottom: 30px;
+            padding: 15px;
+            border: 1px solid #e0e0e0;
+            border-radius: 6px;
+        }
+        .test-title {
+            color: #333;
+            margin-bottom: 15px;
+            font-size: 18px;
+            font-weight: bold;
+        }
+        .api-test {
+            margin: 10px 0;
+            padding: 10px;
+            background: #f8f9fa;
+            border-radius: 4px;
+        }
+        .success {
+            color: #52c41a;
+        }
+        .error {
+            color: #ff4d4f;
+        }
+        .loading {
+            color: #1890ff;
+        }
+        button {
+            background: #1890ff;
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        button:hover {
+            background: #40a9ff;
+        }
+        .result {
+            margin-top: 10px;
+            padding: 10px;
+            background: #f0f0f0;
+            border-radius: 4px;
+            font-family: monospace;
+            font-size: 12px;
+            max-height: 200px;
+            overflow-y: auto;
+        }
+    </style>
+</head>
+<body>
+    <div class="test-container">
+        <h1>🤖 AI智能控制页面 - API测试</h1>
+        
+        <div class="test-section">
+            <div class="test-title">🌡️ 温度探头API测试</div>
+            <button onclick="testTemperatureSensors()">测试温度探头API</button>
+            <div id="sensors-result" class="result"></div>
+        </div>
+        
+        <div class="test-section">
+            <div class="test-title">🖥️ 服务器API测试</div>
+            <button onclick="testServers()">测试服务器API</button>
+            <div id="servers-result" class="result"></div>
+        </div>
+        
+        <div class="test-section">
+            <div class="test-title">⚡ 断路器API测试</div>
+            <button onclick="testBreakers()">测试断路器API</button>
+            <div id="breakers-result" class="result"></div>
+        </div>
+        
+        <div class="test-section">
+            <div class="test-title">🧠 AI策略API测试</div>
+            <button onclick="testStrategies()">测试策略列表API</button>
+            <button onclick="testCreateStrategy()">测试创建策略API</button>
+            <div id="strategies-result" class="result"></div>
+        </div>
+        
+        <div class="test-section">
+            <div class="test-title">📝 控制历史API测试</div>
+            <button onclick="testHistory()">测试历史记录API</button>
+            <div id="history-result" class="result"></div>
+        </div>
+        
+        <div class="test-section">
+            <div class="test-title">🔗 页面链接测试</div>
+            <button onclick="openAIControlPage()">打开AI控制页面</button>
+            <button onclick="testLogin()">测试登录状态</button>
+            <div id="page-result" class="result"></div>
+        </div>
+    </div>
+
+    <script>
+        // 获取认证token
+        async function getAuthToken() {
+            try {
+                const response = await fetch('http://localhost:8080/api/v1/auth/login', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        username: 'admin',
+                        password: 'admin123'
+                    })
+                });
+                const data = await response.json();
+                if (data.code === 200) {
+                    localStorage.setItem('token', data.data.token);
+                    return data.data.token;
+                }
+                throw new Error('登录失败');
+            } catch (error) {
+                console.error('获取token失败:', error);
+                return null;
+            }
+        }
+
+        // 测试温度探头API
+        async function testTemperatureSensors() {
+            const resultDiv = document.getElementById('sensors-result');
+            resultDiv.innerHTML = '<span class="loading">正在测试温度探头API...</span>';
+            
+            try {
+                const token = await getAuthToken();
+                if (!token) throw new Error('无法获取认证token');
+                
+                const response = await fetch('http://localhost:8080/api/v1/sensors', {
+                    headers: {
+                        'Authorization': `Bearer ${token}`
+                    }
+                });
+                const data = await response.json();
+                
+                resultDiv.innerHTML = `
+                    <span class="success">✅ 温度探头API测试成功</span><br>
+                    <strong>响应数据:</strong><br>
+                    ${JSON.stringify(data, null, 2)}
+                `;
+            } catch (error) {
+                resultDiv.innerHTML = `<span class="error">❌ 温度探头API测试失败: ${error.message}</span>`;
+            }
+        }
+
+        // 测试服务器API
+        async function testServers() {
+            const resultDiv = document.getElementById('servers-result');
+            resultDiv.innerHTML = '<span class="loading">正在测试服务器API...</span>';
+            
+            try {
+                const token = await getAuthToken();
+                if (!token) throw new Error('无法获取认证token');
+                
+                const response = await fetch('http://localhost:8080/api/v1/servers', {
+                    headers: {
+                        'Authorization': `Bearer ${token}`
+                    }
+                });
+                const data = await response.json();
+                
+                resultDiv.innerHTML = `
+                    <span class="success">✅ 服务器API测试成功</span><br>
+                    <strong>响应数据:</strong><br>
+                    ${JSON.stringify(data, null, 2)}
+                `;
+            } catch (error) {
+                resultDiv.innerHTML = `<span class="error">❌ 服务器API测试失败: ${error.message}</span>`;
+            }
+        }
+
+        // 测试断路器API
+        async function testBreakers() {
+            const resultDiv = document.getElementById('breakers-result');
+            resultDiv.innerHTML = '<span class="loading">正在测试断路器API...</span>';
+            
+            try {
+                const token = await getAuthToken();
+                if (!token) throw new Error('无法获取认证token');
+                
+                const response = await fetch('http://localhost:8080/api/v1/breakers', {
+                    headers: {
+                        'Authorization': `Bearer ${token}`
+                    }
+                });
+                const data = await response.json();
+                
+                resultDiv.innerHTML = `
+                    <span class="success">✅ 断路器API测试成功</span><br>
+                    <strong>响应数据:</strong><br>
+                    ${JSON.stringify(data, null, 2)}
+                `;
+            } catch (error) {
+                resultDiv.innerHTML = `<span class="error">❌ 断路器API测试失败: ${error.message}</span>`;
+            }
+        }
+
+        // 测试AI策略API
+        async function testStrategies() {
+            const resultDiv = document.getElementById('strategies-result');
+            resultDiv.innerHTML = '<span class="loading">正在测试AI策略API...</span>';
+
+            try {
+                const token = await getAuthToken();
+                if (!token) throw new Error('无法获取认证token');
+
+                const response = await fetch('http://localhost:8080/api/v1/ai-control/strategies', {
+                    headers: {
+                        'Authorization': `Bearer ${token}`
+                    }
+                });
+                const data = await response.json();
+
+                if (data.code === 200) {
+                    const strategies = data.data.strategies || [];
+                    resultDiv.innerHTML = `
+                        <span class="success">✅ AI策略API测试成功</span><br>
+                        <strong>策略数量:</strong> ${strategies.length}<br>
+                        <strong>策略列表:</strong><br>
+                        <div style="max-height: 300px; overflow-y: auto; border: 1px solid #ddd; padding: 10px; margin: 10px 0;">
+                            ${strategies.map(strategy => `
+                                <div style="border-bottom: 1px solid #eee; padding: 10px 0;">
+                                    <strong>${strategy.name}</strong> (ID: ${strategy.id})<br>
+                                    状态: ${strategy.status} | 优先级: ${strategy.priority}<br>
+                                    条件: ${strategy.conditions.length}个 | 动作: ${strategy.actions.length}个<br>
+                                    <small>${strategy.description}</small>
+                                </div>
+                            `).join('')}
+                        </div>
+                        <details>
+                            <summary>完整响应数据</summary>
+                            <pre>${JSON.stringify(data, null, 2)}</pre>
+                        </details>
+                    `;
+                } else {
+                    resultDiv.innerHTML = `
+                        <span class="error">❌ AI策略API返回错误</span><br>
+                        <pre>${JSON.stringify(data, null, 2)}</pre>
+                    `;
+                }
+            } catch (error) {
+                resultDiv.innerHTML = `<span class="error">❌ AI策略API测试失败: ${error.message}</span>`;
+            }
+        }
+
+        // 测试创建策略API
+        async function testCreateStrategy() {
+            const resultDiv = document.getElementById('strategies-result');
+            resultDiv.innerHTML = '<span class="loading">正在测试创建策略API...</span>';
+
+            try {
+                const token = await getAuthToken();
+                if (!token) throw new Error('无法获取认证token');
+
+                const testStrategy = {
+                    name: '测试策略-' + Date.now(),
+                    conditions: JSON.stringify([{
+                        id: '1',
+                        type: 'temperature',
+                        sensorId: '24-1',
+                        sensorName: '前进风口',
+                        operator: '>',
+                        value: '30',
+                        unit: '°C'
+                    }]),
+                    actions: JSON.stringify([{
+                        id: '1',
+                        type: 'server',
+                        targetId: '1',
+                        targetName: '测试服务器',
+                        operation: 'shutdown'
+                    }]),
+                    status: '启用',
+                    priority: '高',
+                    description: '这是一个测试策略'
+                };
+
+                const response = await fetch('http://localhost:8080/api/v1/ai-control/strategies', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${token}`
+                    },
+                    body: JSON.stringify(testStrategy)
+                });
+                const data = await response.json();
+
+                resultDiv.innerHTML = `
+                    <span class="success">✅ 创建策略API测试成功</span><br>
+                    <strong>响应数据:</strong><br>
+                    ${JSON.stringify(data, null, 2)}
+                `;
+            } catch (error) {
+                resultDiv.innerHTML = `<span class="error">❌ 创建策略API测试失败: ${error.message}</span>`;
+            }
+        }
+
+        // 测试历史记录API
+        async function testHistory() {
+            const resultDiv = document.getElementById('history-result');
+            resultDiv.innerHTML = '<span class="loading">正在测试历史记录API...</span>';
+
+            try {
+                const token = await getAuthToken();
+                if (!token) throw new Error('无法获取认证token');
+
+                const response = await fetch('http://localhost:8080/api/v1/ai-control/executions', {
+                    headers: {
+                        'Authorization': `Bearer ${token}`
+                    }
+                });
+                const data = await response.json();
+
+                resultDiv.innerHTML = `
+                    <span class="success">✅ 历史记录API测试成功</span><br>
+                    <strong>响应数据:</strong><br>
+                    ${JSON.stringify(data, null, 2)}
+                `;
+            } catch (error) {
+                resultDiv.innerHTML = `<span class="error">❌ 历史记录API测试失败: ${error.message}</span>`;
+            }
+        }
+
+        // 打开AI控制页面
+        function openAIControlPage() {
+            window.open('http://localhost:3005/ai-control', '_blank');
+        }
+
+        // 测试登录状态
+        async function testLogin() {
+            const resultDiv = document.getElementById('page-result');
+            resultDiv.innerHTML = '<span class="loading">正在测试登录状态...</span>';
+            
+            try {
+                const token = await getAuthToken();
+                if (token) {
+                    resultDiv.innerHTML = `
+                        <span class="success">✅ 登录状态正常</span><br>
+                        <strong>Token:</strong> ${token.substring(0, 50)}...
+                    `;
+                } else {
+                    resultDiv.innerHTML = '<span class="error">❌ 登录失败</span>';
+                }
+            } catch (error) {
+                resultDiv.innerHTML = `<span class="error">❌ 登录测试失败: ${error.message}</span>`;
+            }
+        }
+
+        // 页面加载时自动测试登录
+        window.onload = function() {
+            testLogin();
+        };
+    </script>
+</body>
+</html>

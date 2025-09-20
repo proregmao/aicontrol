@@ -1,0 +1,672 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI智能控制策略完整功能测试</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 15px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+            overflow: hidden;
+        }
+        
+        .header {
+            background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+        
+        .header h1 {
+            margin: 0;
+            font-size: 2.5em;
+            font-weight: 300;
+        }
+        
+        .content {
+            padding: 30px;
+        }
+        
+        .test-section {
+            margin-bottom: 40px;
+            padding: 25px;
+            border: 2px solid #e1e8ed;
+            border-radius: 10px;
+            background: #f8fafc;
+        }
+        
+        .test-section h2 {
+            color: #2c3e50;
+            margin-top: 0;
+            font-size: 1.5em;
+            border-bottom: 2px solid #3498db;
+            padding-bottom: 10px;
+        }
+        
+        .button-group {
+            display: flex;
+            gap: 15px;
+            flex-wrap: wrap;
+            margin: 20px 0;
+        }
+        
+        .btn {
+            padding: 12px 24px;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 500;
+            transition: all 0.3s ease;
+            text-decoration: none;
+            display: inline-block;
+        }
+        
+        .btn-primary {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+        
+        .btn-success {
+            background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+            color: white;
+        }
+        
+        .btn-warning {
+            background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+            color: white;
+        }
+        
+        .btn-danger {
+            background: linear-gradient(135deg, #ff6b6b 0%, #ee5a24 100%);
+            color: white;
+        }
+        
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 20px rgba(0,0,0,0.2);
+        }
+        
+        .result {
+            margin-top: 20px;
+            padding: 15px;
+            border-radius: 8px;
+            background: #fff;
+            border-left: 4px solid #3498db;
+            font-family: 'Courier New', monospace;
+            white-space: pre-wrap;
+            max-height: 300px;
+            overflow-y: auto;
+        }
+        
+        .success {
+            border-left-color: #27ae60;
+            background: #d5f4e6;
+        }
+        
+        .error {
+            border-left-color: #e74c3c;
+            background: #fdf2f2;
+        }
+        
+        .status-badge {
+            display: inline-block;
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: bold;
+            margin: 2px;
+        }
+        
+        .status-enabled {
+            background: #d5f4e6;
+            color: #27ae60;
+        }
+        
+        .status-disabled {
+            background: #fdf2f2;
+            color: #e74c3c;
+        }
+        
+        .strategy-card {
+            background: white;
+            border: 1px solid #e1e8ed;
+            border-radius: 8px;
+            padding: 20px;
+            margin: 10px 0;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        
+        .strategy-header {
+            display: flex;
+            justify-content: between;
+            align-items: center;
+            margin-bottom: 15px;
+        }
+        
+        .strategy-title {
+            font-size: 1.2em;
+            font-weight: bold;
+            color: #2c3e50;
+        }
+        
+        .strategy-actions {
+            display: flex;
+            gap: 10px;
+        }
+        
+        .execution-record {
+            background: #f8f9fa;
+            border: 1px solid #dee2e6;
+            border-radius: 6px;
+            padding: 15px;
+            margin: 10px 0;
+        }
+        
+        .execution-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+        
+        .execution-id {
+            font-weight: bold;
+            color: #495057;
+        }
+        
+        .execution-status {
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 12px;
+            font-weight: bold;
+        }
+        
+        .status-success {
+            background: #d4edda;
+            color: #155724;
+        }
+        
+        .status-failed {
+            background: #f8d7da;
+            color: #721c24;
+        }
+        
+        .status-running {
+            background: #d1ecf1;
+            color: #0c5460;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🤖 AI智能控制策略完整功能测试</h1>
+            <p>测试策略的创建、编辑、删除、执行等所有功能</p>
+        </div>
+        
+        <div class="content">
+            <!-- 登录测试 -->
+            <div class="test-section">
+                <h2>🔐 用户认证测试</h2>
+                <div class="button-group">
+                    <button class="btn btn-primary" onclick="testLogin()">登录测试</button>
+                    <button class="btn btn-warning" onclick="checkToken()">检查Token</button>
+                </div>
+                <div id="auth-result" class="result"></div>
+            </div>
+            
+            <!-- 策略管理测试 -->
+            <div class="test-section">
+                <h2>📋 策略管理测试</h2>
+                <div class="button-group">
+                    <button class="btn btn-success" onclick="loadStrategies()">加载策略列表</button>
+                    <button class="btn btn-primary" onclick="createTestStrategy()">创建测试策略</button>
+                    <button class="btn btn-warning" onclick="editStrategy()">编辑策略</button>
+                    <button class="btn btn-danger" onclick="deleteStrategy()">删除策略</button>
+                </div>
+                <div id="strategy-result" class="result"></div>
+                <div id="strategy-list"></div>
+            </div>
+            
+            <!-- 策略执行测试 -->
+            <div class="test-section">
+                <h2>⚡ 策略执行测试</h2>
+                <div class="button-group">
+                    <button class="btn btn-success" onclick="executeStrategy()">执行策略测试</button>
+                    <button class="btn btn-primary" onclick="loadExecutions()">查看执行记录</button>
+                </div>
+                <div id="execution-result" class="result"></div>
+                <div id="execution-list"></div>
+            </div>
+            
+            <!-- 前端集成测试 -->
+            <div class="test-section">
+                <h2>🌐 前端集成测试</h2>
+                <div class="button-group">
+                    <a href="http://localhost:3005/ai-control" target="_blank" class="btn btn-primary">打开前端页面</a>
+                    <button class="btn btn-success" onclick="testFrontendAPI()">测试前端API调用</button>
+                </div>
+                <div id="frontend-result" class="result"></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let authToken = '';
+        let strategies = [];
+        let executions = [];
+        
+        // 登录测试
+        async function testLogin() {
+            const resultDiv = document.getElementById('auth-result');
+            resultDiv.textContent = '正在登录...';
+            
+            try {
+                const response = await fetch('http://localhost:8080/api/v1/auth/login', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        username: 'admin',
+                        password: 'admin123'
+                    })
+                });
+                
+                const result = await response.json();
+                
+                if (result.code === 200) {
+                    authToken = result.data.token;
+                    resultDiv.className = 'result success';
+                    resultDiv.textContent = `登录成功！\nToken: ${authToken.substring(0, 50)}...\n用户信息: ${JSON.stringify(result.data.user, null, 2)}`;
+                } else {
+                    resultDiv.className = 'result error';
+                    resultDiv.textContent = `登录失败: ${result.message}`;
+                }
+            } catch (error) {
+                resultDiv.className = 'result error';
+                resultDiv.textContent = `登录错误: ${error.message}`;
+            }
+        }
+        
+        // 检查Token
+        function checkToken() {
+            const resultDiv = document.getElementById('auth-result');
+            if (authToken) {
+                resultDiv.className = 'result success';
+                resultDiv.textContent = `当前Token: ${authToken.substring(0, 50)}...`;
+            } else {
+                resultDiv.className = 'result error';
+                resultDiv.textContent = '未登录，请先执行登录测试';
+            }
+        }
+        
+        // 加载策略列表
+        async function loadStrategies() {
+            if (!authToken) {
+                alert('请先登录');
+                return;
+            }
+            
+            const resultDiv = document.getElementById('strategy-result');
+            const listDiv = document.getElementById('strategy-list');
+            resultDiv.textContent = '正在加载策略列表...';
+            
+            try {
+                const response = await fetch('http://localhost:8080/api/v1/ai-control/strategies', {
+                    headers: {
+                        'Authorization': `Bearer ${authToken}`
+                    }
+                });
+                
+                const result = await response.json();
+                
+                if (result.code === 200) {
+                    strategies = result.data || [];
+                    resultDiv.className = 'result success';
+                    resultDiv.textContent = `加载成功！共找到 ${strategies.length} 个策略`;
+                    
+                    // 显示策略列表
+                    listDiv.innerHTML = strategies.map(strategy => `
+                        <div class="strategy-card">
+                            <div class="strategy-header">
+                                <div class="strategy-title">${strategy.name}</div>
+                                <div>
+                                    <span class="status-badge ${strategy.status === '启用' ? 'status-enabled' : 'status-disabled'}">
+                                        ${strategy.status}
+                                    </span>
+                                    <span class="status-badge">${strategy.priority}</span>
+                                </div>
+                            </div>
+                            <p>${strategy.description}</p>
+                            <div class="strategy-actions">
+                                <button class="btn btn-success" onclick="executeStrategyById(${strategy.id})">测试执行</button>
+                                <button class="btn btn-warning" onclick="editStrategyById(${strategy.id})">编辑</button>
+                                <button class="btn btn-danger" onclick="deleteStrategyById(${strategy.id})">删除</button>
+                            </div>
+                        </div>
+                    `).join('');
+                } else {
+                    resultDiv.className = 'result error';
+                    resultDiv.textContent = `加载失败: ${result.message}`;
+                }
+            } catch (error) {
+                resultDiv.className = 'result error';
+                resultDiv.textContent = `加载错误: ${error.message}`;
+            }
+        }
+        
+        // 创建测试策略
+        async function createTestStrategy() {
+            if (!authToken) {
+                alert('请先登录');
+                return;
+            }
+            
+            const resultDiv = document.getElementById('strategy-result');
+            resultDiv.textContent = '正在创建测试策略...';
+            
+            const testStrategy = {
+                name: `测试策略_${Date.now()}`,
+                description: '这是一个自动创建的测试策略',
+                conditions: [
+                    {
+                        type: 'temperature',
+                        device_id: 'temp_001',
+                        operator: '>',
+                        value: 30,
+                        description: '温度超过30度'
+                    }
+                ],
+                actions: [
+                    {
+                        type: 'breaker_control',
+                        device_id: 'breaker_001',
+                        device_name: '测试断路器',
+                        operation: 'off',
+                        delay_second: 0,
+                        description: '关闭测试断路器'
+                    }
+                ],
+                status: '启用',
+                priority: '高'
+            };
+            
+            try {
+                const response = await fetch('http://localhost:8080/api/v1/ai-control/strategies', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${authToken}`
+                    },
+                    body: JSON.stringify(testStrategy)
+                });
+                
+                const result = await response.json();
+                
+                if (result.code === 201) {
+                    resultDiv.className = 'result success';
+                    resultDiv.textContent = `策略创建成功！\n策略ID: ${result.data.id}\n策略名称: ${result.data.name}`;
+                    // 重新加载策略列表
+                    loadStrategies();
+                } else {
+                    resultDiv.className = 'result error';
+                    resultDiv.textContent = `创建失败: ${result.message}`;
+                }
+            } catch (error) {
+                resultDiv.className = 'result error';
+                resultDiv.textContent = `创建错误: ${error.message}`;
+            }
+        }
+        
+        // 执行策略测试
+        async function executeStrategy() {
+            if (!authToken) {
+                alert('请先登录');
+                return;
+            }
+            
+            if (strategies.length === 0) {
+                alert('请先加载策略列表');
+                return;
+            }
+            
+            // 使用第一个启用的策略进行测试
+            const enabledStrategy = strategies.find(s => s.status === '启用');
+            if (!enabledStrategy) {
+                alert('没有找到启用的策略');
+                return;
+            }
+            
+            await executeStrategyById(enabledStrategy.id);
+        }
+        
+        // 根据ID执行策略
+        async function executeStrategyById(strategyId) {
+            const resultDiv = document.getElementById('execution-result');
+            resultDiv.textContent = `正在执行策略 ${strategyId}...`;
+            
+            try {
+                const response = await fetch(`http://localhost:8080/api/v1/ai-control/strategies/${strategyId}/execute`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${authToken}`
+                    },
+                    body: JSON.stringify({})
+                });
+                
+                const result = await response.json();
+                
+                if (result.code === 200) {
+                    resultDiv.className = 'result success';
+                    resultDiv.textContent = `策略执行成功！\n执行ID: ${result.data.id}\n执行状态: ${result.data.status}\n执行结果: ${result.data.result}`;
+                    // 重新加载执行记录
+                    loadExecutions();
+                } else {
+                    resultDiv.className = 'result error';
+                    resultDiv.textContent = `执行失败: ${result.message}`;
+                }
+            } catch (error) {
+                resultDiv.className = 'result error';
+                resultDiv.textContent = `执行错误: ${error.message}`;
+            }
+        }
+        
+        // 加载执行记录
+        async function loadExecutions() {
+            if (!authToken) {
+                alert('请先登录');
+                return;
+            }
+            
+            const resultDiv = document.getElementById('execution-result');
+            const listDiv = document.getElementById('execution-list');
+            resultDiv.textContent = '正在加载执行记录...';
+            
+            try {
+                const response = await fetch('http://localhost:8080/api/v1/ai-control/executions', {
+                    headers: {
+                        'Authorization': `Bearer ${authToken}`
+                    }
+                });
+                
+                const result = await response.json();
+                
+                if (result.code === 200) {
+                    executions = result.data || [];
+                    resultDiv.className = 'result success';
+                    resultDiv.textContent = `加载成功！共找到 ${executions.length} 条执行记录`;
+                    
+                    // 显示执行记录列表
+                    listDiv.innerHTML = executions.map(execution => `
+                        <div class="execution-record">
+                            <div class="execution-header">
+                                <div class="execution-id">执行ID: ${execution.id}</div>
+                                <div class="execution-status status-${execution.status}">${execution.status}</div>
+                            </div>
+                            <p><strong>策略ID:</strong> ${execution.strategy_id}</p>
+                            <p><strong>触发方式:</strong> ${execution.trigger_by}</p>
+                            <p><strong>执行结果:</strong> ${execution.result}</p>
+                            <p><strong>创建时间:</strong> ${new Date(execution.created_at).toLocaleString()}</p>
+                        </div>
+                    `).join('');
+                } else {
+                    resultDiv.className = 'result error';
+                    resultDiv.textContent = `加载失败: ${result.message}`;
+                }
+            } catch (error) {
+                resultDiv.className = 'result error';
+                resultDiv.textContent = `加载错误: ${error.message}`;
+            }
+        }
+        
+        // 编辑策略
+        function editStrategy() {
+            alert('编辑功能请在策略列表中点击具体策略的编辑按钮');
+        }
+        
+        // 根据ID编辑策略
+        async function editStrategyById(strategyId) {
+            const strategy = strategies.find(s => s.id === strategyId);
+            if (!strategy) {
+                alert('策略不存在');
+                return;
+            }
+            
+            const newName = prompt('请输入新的策略名称:', strategy.name);
+            if (!newName) return;
+            
+            const newDescription = prompt('请输入新的策略描述:', strategy.description);
+            if (!newDescription) return;
+            
+            const resultDiv = document.getElementById('strategy-result');
+            resultDiv.textContent = `正在更新策略 ${strategyId}...`;
+            
+            try {
+                const response = await fetch(`http://localhost:8080/api/v1/ai-control/strategies/${strategyId}`, {
+                    method: 'PUT',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${authToken}`
+                    },
+                    body: JSON.stringify({
+                        name: newName,
+                        description: newDescription,
+                        status: strategy.status,
+                        priority: strategy.priority
+                    })
+                });
+                
+                const result = await response.json();
+                
+                if (result.code === 200) {
+                    resultDiv.className = 'result success';
+                    resultDiv.textContent = `策略更新成功！\n策略ID: ${result.data.id}\n新名称: ${result.data.name}`;
+                    // 重新加载策略列表
+                    loadStrategies();
+                } else {
+                    resultDiv.className = 'result error';
+                    resultDiv.textContent = `更新失败: ${result.message}`;
+                }
+            } catch (error) {
+                resultDiv.className = 'result error';
+                resultDiv.textContent = `更新错误: ${error.message}`;
+            }
+        }
+        
+        // 删除策略
+        function deleteStrategy() {
+            alert('删除功能请在策略列表中点击具体策略的删除按钮');
+        }
+        
+        // 根据ID删除策略
+        async function deleteStrategyById(strategyId) {
+            const strategy = strategies.find(s => s.id === strategyId);
+            if (!strategy) {
+                alert('策略不存在');
+                return;
+            }
+            
+            if (!confirm(`确定要删除策略 "${strategy.name}" 吗？`)) {
+                return;
+            }
+            
+            const resultDiv = document.getElementById('strategy-result');
+            resultDiv.textContent = `正在删除策略 ${strategyId}...`;
+            
+            try {
+                const response = await fetch(`http://localhost:8080/api/v1/ai-control/strategies/${strategyId}`, {
+                    method: 'DELETE',
+                    headers: {
+                        'Authorization': `Bearer ${authToken}`
+                    }
+                });
+                
+                const result = await response.json();
+                
+                if (result.code === 200) {
+                    resultDiv.className = 'result success';
+                    resultDiv.textContent = `策略删除成功！策略ID: ${strategyId}`;
+                    // 重新加载策略列表
+                    loadStrategies();
+                } else {
+                    resultDiv.className = 'result error';
+                    resultDiv.textContent = `删除失败: ${result.message}`;
+                }
+            } catch (error) {
+                resultDiv.className = 'result error';
+                resultDiv.textContent = `删除错误: ${error.message}`;
+            }
+        }
+        
+        // 测试前端API调用
+        async function testFrontendAPI() {
+            const resultDiv = document.getElementById('frontend-result');
+            resultDiv.textContent = '正在测试前端API调用...';
+            
+            try {
+                // 模拟前端的API调用方式
+                const token = localStorage.getItem('token') || authToken;
+                
+                const response = await fetch('/api/v1/ai-control/strategies', {
+                    headers: {
+                        'Authorization': `Bearer ${token}`
+                    }
+                });
+                
+                const result = await response.json();
+                
+                if (result.code === 200) {
+                    resultDiv.className = 'result success';
+                    resultDiv.textContent = `前端API调用成功！\n策略数量: ${result.data?.length || 0}\n响应时间: ${Date.now()}`;
+                } else {
+                    resultDiv.className = 'result error';
+                    resultDiv.textContent = `前端API调用失败: ${result.message}`;
+                }
+            } catch (error) {
+                resultDiv.className = 'result error';
+                resultDiv.textContent = `前端API调用错误: ${error.message}`;
+            }
+        }
+        
+        // 页面加载时自动登录
+        window.onload = function() {
+            testLogin();
+        };
+    </script>
+</body>
+</html>

@@ -1,0 +1,330 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>策略测试功能修复验证</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+        }
+        
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 15px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+            overflow: hidden;
+        }
+        
+        .header {
+            background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+        
+        .header h1 {
+            margin: 0;
+            font-size: 2em;
+            font-weight: 300;
+        }
+        
+        .content {
+            padding: 30px;
+        }
+        
+        .test-section {
+            margin-bottom: 30px;
+            padding: 20px;
+            border: 2px solid #e1e8ed;
+            border-radius: 10px;
+            background: #f8fafc;
+        }
+        
+        .test-section h2 {
+            color: #2c3e50;
+            margin-top: 0;
+            font-size: 1.3em;
+            border-bottom: 2px solid #3498db;
+            padding-bottom: 10px;
+        }
+        
+        .btn {
+            padding: 12px 24px;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 500;
+            transition: all 0.3s ease;
+            margin: 5px;
+        }
+        
+        .btn-primary {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+        
+        .btn-success {
+            background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+            color: white;
+        }
+        
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 20px rgba(0,0,0,0.2);
+        }
+        
+        .result {
+            margin-top: 15px;
+            padding: 15px;
+            border-radius: 8px;
+            background: #fff;
+            border-left: 4px solid #3498db;
+            font-family: 'Courier New', monospace;
+            white-space: pre-wrap;
+            max-height: 200px;
+            overflow-y: auto;
+        }
+        
+        .success {
+            border-left-color: #27ae60;
+            background: #d5f4e6;
+        }
+        
+        .error {
+            border-left-color: #e74c3c;
+            background: #fdf2f2;
+        }
+        
+        .status {
+            display: inline-block;
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: bold;
+            margin: 2px;
+        }
+        
+        .status-success {
+            background: #d5f4e6;
+            color: #27ae60;
+        }
+        
+        .status-running {
+            background: #d1ecf1;
+            color: #0c5460;
+        }
+        
+        .fix-info {
+            background: #e8f4fd;
+            border: 1px solid #bee5eb;
+            border-radius: 8px;
+            padding: 15px;
+            margin-bottom: 20px;
+        }
+        
+        .fix-info h3 {
+            color: #0c5460;
+            margin-top: 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🔧 策略测试功能修复验证</h1>
+            <p>验证fetchExecutions错误修复</p>
+        </div>
+        
+        <div class="content">
+            <div class="fix-info">
+                <h3>🐛 问题修复说明</h3>
+                <p><strong>错误:</strong> ReferenceError: fetchExecutions is not defined</p>
+                <p><strong>原因:</strong> testStrategy函数中调用了不存在的fetchExecutions函数</p>
+                <p><strong>修复:</strong> 将fetchExecutions()改为loadHistory()，使用现有的历史记录加载函数</p>
+            </div>
+            
+            <!-- 登录测试 -->
+            <div class="test-section">
+                <h2>🔐 登录验证</h2>
+                <button class="btn btn-primary" onclick="testLogin()">获取认证Token</button>
+                <div id="auth-result" class="result"></div>
+            </div>
+            
+            <!-- 策略执行测试 -->
+            <div class="test-section">
+                <h2>⚡ 策略执行测试</h2>
+                <button class="btn btn-success" onclick="testStrategyExecution()">测试策略执行</button>
+                <button class="btn btn-primary" onclick="checkExecutionHistory()">查看执行历史</button>
+                <div id="execution-result" class="result"></div>
+            </div>
+            
+            <!-- 前端页面测试 -->
+            <div class="test-section">
+                <h2>🌐 前端页面测试</h2>
+                <button class="btn btn-primary" onclick="openFrontendPage()">打开AI控制页面</button>
+                <p>点击后在新标签页中打开前端页面，然后在页面中测试策略执行功能</p>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let authToken = '';
+        
+        // 登录测试
+        async function testLogin() {
+            const resultDiv = document.getElementById('auth-result');
+            resultDiv.textContent = '正在登录...';
+            
+            try {
+                const response = await fetch('http://localhost:8080/api/v1/auth/login', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        username: 'admin',
+                        password: 'admin123'
+                    })
+                });
+                
+                const result = await response.json();
+                
+                if (result.code === 200) {
+                    authToken = result.data.token;
+                    resultDiv.className = 'result success';
+                    resultDiv.textContent = `✅ 登录成功！\nToken: ${authToken.substring(0, 30)}...`;
+                } else {
+                    resultDiv.className = 'result error';
+                    resultDiv.textContent = `❌ 登录失败: ${result.message}`;
+                }
+            } catch (error) {
+                resultDiv.className = 'result error';
+                resultDiv.textContent = `❌ 登录错误: ${error.message}`;
+            }
+        }
+        
+        // 测试策略执行
+        async function testStrategyExecution() {
+            if (!authToken) {
+                alert('请先登录获取Token');
+                return;
+            }
+            
+            const resultDiv = document.getElementById('execution-result');
+            resultDiv.textContent = '正在测试策略执行...';
+            
+            try {
+                // 首先获取策略列表
+                const strategiesResponse = await fetch('http://localhost:8080/api/v1/ai-control/strategies', {
+                    headers: {
+                        'Authorization': `Bearer ${authToken}`
+                    }
+                });
+                
+                const strategiesResult = await strategiesResponse.json();
+                
+                if (strategiesResult.code !== 200) {
+                    resultDiv.className = 'result error';
+                    resultDiv.textContent = `❌ 获取策略列表失败: ${strategiesResult.message}`;
+                    return;
+                }
+                
+                const strategies = strategiesResult.data || [];
+                const enabledStrategy = strategies.find(s => s.status === '启用');
+                
+                if (!enabledStrategy) {
+                    resultDiv.className = 'result error';
+                    resultDiv.textContent = `❌ 没有找到启用的策略\n策略总数: ${strategies.length}`;
+                    return;
+                }
+                
+                // 执行策略
+                const executeResponse = await fetch(`http://localhost:8080/api/v1/ai-control/strategies/${enabledStrategy.id}/execute`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${authToken}`
+                    },
+                    body: JSON.stringify({})
+                });
+                
+                const executeResult = await executeResponse.json();
+                
+                if (executeResult.code === 200) {
+                    resultDiv.className = 'result success';
+                    resultDiv.textContent = `✅ 策略执行成功！
+策略名称: ${enabledStrategy.name}
+执行ID: ${executeResult.data.id}
+执行状态: ${executeResult.data.status}
+执行结果: ${executeResult.data.result}
+创建时间: ${new Date(executeResult.data.created_at).toLocaleString()}`;
+                } else {
+                    resultDiv.className = 'result error';
+                    resultDiv.textContent = `❌ 策略执行失败: ${executeResult.message}`;
+                }
+            } catch (error) {
+                resultDiv.className = 'result error';
+                resultDiv.textContent = `❌ 执行错误: ${error.message}`;
+            }
+        }
+        
+        // 查看执行历史
+        async function checkExecutionHistory() {
+            if (!authToken) {
+                alert('请先登录获取Token');
+                return;
+            }
+            
+            const resultDiv = document.getElementById('execution-result');
+            resultDiv.textContent = '正在查看执行历史...';
+            
+            try {
+                const response = await fetch('http://localhost:8080/api/v1/ai-control/executions', {
+                    headers: {
+                        'Authorization': `Bearer ${authToken}`
+                    }
+                });
+                
+                const result = await response.json();
+                
+                if (result.code === 200) {
+                    const executions = result.data.executions || [];
+                    resultDiv.className = 'result success';
+                    resultDiv.textContent = `✅ 执行历史查询成功！
+总记录数: ${result.data.total}
+当前页记录: ${executions.length}
+
+最近执行记录:
+${executions.slice(0, 3).map(exec => 
+`- ID: ${exec.id}, 策略: ${exec.strategy.name}, 状态: ${exec.status}, 时间: ${new Date(exec.created_at).toLocaleString()}`
+).join('\n')}`;
+                } else {
+                    resultDiv.className = 'result error';
+                    resultDiv.textContent = `❌ 查询失败: ${result.message}`;
+                }
+            } catch (error) {
+                resultDiv.className = 'result error';
+                resultDiv.textContent = `❌ 查询错误: ${error.message}`;
+            }
+        }
+        
+        // 打开前端页面
+        function openFrontendPage() {
+            window.open('http://localhost:3005/ai-control', '_blank');
+        }
+        
+        // 页面加载时自动登录
+        window.onload = function() {
+            testLogin();
+        };
+    </script>
+</body>
+</html>

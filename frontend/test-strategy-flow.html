@@ -1,0 +1,366 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI策略流程测试</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            background-color: #f5f5f5;
+        }
+        .test-container {
+            max-width: 1000px;
+            margin: 0 auto;
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+        .test-section {
+            margin-bottom: 30px;
+            padding: 15px;
+            border: 1px solid #e0e0e0;
+            border-radius: 6px;
+        }
+        .test-title {
+            color: #333;
+            margin-bottom: 15px;
+            font-size: 18px;
+            font-weight: bold;
+        }
+        .success {
+            color: #52c41a;
+        }
+        .error {
+            color: #ff4d4f;
+        }
+        .loading {
+            color: #1890ff;
+        }
+        button {
+            background: #1890ff;
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        button:hover {
+            background: #40a9ff;
+        }
+        .result {
+            margin-top: 10px;
+            padding: 10px;
+            background: #f0f0f0;
+            border-radius: 4px;
+            font-family: monospace;
+            font-size: 12px;
+            max-height: 300px;
+            overflow-y: auto;
+        }
+        .strategy-card {
+            border: 1px solid #d9d9d9;
+            border-radius: 6px;
+            padding: 15px;
+            margin: 10px 0;
+            background: #fafafa;
+        }
+        .strategy-name {
+            font-weight: bold;
+            color: #333;
+            margin-bottom: 8px;
+        }
+        .strategy-details {
+            font-size: 12px;
+            color: #666;
+        }
+    </style>
+</head>
+<body>
+    <div class="test-container">
+        <h1>🤖 AI策略完整流程测试</h1>
+        
+        <div class="test-section">
+            <div class="test-title">📋 第1步：获取策略列表</div>
+            <button onclick="testGetStrategies()">获取策略列表</button>
+            <div id="strategies-list" class="result"></div>
+        </div>
+        
+        <div class="test-section">
+            <div class="test-title">🌡️ 第2步：获取设备数据</div>
+            <button onclick="testGetDevices()">获取温度探头</button>
+            <button onclick="testGetServers()">获取服务器</button>
+            <button onclick="testGetBreakers()">获取断路器</button>
+            <div id="devices-result" class="result"></div>
+        </div>
+        
+        <div class="test-section">
+            <div class="test-title">➕ 第3步：创建新策略</div>
+            <button onclick="testCreateStrategy()">创建测试策略</button>
+            <div id="create-result" class="result"></div>
+        </div>
+        
+        <div class="test-section">
+            <div class="test-title">🔄 第4步：重新获取策略列表</div>
+            <button onclick="testGetStrategiesAfterCreate()">重新获取策略列表</button>
+            <div id="strategies-after" class="result"></div>
+        </div>
+        
+        <div class="test-section">
+            <div class="test-title">📝 第5步：获取执行历史</div>
+            <button onclick="testGetHistory()">获取执行历史</button>
+            <div id="history-result" class="result"></div>
+        </div>
+        
+        <div class="test-section">
+            <div class="test-title">🔗 第6步：打开AI控制页面</div>
+            <button onclick="openAIControlPage()">打开AI控制页面</button>
+            <div id="page-result" class="result"></div>
+        </div>
+    </div>
+
+    <script>
+        let authToken = null;
+
+        // 获取认证token
+        async function getAuthToken() {
+            if (authToken) return authToken;
+            
+            try {
+                const response = await fetch('http://localhost:8080/api/v1/auth/login', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        username: 'admin',
+                        password: 'admin123'
+                    })
+                });
+                const data = await response.json();
+                if (data.code === 200) {
+                    authToken = data.data.token;
+                    localStorage.setItem('token', authToken);
+                    return authToken;
+                }
+                throw new Error('登录失败');
+            } catch (error) {
+                console.error('获取token失败:', error);
+                return null;
+            }
+        }
+
+        // 第1步：获取策略列表
+        async function testGetStrategies() {
+            const resultDiv = document.getElementById('strategies-list');
+            resultDiv.innerHTML = '<span class="loading">正在获取策略列表...</span>';
+            
+            try {
+                const token = await getAuthToken();
+                if (!token) throw new Error('无法获取认证token');
+                
+                const response = await fetch('http://localhost:8080/api/v1/ai-control/strategies', {
+                    headers: {
+                        'Authorization': `Bearer ${token}`
+                    }
+                });
+                const data = await response.json();
+                
+                if (data.code === 200) {
+                    let html = `<span class="success">✅ 获取策略列表成功 (${data.data.length}个策略)</span><br><br>`;
+                    
+                    data.data.forEach((strategy, index) => {
+                        html += `
+                            <div class="strategy-card">
+                                <div class="strategy-name">${index + 1}. ${strategy.name}</div>
+                                <div class="strategy-details">
+                                    ID: ${strategy.id} | 
+                                    状态: ${strategy.enabled ? '启用' : '禁用'} | 
+                                    优先级: ${strategy.priority} | 
+                                    条件数: ${Array.isArray(strategy.conditions) ? strategy.conditions.length : '未知'} | 
+                                    动作数: ${Array.isArray(strategy.actions) ? strategy.actions.length : '未知'}
+                                </div>
+                            </div>
+                        `;
+                    });
+                    
+                    resultDiv.innerHTML = html;
+                } else {
+                    resultDiv.innerHTML = `<span class="error">❌ 获取策略列表失败: ${data.message}</span>`;
+                }
+            } catch (error) {
+                resultDiv.innerHTML = `<span class="error">❌ 获取策略列表失败: ${error.message}</span>`;
+            }
+        }
+
+        // 第2步：获取设备数据
+        async function testGetDevices() {
+            const resultDiv = document.getElementById('devices-result');
+            resultDiv.innerHTML = '<span class="loading">正在获取设备数据...</span>';
+            
+            try {
+                const token = await getAuthToken();
+                if (!token) throw new Error('无法获取认证token');
+                
+                const [sensorsRes, serversRes, breakersRes] = await Promise.all([
+                    fetch('http://localhost:8080/api/v1/sensors', {
+                        headers: { 'Authorization': `Bearer ${token}` }
+                    }),
+                    fetch('http://localhost:8080/api/v1/servers', {
+                        headers: { 'Authorization': `Bearer ${token}` }
+                    }),
+                    fetch('http://localhost:8080/api/v1/breakers', {
+                        headers: { 'Authorization': `Bearer ${token}` }
+                    })
+                ]);
+                
+                const [sensorsData, serversData, breakersData] = await Promise.all([
+                    sensorsRes.json(),
+                    serversRes.json(),
+                    breakersRes.json()
+                ]);
+                
+                let html = '<span class="success">✅ 设备数据获取成功</span><br><br>';
+                html += `<strong>温度探头:</strong> ${sensorsData.data?.sensors?.length || 0}个<br>`;
+                html += `<strong>服务器:</strong> ${serversData.data?.length || 0}个<br>`;
+                html += `<strong>断路器:</strong> ${breakersData.data?.length || 0}个<br><br>`;
+                
+                // 显示温度探头详情
+                if (sensorsData.data?.sensors?.length > 0) {
+                    html += '<strong>温度探头详情:</strong><br>';
+                    sensorsData.data.sensors.forEach(sensor => {
+                        html += `- ${sensor.name} (${sensor.channels?.length || 0}个通道)<br>`;
+                    });
+                }
+                
+                resultDiv.innerHTML = html;
+            } catch (error) {
+                resultDiv.innerHTML = `<span class="error">❌ 获取设备数据失败: ${error.message}</span>`;
+            }
+        }
+
+        // 第3步：创建新策略
+        async function testCreateStrategy() {
+            const resultDiv = document.getElementById('create-result');
+            resultDiv.innerHTML = '<span class="loading">正在创建测试策略...</span>';
+            
+            try {
+                const token = await getAuthToken();
+                if (!token) throw new Error('无法获取认证token');
+                
+                const testStrategy = {
+                    name: '自动化测试策略-' + Date.now(),
+                    description: '这是一个自动化测试创建的策略',
+                    conditions: JSON.stringify([{
+                        id: '1',
+                        type: 'temperature',
+                        sensorId: '24-1',
+                        sensorName: '前进风口',
+                        operator: '>',
+                        value: '35',
+                        unit: '°C'
+                    }]),
+                    actions: JSON.stringify([{
+                        id: '1',
+                        type: 'server',
+                        targetId: '1',
+                        targetName: '测试服务器',
+                        operation: 'shutdown'
+                    }]),
+                    status: '启用',
+                    priority: '高'
+                };
+                
+                const response = await fetch('http://localhost:8080/api/v1/ai-control/strategies', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${token}`
+                    },
+                    body: JSON.stringify(testStrategy)
+                });
+                const data = await response.json();
+                
+                if (data.code === 200 || data.code === 201) {
+                    resultDiv.innerHTML = `
+                        <span class="success">✅ 策略创建成功</span><br><br>
+                        <strong>策略ID:</strong> ${data.data.id}<br>
+                        <strong>策略名称:</strong> ${data.data.name}<br>
+                        <strong>创建时间:</strong> ${data.data.created_at}<br><br>
+                        <strong>完整响应:</strong><br>
+                        ${JSON.stringify(data, null, 2)}
+                    `;
+                } else {
+                    resultDiv.innerHTML = `<span class="error">❌ 策略创建失败: ${data.message}</span>`;
+                }
+            } catch (error) {
+                resultDiv.innerHTML = `<span class="error">❌ 策略创建失败: ${error.message}</span>`;
+            }
+        }
+
+        // 第4步：重新获取策略列表
+        async function testGetStrategiesAfterCreate() {
+            await testGetStrategies();
+            const result = document.getElementById('strategies-list').innerHTML;
+            document.getElementById('strategies-after').innerHTML = result;
+        }
+
+        // 第5步：获取执行历史
+        async function testGetHistory() {
+            const resultDiv = document.getElementById('history-result');
+            resultDiv.innerHTML = '<span class="loading">正在获取执行历史...</span>';
+            
+            try {
+                const token = await getAuthToken();
+                if (!token) throw new Error('无法获取认证token');
+                
+                const response = await fetch('http://localhost:8080/api/v1/ai-control/executions', {
+                    headers: {
+                        'Authorization': `Bearer ${token}`
+                    }
+                });
+                const data = await response.json();
+                
+                if (data.code === 200) {
+                    const items = data.data.items || [];
+                    let html = `<span class="success">✅ 获取执行历史成功 (${items.length}条记录)</span><br><br>`;
+                    
+                    items.forEach((record, index) => {
+                        html += `
+                            <div class="strategy-card">
+                                <div class="strategy-name">${index + 1}. ${record.strategy_name}</div>
+                                <div class="strategy-details">
+                                    状态: ${record.status} | 
+                                    触发原因: ${record.trigger_reason} | 
+                                    执行时间: ${record.start_time} | 
+                                    持续时间: ${record.duration}s
+                                </div>
+                            </div>
+                        `;
+                    });
+                    
+                    resultDiv.innerHTML = html;
+                } else {
+                    resultDiv.innerHTML = `<span class="error">❌ 获取执行历史失败: ${data.message}</span>`;
+                }
+            } catch (error) {
+                resultDiv.innerHTML = `<span class="error">❌ 获取执行历史失败: ${error.message}</span>`;
+            }
+        }
+
+        // 第6步：打开AI控制页面
+        function openAIControlPage() {
+            window.open('http://localhost:3005/ai-control', '_blank');
+            document.getElementById('page-result').innerHTML = '<span class="success">✅ AI控制页面已在新标签页中打开</span>';
+        }
+
+        // 页面加载时自动获取策略列表
+        window.onload = function() {
+            testGetStrategies();
+        };
+    </script>
+</body>
+</html>
