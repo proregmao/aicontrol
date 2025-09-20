@@ -53,18 +53,19 @@ type AIStrategyAction struct {
 
 // AIStrategy AI控制策略模型
 type AIStrategy struct {
-	ID          uint                    `json:"id" gorm:"primaryKey"`
-	Name        string                  `json:"name" gorm:"size:100;not null"`
-	Description string                  `json:"description" gorm:"size:500"`
-	Conditions  string                  `json:"-" gorm:"type:text"`                    // JSON存储条件
-	Actions     string                  `json:"-" gorm:"type:text"`                    // JSON存储动作
-	Status      AIStrategyStatus        `json:"status" gorm:"default:'禁用'"`
-	Priority    AIStrategyPriority      `json:"priority" gorm:"default:'中'"`
-	CreatedBy   uint                    `json:"created_by"`                            // 创建者ID
-	UpdatedBy   uint                    `json:"updated_by"`                            // 更新者ID
-	CreatedAt   time.Time               `json:"created_at"`
-	UpdatedAt   time.Time               `json:"updated_at"`
-	DeletedAt   gorm.DeletedAt          `json:"-" gorm:"index"`
+	ID             uint                    `json:"id" gorm:"primaryKey"`
+	Name           string                  `json:"name" gorm:"size:100;not null"`
+	Description    string                  `json:"description" gorm:"size:500"`
+	Conditions     string                  `json:"-" gorm:"type:text"`                    // JSON存储条件
+	Actions        string                  `json:"-" gorm:"type:text"`                    // JSON存储动作
+	LogicOperator  string                  `json:"logic_operator" gorm:"size:10;default:'AND'"` // 条件逻辑操作符: AND, OR, NOT
+	Status         AIStrategyStatus        `json:"status" gorm:"default:'禁用'"`
+	Priority       AIStrategyPriority      `json:"priority" gorm:"default:'中'"`
+	CreatedBy      uint                    `json:"created_by"`                            // 创建者ID
+	UpdatedBy      uint                    `json:"updated_by"`                            // 更新者ID
+	CreatedAt      time.Time               `json:"created_at"`
+	UpdatedAt      time.Time               `json:"updated_at"`
+	DeletedAt      gorm.DeletedAt          `json:"-" gorm:"index"`
 
 	// 虚拟字段，用于JSON序列化
 	ConditionsList []AIStrategyCondition `json:"conditions" gorm:"-"`
@@ -136,22 +137,24 @@ func (s *AIStrategy) IsEnabled() bool {
 
 // CreateAIStrategyRequest 创建AI策略请求
 type CreateAIStrategyRequest struct {
-	Name        string                  `json:"name" binding:"required,min=2,max=100"`
-	Description string                  `json:"description" binding:"max=500"`
-	Conditions  []AIStrategyCondition   `json:"conditions" binding:"required,min=1"`
-	Actions     []AIStrategyAction      `json:"actions" binding:"required,min=1"`
-	Status      AIStrategyStatus        `json:"status" binding:"required,oneof=启用 禁用"`
-	Priority    AIStrategyPriority      `json:"priority" binding:"required,oneof=高 中 低"`
+	Name          string                  `json:"name" binding:"required,min=2,max=100"`
+	Description   string                  `json:"description" binding:"max=500"`
+	Conditions    []AIStrategyCondition   `json:"conditions" binding:"required,min=1"`
+	Actions       []AIStrategyAction      `json:"actions" binding:"required,min=1"`
+	LogicOperator string                  `json:"logic_operator" binding:"omitempty,oneof=AND OR NOT"`
+	Status        AIStrategyStatus        `json:"status" binding:"required,oneof=启用 禁用"`
+	Priority      AIStrategyPriority      `json:"priority" binding:"required,oneof=高 中 低"`
 }
 
 // UpdateAIStrategyRequest 更新AI策略请求
 type UpdateAIStrategyRequest struct {
-	Name        string                  `json:"name" binding:"omitempty,min=2,max=100"`
-	Description string                  `json:"description" binding:"max=500"`
-	Conditions  []AIStrategyCondition   `json:"conditions" binding:"omitempty,min=1"`
-	Actions     []AIStrategyAction      `json:"actions" binding:"omitempty,min=1"`
-	Status      AIStrategyStatus        `json:"status" binding:"omitempty,oneof=启用 禁用"`
-	Priority    AIStrategyPriority      `json:"priority" binding:"omitempty,oneof=高 中 低"`
+	Name          string                  `json:"name" binding:"omitempty,min=2,max=100"`
+	Description   string                  `json:"description" binding:"max=500"`
+	Conditions    []AIStrategyCondition   `json:"conditions" binding:"omitempty,min=1"`
+	Actions       []AIStrategyAction      `json:"actions" binding:"omitempty,min=1"`
+	LogicOperator string                  `json:"logic_operator" binding:"omitempty,oneof=AND OR NOT"`
+	Status        AIStrategyStatus        `json:"status" binding:"omitempty,oneof=启用 禁用"`
+	Priority      AIStrategyPriority      `json:"priority" binding:"omitempty,oneof=高 中 低"`
 }
 
 // AIStrategyExecution AI策略执行记录

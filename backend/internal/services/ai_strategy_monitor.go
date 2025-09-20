@@ -243,14 +243,82 @@ func (m *AIStrategyMonitor) evaluateStrategyConditions(strategy *models.AIStrate
 	m.mutex.RLock()
 	defer m.mutex.RUnlock()
 
-	// 评估所有条件（目前使用AND逻辑）
-	for _, condition := range strategy.ConditionsList {
-		if !m.evaluateSingleCondition(condition) {
-			return false
-		}
+	// 获取逻辑操作符，默认为AND
+	logicOperator := strategy.LogicOperator
+	if logicOperator == "" {
+		logicOperator = "AND"
 	}
 
-	return true
+	m.logger.Info("评估策略条件",
+		"strategy_id", strategy.ID,
+		"logic_operator", logicOperator,
+		"conditions_count", len(strategy.ConditionsList))
+
+	// 评估所有条件
+	conditionResults := make([]bool, len(strategy.ConditionsList))
+	for i, condition := range strategy.ConditionsList {
+		conditionResults[i] = m.evaluateSingleCondition(condition)
+		m.logger.Debug("单个条件评估结果",
+			"condition_index", i,
+			"condition_type", condition.Type,
+			"result", conditionResults[i])
+	}
+
+	// 根据逻辑操作符计算最终结果
+	finalResult := m.calculateLogicResult(conditionResults, logicOperator)
+
+	m.logger.Info("策略条件最终评估结果",
+		"strategy_id", strategy.ID,
+		"logic_operator", logicOperator,
+		"final_result", finalResult)
+
+	return finalResult
+}
+
+// calculateLogicResult 根据逻辑操作符计算条件结果
+func (m *AIStrategyMonitor) calculateLogicResult(conditionResults []bool, logicOperator string) bool {
+	if len(conditionResults) == 0 {
+		return false
+	}
+
+	switch logicOperator {
+	case "AND":
+		// 所有条件都必须为true
+		for _, result := range conditionResults {
+			if !result {
+				return false
+			}
+		}
+		return true
+
+	case "OR":
+		// 至少一个条件为true
+		for _, result := range conditionResults {
+			if result {
+				return true
+			}
+		}
+		return false
+
+	case "NOT":
+		// 所有条件都必须为false
+		for _, result := range conditionResults {
+			if result {
+				return false
+			}
+		}
+		return true
+
+	default:
+		m.logger.Warn("不支持的逻辑操作符，使用默认AND逻辑", "operator", logicOperator)
+		// 默认使用AND逻辑
+		for _, result := range conditionResults {
+			if !result {
+				return false
+			}
+		}
+		return true
+	}
 }
 
 // evaluateSingleCondition 评估单个条件

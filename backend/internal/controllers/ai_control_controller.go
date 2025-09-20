@@ -3,6 +3,7 @@ package controllers
 import (
 	"fmt"
 	"net/http"
+	"os/exec"
 	"strconv"
 	"strings"
 	"time"
@@ -302,12 +303,19 @@ func (c *AIControlController) CreateStrategy(ctx *gin.Context) {
 	// 获取当前用户ID（从JWT中获取，这里暂时使用默认值）
 	userID := uint(1) // TODO: 从JWT token中获取实际用户ID
 
+	// 设置默认逻辑操作符
+	logicOperator := req.LogicOperator
+	if logicOperator == "" {
+		logicOperator = "AND"
+	}
+
 	// 创建策略模型
 	strategy := &models.AIStrategy{
 		Name:           req.Name,
 		Description:    req.Description,
 		ConditionsList: req.Conditions,
 		ActionsList:    req.Actions,
+		LogicOperator:  logicOperator,
 		Status:         req.Status,
 		Priority:       req.Priority,
 		CreatedBy:      userID,
@@ -443,6 +451,9 @@ func (c *AIControlController) UpdateStrategy(ctx *gin.Context) {
 	}
 	if len(req.Actions) > 0 {
 		strategy.ActionsList = req.Actions
+	}
+	if req.LogicOperator != "" {
+		strategy.LogicOperator = req.LogicOperator
 	}
 	if req.Status != "" {
 		strategy.Status = req.Status
@@ -582,27 +593,52 @@ func (c *AIControlController) executeStrategyAsync(execution *models.AIStrategyE
 	var results []string
 	var hasError bool
 
-	// 执行策略中的每个动作
+	// 执行策略中的每个动作（串行执行，支持依赖验证）
 	for i, action := range strategy.ActionsList {
 		logrus.WithFields(logrus.Fields{
 			"action_type": action.Type,
 			"device_id":   action.DeviceID,
 			"operation":   action.Operation,
+			"action_index": i + 1,
+			"total_actions": len(strategy.ActionsList),
 		}).Info("执行策略动作")
 
-		result, err := c.executeAction(action)
+		// 执行动作并获取详细结果
+		actionResult, err := c.executeActionWithValidation(action, i+1)
 		if err != nil {
 			hasError = true
-			results = append(results, fmt.Sprintf("动作%d失败: %s", i+1, err.Error()))
+			errorMsg := fmt.Sprintf("动作%d失败: %s", i+1, err.Error())
+			results = append(results, errorMsg)
 			logrus.WithError(err).Error("策略动作执行失败")
+
+			// 检查是否需要停止后续动作执行
+			if c.shouldStopOnError(action, strategy) {
+				results = append(results, fmt.Sprintf("由于动作%d失败，停止执行后续动作", i+1))
+				logrus.Warn("策略执行因错误中断", "failed_action", i+1)
+				break
+			}
 		} else {
-			results = append(results, fmt.Sprintf("动作%d成功: %s", i+1, result))
+			successMsg := fmt.Sprintf("动作%d成功: %s", i+1, actionResult.Message)
+			results = append(results, successMsg)
+			logrus.WithFields(logrus.Fields{
+				"action_index": i + 1,
+				"result": actionResult.Message,
+				"validation": actionResult.ValidationResult,
+			}).Info("策略动作执行成功")
 		}
 
 		// 如果有延迟，等待指定时间
 		if action.DelaySecond > 0 {
 			logrus.WithField("delay", action.DelaySecond).Info("等待延迟时间")
 			time.Sleep(time.Duration(action.DelaySecond) * time.Second)
+		}
+
+		// 执行动作间的验证（例如：关机后验证服务器是否真的关闭）
+		if !hasError && i < len(strategy.ActionsList)-1 {
+			if err := c.validateActionCompletion(action, actionResult); err != nil {
+				logrus.WithError(err).Warn("动作完成验证失败，但继续执行后续动作")
+				results = append(results, fmt.Sprintf("动作%d验证警告: %s", i+1, err.Error()))
+			}
 		}
 	}
 
@@ -911,6 +947,78 @@ func (c *AIControlController) executeServerCommand(deviceID, operation, command 
 		return fmt.Errorf("服务器命令执行失败，退出码: %d, 错误: %s", result.ExitCode, result.Error)
 	}
 
+	return nil
+}
+
+// ActionExecutionResult 动作执行结果
+type ActionExecutionResult struct {
+	Message          string `json:"message"`
+	ValidationResult string `json:"validation_result"`
+	ExecutionTime    int64  `json:"execution_time"`
+	Success          bool   `json:"success"`
+}
+
+// executeActionWithValidation 执行动作并进行验证
+func (c *AIControlController) executeActionWithValidation(action models.AIStrategyAction, actionIndex int) (*ActionExecutionResult, error) {
+	startTime := time.Now()
+
+	// 执行基本动作
+	result, err := c.executeAction(action)
+	if err != nil {
+		return nil, err
+	}
+
+	executionTime := time.Since(startTime).Milliseconds()
+
+	// 根据动作类型进行特定验证
+	validationResult := ""
+	switch action.Type {
+	case "server_control", "server":
+		if action.Operation == "shutdown" {
+			// 验证服务器是否真的关闭了
+			validationResult = c.validateServerShutdown(action.DeviceID)
+		} else if action.Operation == "restart" || action.Operation == "reboot" {
+			// 验证服务器是否重启成功
+			validationResult = c.validateServerRestart(action.DeviceID)
+		}
+	case "breaker_control", "breaker":
+		// 验证断路器状态是否改变
+		validationResult = c.validateBreakerOperation(action.DeviceID, action.Operation)
+	}
+
+	return &ActionExecutionResult{
+		Message:          result,
+		ValidationResult: validationResult,
+		ExecutionTime:    executionTime,
+		Success:          true,
+	}, nil
+}
+
+// shouldStopOnError 判断是否应该在错误时停止执行
+func (c *AIControlController) shouldStopOnError(action models.AIStrategyAction, strategy *models.AIStrategy) bool {
+	// 对于关键操作，如果失败则停止后续执行
+	criticalOperations := map[string]bool{
+		"shutdown":      true,
+		"force_reboot":  true,
+		"emergency_off": true,
+	}
+
+	return criticalOperations[action.Operation]
+}
+
+// validateActionCompletion 验证动作是否真正完成
+func (c *AIControlController) validateActionCompletion(action models.AIStrategyAction, result *ActionExecutionResult) error {
+	switch action.Type {
+	case "server_control", "server":
+		if action.Operation == "shutdown" {
+			// 等待一段时间后验证服务器是否真的关闭
+			time.Sleep(5 * time.Second)
+			return c.verifyServerShutdown(action.DeviceID)
+		}
+	case "breaker_control", "breaker":
+		// 验证断路器状态
+		return c.verifyBreakerState(action.DeviceID, action.Operation)
+	}
 	return nil
 }
 
@@ -1256,4 +1364,84 @@ func (c *AIControlController) getServerCommand(operation string) string {
 	default:
 		return ""
 	}
+}
+
+// validateServerShutdown 验证服务器关机状态
+func (c *AIControlController) validateServerShutdown(deviceID string) string {
+	// 尝试ping服务器
+	server, err := c.serverService.GetServerByID(deviceID)
+	if err != nil {
+		return fmt.Sprintf("无法获取服务器信息: %v", err)
+	}
+
+	// 执行ping测试
+	if c.pingServer(server.IPAddress) {
+		return "警告: 服务器仍然可以ping通，可能未完全关闭"
+	}
+
+	return "验证成功: 服务器已关闭（ping不通）"
+}
+
+// validateServerRestart 验证服务器重启状态
+func (c *AIControlController) validateServerRestart(deviceID string) string {
+	server, err := c.serverService.GetServerByID(deviceID)
+	if err != nil {
+		return fmt.Sprintf("无法获取服务器信息: %v", err)
+	}
+
+	// 等待服务器重启
+	time.Sleep(10 * time.Second)
+
+	if c.pingServer(server.IPAddress) {
+		return "验证成功: 服务器重启完成（可以ping通）"
+	}
+
+	return "警告: 服务器重启后仍无法ping通"
+}
+
+// validateBreakerOperation 验证断路器操作
+func (c *AIControlController) validateBreakerOperation(deviceID, operation string) string {
+	// 这里可以添加实际的断路器状态查询逻辑
+	return fmt.Sprintf("断路器 %s 操作 %s 已执行", deviceID, operation)
+}
+
+// verifyServerShutdown 验证服务器是否真的关闭
+func (c *AIControlController) verifyServerShutdown(deviceID string) error {
+	server, err := c.serverService.GetServerByID(deviceID)
+	if err != nil {
+		return fmt.Errorf("无法获取服务器信息: %v", err)
+	}
+
+	// 多次尝试ping，确保服务器真的关闭
+	for i := 0; i < 3; i++ {
+		if !c.pingServer(server.IPAddress) {
+			return nil // 服务器已关闭
+		}
+		time.Sleep(2 * time.Second)
+	}
+
+	return fmt.Errorf("服务器 %s 在关机命令后仍然可以ping通", server.IPAddress)
+}
+
+// verifyBreakerState 验证断路器状态
+func (c *AIControlController) verifyBreakerState(deviceID, operation string) error {
+	// 这里可以添加实际的断路器状态验证逻辑
+	logrus.WithFields(logrus.Fields{
+		"device_id": deviceID,
+		"operation": operation,
+	}).Info("验证断路器状态")
+
+	return nil
+}
+
+// pingServer 执行ping测试
+func (c *AIControlController) pingServer(ipAddress string) bool {
+	// 使用系统ping命令
+	cmd := fmt.Sprintf("ping -c 1 -W 3 %s", ipAddress)
+
+	// 执行ping命令
+	result := exec.Command("sh", "-c", cmd)
+	err := result.Run()
+
+	return err == nil
 }

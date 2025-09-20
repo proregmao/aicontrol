@@ -295,7 +295,7 @@ const handleStrategyAction = ({ action, strategy }) => {
 const editStrategy = async (strategy) => {
   try {
     // 获取策略详细信息
-    const response = await fetch(`/api/v1/ai-control/strategies/${strategy.id}`, {
+    const response = await fetch(`http://localhost:8080/api/v1/ai-control/strategies/${strategy.id}`, {
       method: 'GET',
       headers: {
         'Authorization': `Bearer ${localStorage.getItem('token')}`,
@@ -327,7 +327,7 @@ const testStrategy = async (strategy) => {
   try {
     ElMessage.info('正在执行策略测试...')
 
-    const response = await fetch(`/api/v1/ai-control/strategies/${strategy.id}/execute`, {
+    const response = await fetch(`http://localhost:8080/api/v1/ai-control/strategies/${strategy.id}/execute`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',

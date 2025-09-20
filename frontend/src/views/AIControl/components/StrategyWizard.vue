@@ -57,12 +57,45 @@
               <span>当满足以下条件时触发策略：</span>
               <el-button type="primary" size="small" @click="addCondition">+ 添加条件</el-button>
             </div>
-            
+
+            <!-- 逻辑操作符选择（多个条件时显示） -->
+            <div v-if="strategyForm.conditions.length > 1" class="logic-operator-section">
+              <div class="logic-operator-label">条件逻辑关系：</div>
+              <el-radio-group v-model="strategyForm.logicOperator" class="logic-operator-group">
+                <el-radio value="AND">
+                  <span class="logic-option">
+                    <strong>AND</strong> - 同时满足所有条件
+                  </span>
+                </el-radio>
+                <el-radio value="OR">
+                  <span class="logic-option">
+                    <strong>OR</strong> - 满足其中任一条件
+                  </span>
+                </el-radio>
+                <el-radio value="NOT">
+                  <span class="logic-option">
+                    <strong>NOT</strong> - 所有条件都不满足时
+                  </span>
+                </el-radio>
+              </el-radio-group>
+            </div>
+
             <div v-if="strategyForm.conditions.length === 0" class="empty-hint">
               请至少添加一个触发条件
             </div>
             
             <div v-for="(condition, index) in strategyForm.conditions" :key="condition.id" class="condition-item">
+              <!-- 显示逻辑操作符（除了第一个条件） -->
+              <div v-if="index > 0 && strategyForm.conditions.length > 1" class="logic-connector">
+                <div class="logic-line"></div>
+                <div class="logic-text">
+                  <span v-if="strategyForm.logicOperator === 'AND'" class="logic-and">且</span>
+                  <span v-else-if="strategyForm.logicOperator === 'OR'" class="logic-or">或</span>
+                  <span v-else-if="strategyForm.logicOperator === 'NOT'" class="logic-not">非</span>
+                </div>
+                <div class="logic-line"></div>
+              </div>
+
               <el-card>
                 <div class="condition-form">
                   <el-row :gutter="16">
@@ -270,8 +303,14 @@
               <el-descriptions-item label="触发条件">
                 <div v-if="strategyForm.conditions.length === 0">无触发条件</div>
                 <div v-else>
-                  <el-tag 
-                    v-for="condition in strategyForm.conditions" 
+                  <!-- 显示逻辑操作符（多个条件时） -->
+                  <div v-if="strategyForm.conditions.length > 1" class="logic-operator-info">
+                    <el-tag type="info" size="small">
+                      {{ getLogicOperatorText(strategyForm.logicOperator) }}
+                    </el-tag>
+                  </div>
+                  <el-tag
+                    v-for="condition in strategyForm.conditions"
                     :key="condition.id"
                     :type="condition.type === 'temperature' ? 'danger' : 'primary'"
                     style="margin: 2px;"
@@ -354,7 +393,8 @@ const strategyForm = ref({
   priority: '中',
   description: '',
   conditions: [],
-  actions: []
+  actions: [],
+  logicOperator: 'AND'  // 默认使用AND逻辑
 })
 
 // 验证规则
@@ -522,6 +562,15 @@ const getPriorityType = (priority: string) => {
   return types[priority] || 'info'
 }
 
+const getLogicOperatorText = (operator: string) => {
+  const texts = {
+    'AND': '同时满足所有条件',
+    'OR': '满足其中任一条件',
+    'NOT': '所有条件都不满足时'
+  }
+  return texts[operator] || '同时满足所有条件'
+}
+
 const getConditionText = (condition: any) => {
   if (condition.type === 'temperature') {
     const sensorName = temperatureSensors.value.find(s => s.id === condition.sensorId)?.name || '温度传感器'
@@ -594,6 +643,7 @@ const submitStrategy = async () => {
       name: strategyForm.value.name,
       conditions: processedConditions,
       actions: processedActions,
+      logicOperator: strategyForm.value.logicOperator || 'AND',
       status: '启用',
       priority: strategyForm.value.priority,
       description: strategyForm.value.description
@@ -967,7 +1017,8 @@ const initEditForm = () => {
     priority: strategy.priority || '中',
     description: strategy.description || '',
     conditions: conditions,
-    actions: actions
+    actions: actions,
+    logicOperator: strategy.logic_operator || strategy.logicOperator || 'AND'
   }
 
   console.log('初始化表单数据:', strategyForm.value)
@@ -1221,6 +1272,78 @@ onMounted(() => {
 
 :deep(.el-descriptions__content) {
   color: #303133;
+}
+
+/* 逻辑操作符样式 */
+.logic-operator-section {
+  margin: 20px 0;
+  padding: 16px;
+  background: #f8f9fa;
+  border-radius: 8px;
+  border: 1px solid #e9ecef;
+}
+
+.logic-operator-label {
+  font-weight: 500;
+  color: #495057;
+  margin-bottom: 12px;
+}
+
+.logic-operator-group {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.logic-option {
+  display: flex;
+  align-items: center;
+  color: #6c757d;
+}
+
+.logic-option strong {
+  color: #495057;
+  margin-right: 8px;
+}
+
+.logic-connector {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 10px 0;
+  position: relative;
+}
+
+.logic-line {
+  flex: 1;
+  height: 1px;
+  background: #dee2e6;
+}
+
+.logic-text {
+  margin: 0 16px;
+  padding: 4px 12px;
+  background: #fff;
+  border: 1px solid #dee2e6;
+  border-radius: 12px;
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.logic-and {
+  color: #28a745;
+}
+
+.logic-or {
+  color: #ffc107;
+}
+
+.logic-not {
+  color: #dc3545;
+}
+
+.logic-operator-info {
+  margin-bottom: 8px;
 }
 
 /* 步骤指示器样式 */
