@@ -3,11 +3,7 @@
     <!-- 侧边栏 -->
     <aside class="sidebar" :class="{ collapsed: sidebarCollapsed }">
       <div class="sidebar-header">
-        <div class="logo">
-          <img src="/logo.svg" alt="Logo" v-if="!sidebarCollapsed" />
-          <img src="/logo-mini.svg" alt="Logo" v-else />
-        </div>
-        <h1 v-if="!sidebarCollapsed" class="app-title">智能设备管理系统</h1>
+        <h1 class="app-title">智能设备管理系统</h1>
       </div>
       
       <nav class="sidebar-nav">
@@ -19,12 +15,13 @@
           background-color="#2c3e50"
           text-color="#ecf0f1"
           active-text-color="#3498db"
+          @open="handleSubMenuOpen"
         >
           <el-menu-item index="/dashboard">
             <el-icon><Monitor /></el-icon>
             <template #title>系统概览</template>
           </el-menu-item>
-          
+
           <el-sub-menu index="temperature">
             <template #title>
               <el-icon><TrendCharts /></el-icon>
@@ -33,7 +30,7 @@
             <el-menu-item index="/temperature/monitor">实时监控</el-menu-item>
             <el-menu-item index="/temperature/config">传感器管理</el-menu-item>
           </el-sub-menu>
-          
+
           <el-sub-menu index="server">
             <template #title>
               <el-icon><Monitor /></el-icon>
@@ -42,7 +39,7 @@
             <el-menu-item index="/server/monitor">服务器监控</el-menu-item>
             <el-menu-item index="/server/config">连接配置</el-menu-item>
           </el-sub-menu>
-          
+
           <el-sub-menu index="breaker">
             <template #title>
               <el-icon><Switch /></el-icon>
@@ -51,17 +48,17 @@
             <el-menu-item index="/breaker/monitor">断路器监控</el-menu-item>
             <el-menu-item index="/breaker/config">断路器配置</el-menu-item>
           </el-sub-menu>
-          
+
           <el-menu-item index="/ai-control">
             <el-icon><MagicStick /></el-icon>
             <template #title>AI智能控制</template>
           </el-menu-item>
-          
+
           <el-menu-item index="/alarm">
             <el-icon><Bell /></el-icon>
             <template #title>智能告警</template>
           </el-menu-item>
-          
+
           <el-menu-item index="/security" v-if="authStore.isAdmin">
             <el-icon><Lock /></el-icon>
             <template #title>安全控制</template>
@@ -246,6 +243,28 @@ const toggleSidebar = () => {
   sidebarCollapsed.value = !sidebarCollapsed.value
 }
 
+// 处理子菜单展开事件
+const handleSubMenuOpen = (index: string) => {
+  // 定义子菜单的第一个路由映射
+  const firstChildRoutes: Record<string, string> = {
+    'temperature': '/temperature/monitor',
+    'server': '/server/monitor',
+    'breaker': '/breaker/monitor'
+  }
+
+  // 当子菜单展开时，自动跳转到第一个子菜单项
+  const firstRoute = firstChildRoutes[index]
+  if (firstRoute) {
+    // 检查当前路由是否已经在该子菜单下，如果不是则跳转
+    const currentPath = route.path
+    const parentPath = `/${index}`
+
+    if (!currentPath.startsWith(parentPath)) {
+      router.push(firstRoute)
+    }
+  }
+}
+
 // 处理用户下拉菜单命令
 const handleUserCommand = (command: string) => {
   switch (command) {
@@ -337,17 +356,18 @@ watch(
   padding: 20px;
   text-align: center;
   border-bottom: 1px solid #34495e;
-}
-
-.logo img {
-  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 64px;
 }
 
 .app-title {
   color: #ecf0f1;
   font-size: 16px;
-  margin: 10px 0 0 0;
+  margin: 0;
   font-weight: 500;
+  white-space: nowrap;
 }
 
 .sidebar-nav {

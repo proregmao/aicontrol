@@ -4,7 +4,7 @@
       <!-- 左侧菜单 -->
       <div class="sidebar">
         <div class="logo">
-          <h2>智能设备管理</h2>
+          <h2>智能设备管理系统</h2>
         </div>
         <el-menu
           :default-active="$route.path"

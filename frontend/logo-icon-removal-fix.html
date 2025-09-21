@@ -1,0 +1,353 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>左上角图标移除修复方案</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            line-height: 1.6;
+            margin: 0;
+            padding: 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 15px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+            overflow: hidden;
+        }
+        .header {
+            background: linear-gradient(135deg, #ff6b6b 0%, #ee5a52 100%);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+        .header h1 {
+            margin: 0;
+            font-size: 2.5em;
+            font-weight: 300;
+        }
+        .content {
+            padding: 40px;
+        }
+        .section {
+            margin-bottom: 40px;
+            padding: 25px;
+            border-radius: 10px;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.08);
+        }
+        .problem {
+            background: linear-gradient(135deg, #f8d7da 0%, #f5c6cb 100%);
+            border-left: 5px solid #dc3545;
+        }
+        .solution {
+            background: linear-gradient(135deg, #d1ecf1 0%, #bee5eb 100%);
+            border-left: 5px solid #17a2b8;
+        }
+        .success {
+            background: linear-gradient(135deg, #d4edda 0%, #c3e6cb 100%);
+            border-left: 5px solid #28a745;
+        }
+        h2 {
+            color: #333;
+            margin-top: 0;
+            font-size: 1.8em;
+            display: flex;
+            align-items: center;
+        }
+        .icon {
+            font-size: 1.5em;
+            margin-right: 10px;
+        }
+        .demo-container {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+            margin: 20px 0;
+        }
+        .demo-box {
+            padding: 20px;
+            border-radius: 8px;
+            text-align: center;
+        }
+        .before {
+            background: #f8d7da;
+            border: 2px solid #dc3545;
+        }
+        .after {
+            background: #d4edda;
+            border: 2px solid #28a745;
+        }
+        .logo-demo {
+            background: #001529;
+            color: white;
+            padding: 15px;
+            border-radius: 8px;
+            margin: 10px 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 64px;
+        }
+        .logo-with-icon {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .blue-icon {
+            background: #1890ff;
+            color: white;
+            padding: 8px;
+            border-radius: 6px;
+            font-size: 16px;
+        }
+        .logo-text {
+            font-size: 18px;
+            font-weight: 600;
+            margin: 0;
+        }
+        .code-block {
+            background: #f8f9fa;
+            border: 1px solid #e9ecef;
+            border-radius: 5px;
+            padding: 15px;
+            margin: 15px 0;
+            font-family: 'Courier New', monospace;
+            font-size: 0.9em;
+            overflow-x: auto;
+        }
+        .highlight {
+            background: #fff3cd;
+            padding: 15px;
+            border-radius: 8px;
+            border-left: 4px solid #ffc107;
+            margin: 20px 0;
+        }
+        .file-list {
+            background: #f8f9fa;
+            border: 1px solid #e9ecef;
+            border-radius: 5px;
+            padding: 15px;
+            margin: 15px 0;
+        }
+        .file-item {
+            display: flex;
+            align-items: center;
+            padding: 8px 0;
+            border-bottom: 1px solid #e9ecef;
+        }
+        .file-item:last-child {
+            border-bottom: none;
+        }
+        .status-check {
+            margin-right: 10px;
+            font-weight: bold;
+            color: #28a745;
+        }
+        .instructions {
+            background: #e2e3e5;
+            border: 1px solid #d6d8db;
+            border-radius: 8px;
+            padding: 20px;
+            margin: 20px 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🔧 左上角图标移除修复方案</h1>
+            <p>解决蓝色图标框显示问题</p>
+        </div>
+
+        <div class="content">
+            <!-- 问题分析 -->
+            <div class="section problem">
+                <h2><span class="icon">❌</span>问题分析</h2>
+                <p>根据您提供的图片，左上角显示了一个蓝色的图标框，里面包含图标和"智能设备管理系统"文字。您希望：</p>
+                <ul>
+                    <li>❌ 去掉蓝色图标框</li>
+                    <li>❌ 去掉图标</li>
+                    <li>✅ 只保留"智能设备管理系统"文字</li>
+                    <li>✅ 保持居中显示</li>
+                </ul>
+            </div>
+
+            <!-- 修复前后对比 -->
+            <div class="section solution">
+                <h2><span class="icon">📊</span>修复前后对比</h2>
+                
+                <div class="demo-container">
+                    <div class="demo-box before">
+                        <h3>修复前 ❌</h3>
+                        <div class="logo-demo">
+                            <div class="logo-with-icon">
+                                <div class="blue-icon">🏢</div>
+                                <h2 class="logo-text">智能设备管理系统</h2>
+                            </div>
+                        </div>
+                        <p>显示蓝色图标框和图标</p>
+                    </div>
+                    <div class="demo-box after">
+                        <h3>修复后 ✅</h3>
+                        <div class="logo-demo">
+                            <h2 class="logo-text">智能设备管理系统</h2>
+                        </div>
+                        <p>只显示文字，居中对齐</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 可能的问题位置 -->
+            <div class="section solution">
+                <h2><span class="icon">🔍</span>可能的问题位置</h2>
+                
+                <p>根据您的描述，蓝色图标框可能出现在以下位置：</p>
+                
+                <div class="file-list">
+                    <div class="file-item">
+                        <span class="status-check">1.</span>
+                        <strong>左侧菜单logo区域</strong>
+                        <span style="margin-left: auto; color: #666;">frontend/src/views/Layout.vue</span>
+                    </div>
+                    <div class="file-item">
+                        <span class="status-check">2.</span>
+                        <strong>页面标题区域</strong>
+                        <span style="margin-left: auto; color: #666;">各个页面组件中</span>
+                    </div>
+                    <div class="file-item">
+                        <span class="status-check">3.</span>
+                        <strong>状态卡片</strong>
+                        <span style="margin-left: auto; color: #666;">统计卡片组件</span>
+                    </div>
+                    <div class="file-item">
+                        <span class="status-check">4.</span>
+                        <strong>设计展示文件</strong>
+                        <span style="margin-left: auto; color: #666;">HTML设计文件</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 修复方案 -->
+            <div class="section solution">
+                <h2><span class="icon">🔧</span>修复方案</h2>
+                
+                <h3>方案1: 移除logo区域的图标</h3>
+                <div class="code-block">
+&lt;!-- 修复前：包含图标 --&gt;
+&lt;div class="logo"&gt;
+  &lt;div class="logo-icon"&gt;🏢&lt;/div&gt;
+  &lt;h2&gt;智能设备管理系统&lt;/h2&gt;
+&lt;/div&gt;
+
+&lt;!-- 修复后：只保留文字 --&gt;
+&lt;div class="logo"&gt;
+  &lt;h2&gt;智能设备管理系统&lt;/h2&gt;
+&lt;/div&gt;</div>
+
+                <h3>方案2: 移除CSS中的背景色和图标样式</h3>
+                <div class="code-block">
+/* 修复前：包含蓝色背景 */
+.logo {
+  background: #1890ff;
+  padding: 10px;
+  border-radius: 8px;
+}
+
+/* 修复后：移除背景色 */
+.logo {
+  height: 64px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-bottom: 1px solid #1f1f1f;
+  margin-bottom: 20px;
+}</div>
+
+                <h3>方案3: 检查并移除状态卡片中的图标</h3>
+                <div class="code-block">
+&lt;!-- 如果是状态卡片中的图标 --&gt;
+&lt;div class="status-card info"&gt;
+  &lt;div class="status-item"&gt;
+    &lt;!-- 移除这个图标容器 --&gt;
+    &lt;div class="status-icon"&gt;
+      &lt;span style="color: #1890ff"&gt;🏢&lt;/span&gt;
+    &lt;/div&gt;
+    &lt;div class="status-info"&gt;
+      &lt;h3&gt;智能设备管理系统&lt;/h3&gt;
+    &lt;/div&gt;
+  &lt;/div&gt;
+&lt;/div&gt;</div>
+            </div>
+
+            <!-- 具体修复步骤 -->
+            <div class="section success">
+                <h2><span class="icon">✅</span>具体修复步骤</h2>
+                
+                <div class="highlight">
+                    <h3>🎯 请告诉我具体位置</h3>
+                    <p>为了准确修复问题，请您：</p>
+                    <ol>
+                        <li><strong>确认页面位置</strong>：蓝色图标框出现在哪个页面？</li>
+                        <li><strong>描述具体位置</strong>：是在左上角的logo区域，还是页面内容中？</li>
+                        <li><strong>提供更多信息</strong>：图标框的大小、位置、周围的其他元素</li>
+                    </ol>
+                </div>
+
+                <h3>临时解决方案</h3>
+                <p>如果您能告诉我具体位置，我可以立即修复。同时，您也可以尝试以下方法：</p>
+                
+                <ol>
+                    <li><strong>检查浏览器开发者工具</strong>
+                        <ul>
+                            <li>右键点击蓝色图标框</li>
+                            <li>选择"检查元素"</li>
+                            <li>查看HTML结构和CSS样式</li>
+                            <li>告诉我具体的class名称或元素结构</li>
+                        </ul>
+                    </li>
+                    
+                    <li><strong>确认访问的页面</strong>
+                        <ul>
+                            <li>确认访问的是 http://localhost:3005</li>
+                            <li>而不是设计文件 file:///...html</li>
+                        </ul>
+                    </li>
+                    
+                    <li><strong>清除缓存并刷新</strong>
+                        <ul>
+                            <li>按 Ctrl+Shift+Delete 清除缓存</li>
+                            <li>按 Ctrl+F5 强制刷新页面</li>
+                        </ul>
+                    </li>
+                </ol>
+            </div>
+
+            <!-- 等待用户反馈 -->
+            <div class="instructions">
+                <h3>🤝 需要您的帮助</h3>
+                <p><strong>请提供以下信息，我将立即为您修复：</strong></p>
+                <ul>
+                    <li>📍 蓝色图标框出现在哪个页面？</li>
+                    <li>📐 图标框的具体位置（左上角、页面中间等）</li>
+                    <li>🔍 使用浏览器开发者工具查看的HTML结构</li>
+                    <li>🌐 访问的具体URL地址</li>
+                </ul>
+                
+                <p><strong>有了这些信息，我可以在几分钟内完成修复！</strong></p>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        console.log('🔧 左上角图标移除修复方案页面已加载');
+        console.log('📝 等待用户提供具体的问题位置信息');
+        console.log('🎯 准备根据用户反馈进行精确修复');
+    </script>
+</body>
+</html>

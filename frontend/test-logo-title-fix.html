@@ -1,0 +1,285 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>左上角标题修改测试</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 0 20px rgba(0, 0, 0, 0.1);
+            overflow: hidden;
+        }
+        .header {
+            background: linear-gradient(135deg, #4CAF50 0%, #45a049 100%);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+        .header h1 {
+            margin: 0;
+            font-size: 2em;
+        }
+        .content {
+            padding: 30px;
+        }
+        .demo-section {
+            margin-bottom: 30px;
+            padding: 20px;
+            border: 1px solid #e8e8e8;
+            border-radius: 8px;
+        }
+        .sidebar-demo {
+            width: 200px;
+            background: #001529;
+            color: white;
+            border-radius: 8px;
+            overflow: hidden;
+            margin: 20px 0;
+        }
+        .logo {
+            height: 64px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-bottom: 1px solid #1f1f1f;
+            margin-bottom: 20px;
+        }
+        .logo h2 {
+            color: white;
+            font-size: 18px;
+            font-weight: 600;
+            margin: 0;
+        }
+        .menu-item {
+            height: 50px;
+            line-height: 50px;
+            padding: 0 15px;
+            color: #fff;
+            background-color: transparent;
+            border: none;
+            width: 100%;
+            text-align: left;
+            cursor: pointer;
+            font-size: 13px;
+            display: block;
+        }
+        .menu-item:hover {
+            background-color: #1890ff;
+        }
+        .status {
+            padding: 10px;
+            border-radius: 5px;
+            margin: 10px 0;
+            font-weight: bold;
+        }
+        .status.success {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        .status.info {
+            background: #d1ecf1;
+            color: #0c5460;
+            border: 1px solid #bee5eb;
+        }
+        .comparison {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+            margin: 20px 0;
+        }
+        .before, .after {
+            padding: 15px;
+            border-radius: 8px;
+            text-align: center;
+        }
+        .before {
+            background: #f8d7da;
+            border: 2px solid #dc3545;
+        }
+        .after {
+            background: #d4edda;
+            border: 2px solid #28a745;
+        }
+        .instructions {
+            background: #fff3cd;
+            border: 1px solid #ffeaa7;
+            border-radius: 8px;
+            padding: 20px;
+            margin: 20px 0;
+        }
+        .instructions h3 {
+            margin-top: 0;
+            color: #856404;
+        }
+        .file-path {
+            background: #f8f9fa;
+            border: 1px solid #e9ecef;
+            border-radius: 4px;
+            padding: 8px 12px;
+            font-family: monospace;
+            font-size: 14px;
+            margin: 5px 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🔧 左上角标题修改测试页面</h1>
+            <p>验证"智能设备管理系统"标题修改效果</p>
+        </div>
+
+        <div class="content">
+            <!-- 修改状态 -->
+            <div class="demo-section">
+                <h2>📊 修改状态</h2>
+                <div class="status success">
+                    ✅ 前端布局文件已修改: frontend/src/views/Layout.vue
+                </div>
+                <div class="status success">
+                    ✅ UI设计文件已修改: docs/02-design/ui-design/智能机房管理系统-完整UI展示.html
+                </div>
+                <div class="status info">
+                    ℹ️ 如果看不到效果，请清除浏览器缓存或强制刷新页面
+                </div>
+            </div>
+
+            <!-- 效果演示 -->
+            <div class="demo-section">
+                <h2>🎯 修改效果演示</h2>
+                
+                <div class="comparison">
+                    <div class="before">
+                        <h3>修改前 ❌</h3>
+                        <div class="sidebar-demo">
+                            <div class="logo">
+                                <h2>智能设备管理</h2>
+                            </div>
+                        </div>
+                        <p>显示文字较短</p>
+                    </div>
+                    <div class="after">
+                        <h3>修改后 ✅</h3>
+                        <div class="sidebar-demo">
+                            <div class="logo">
+                                <h2>智能设备管理系统</h2>
+                            </div>
+                        </div>
+                        <p>显示完整系统名称</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 实际应用演示 -->
+            <div class="demo-section">
+                <h2>💻 实际应用效果</h2>
+                <p>以下是修改后的侧边栏效果（与实际应用一致）：</p>
+                
+                <div class="sidebar-demo">
+                    <div class="logo">
+                        <h2>智能设备管理系统</h2>
+                    </div>
+                    <button class="menu-item">🏠 系统概览</button>
+                    <button class="menu-item">🌡️ 温度监控</button>
+                    <button class="menu-item">🤖 AI智能控制</button>
+                    <button class="menu-item">⚙️ 设备管理</button>
+                    <button class="menu-item">⚡ 电源管理</button>
+                    <button class="menu-item">🔔 报警管理</button>
+                    <button class="menu-item">⚙️ 系统设置</button>
+                </div>
+            </div>
+
+            <!-- 验证步骤 -->
+            <div class="demo-section">
+                <h2>🔍 验证步骤</h2>
+                <ol>
+                    <li><strong>访问前端应用</strong>: <a href="http://localhost:3005" target="_blank">http://localhost:3005</a></li>
+                    <li><strong>清除缓存</strong>: 按 Ctrl+F5 或 Cmd+Shift+R 强制刷新</li>
+                    <li><strong>检查左上角</strong>: 确认显示"智能设备管理系统"</li>
+                    <li><strong>检查居中效果</strong>: 文字在logo区域居中显示</li>
+                </ol>
+            </div>
+
+            <!-- 如果仍然看不到效果 -->
+            <div class="instructions">
+                <h3>⚠️ 如果仍然看不到修改效果</h3>
+                <p><strong>可能的原因和解决方案：</strong></p>
+                <ul>
+                    <li><strong>浏览器缓存</strong>: 按 Ctrl+Shift+Delete 清除浏览器缓存</li>
+                    <li><strong>页面未刷新</strong>: 按 F5 或点击刷新按钮</li>
+                    <li><strong>打开了旧页面</strong>: 确保访问的是 http://localhost:3005</li>
+                    <li><strong>前端服务未重启</strong>: 重启前端开发服务器</li>
+                </ul>
+                
+                <p><strong>修改的文件路径：</strong></p>
+                <div class="file-path">frontend/src/views/Layout.vue (第7行)</div>
+                <div class="file-path">docs/02-design/ui-design/智能机房管理系统-完整UI展示.html (第872行)</div>
+            </div>
+
+            <!-- 技术细节 -->
+            <div class="demo-section">
+                <h2>🔧 技术实现细节</h2>
+                <p><strong>修改的代码：</strong></p>
+                <pre style="background: #f8f9fa; padding: 15px; border-radius: 5px; overflow-x: auto;">
+&lt;!-- 修改前 --&gt;
+&lt;div class="logo"&gt;
+  &lt;h2&gt;智能设备管理&lt;/h2&gt;
+&lt;/div&gt;
+
+&lt;!-- 修改后 --&gt;
+&lt;div class="logo"&gt;
+  &lt;h2&gt;智能设备管理系统&lt;/h2&gt;
+&lt;/div&gt;</pre>
+
+                <p><strong>CSS样式（保持不变）：</strong></p>
+                <pre style="background: #f8f9fa; padding: 15px; border-radius: 5px; overflow-x: auto;">
+.logo {
+  height: 64px;
+  display: flex;
+  align-items: center;
+  justify-content: center;  /* 居中显示 */
+  border-bottom: 1px solid #1f1f1f;
+  margin-bottom: 20px;
+}
+
+.logo h2 {
+  color: white;
+  font-size: 18px;
+  font-weight: 600;
+}</pre>
+            </div>
+
+            <!-- 总结 -->
+            <div class="demo-section">
+                <div class="status success">
+                    <h3 style="margin-top: 0;">🎉 修改完成总结</h3>
+                    <p>✅ 标题文字已从"智能设备管理"改为"智能设备管理系统"</p>
+                    <p>✅ 保持居中显示效果</p>
+                    <p>✅ 前端应用和设计文件都已同步更新</p>
+                    <p>✅ 样式和布局保持一致</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // 页面加载完成后的提示
+        window.addEventListener('load', function() {
+            console.log('✅ 左上角标题修改测试页面加载完成');
+            console.log('📝 修改内容: "智能设备管理" → "智能设备管理系统"');
+            console.log('🔗 前端应用地址: http://localhost:3005');
+        });
+    </script>
+</body>
+</html>
