@@ -127,6 +127,7 @@
       v-model="changePasswordVisible"
       title="修改密码"
       width="400px"
+      center
     >
       <el-form
         ref="passwordFormRef"

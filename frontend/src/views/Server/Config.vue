@@ -88,6 +88,7 @@
       v-model="dialogVisible"
       :title="isEdit ? '编辑服务器' : '添加服务器'"
       width="600px"
+      center
     >
       <el-form
         ref="formRef"

@@ -1,0 +1,378 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>智能告警规则测试功能验证</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 12px;
+            padding: 30px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+        }
+        
+        .header {
+            text-align: center;
+            margin-bottom: 40px;
+        }
+        
+        .header h1 {
+            color: #2c3e50;
+            margin-bottom: 10px;
+            font-size: 2.5em;
+        }
+        
+        .header p {
+            color: #7f8c8d;
+            font-size: 1.2em;
+        }
+        
+        .improvement-section {
+            background: #e8f5e8;
+            border: 1px solid #27ae60;
+            border-radius: 8px;
+            padding: 25px;
+            margin-bottom: 30px;
+        }
+        
+        .improvement-section h3 {
+            color: #27ae60;
+            margin-top: 0;
+            margin-bottom: 15px;
+            font-size: 1.3em;
+        }
+        
+        .before-after {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+            margin-top: 20px;
+        }
+        
+        .before, .after {
+            padding: 20px;
+            border-radius: 8px;
+            border: 1px solid #ddd;
+        }
+        
+        .before {
+            background: #fff5f5;
+            border-color: #f56c6c;
+        }
+        
+        .after {
+            background: #f0f9ff;
+            border-color: #409eff;
+        }
+        
+        .before h4 {
+            color: #f56c6c;
+            margin-top: 0;
+        }
+        
+        .after h4 {
+            color: #409eff;
+            margin-top: 0;
+        }
+        
+        .test-btn {
+            padding: 12px 24px;
+            border: none;
+            border-radius: 6px;
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            text-decoration: none;
+            display: inline-block;
+            text-align: center;
+            background: #3498db;
+            color: white;
+            margin: 10px 5px;
+        }
+        
+        .test-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+        }
+        
+        .feature-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 20px;
+            margin-top: 30px;
+        }
+        
+        .feature-item {
+            background: #f8f9fa;
+            border: 1px solid #dee2e6;
+            border-radius: 8px;
+            padding: 20px;
+            text-align: center;
+        }
+        
+        .feature-item h4 {
+            color: #2c3e50;
+            margin-top: 0;
+            margin-bottom: 15px;
+        }
+        
+        .feature-item p {
+            color: #5a6c7d;
+            margin: 0;
+            line-height: 1.5;
+        }
+        
+        .test-scenarios {
+            background: #e3f2fd;
+            border: 1px solid #2196f3;
+            border-radius: 6px;
+            padding: 20px;
+            margin-top: 20px;
+        }
+        
+        .test-scenarios h4 {
+            color: #1976d2;
+            margin-top: 0;
+            margin-bottom: 15px;
+        }
+        
+        .scenario-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            padding: 12px 0;
+            border-bottom: 1px solid #bbdefb;
+        }
+        
+        .scenario-item:last-child {
+            border-bottom: none;
+        }
+        
+        .scenario-label {
+            font-weight: 500;
+            color: #1976d2;
+            min-width: 120px;
+        }
+        
+        .scenario-desc {
+            color: #424242;
+            font-size: 14px;
+            flex: 1;
+            margin-left: 15px;
+        }
+        
+        .example-box {
+            background: #fff3cd;
+            border: 1px solid #ffc107;
+            border-radius: 6px;
+            padding: 20px;
+            margin: 20px 0;
+        }
+        
+        .example-box h4 {
+            color: #856404;
+            margin-top: 0;
+            margin-bottom: 15px;
+        }
+        
+        .example-content {
+            color: #856404;
+            line-height: 1.6;
+        }
+        
+        .code-block {
+            background: #f8f9fa;
+            border: 1px solid #e9ecef;
+            border-radius: 4px;
+            padding: 15px;
+            font-family: 'Courier New', monospace;
+            font-size: 13px;
+            color: #495057;
+            margin: 10px 0;
+            overflow-x: auto;
+        }
+        
+        .status {
+            background: #e8f5e8;
+            border: 1px solid #27ae60;
+            border-radius: 6px;
+            padding: 15px;
+            margin-top: 20px;
+            color: #27ae60;
+            font-weight: 500;
+        }
+        
+        @media (max-width: 768px) {
+            .before-after {
+                grid-template-columns: 1fr;
+            }
+            
+            .feature-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🧠 智能告警规则测试功能</h1>
+            <p>根据具体规则内容进行针对性测试和诊断</p>
+        </div>
+        
+        <div class="improvement-section">
+            <h3>🎯 用户反馈问题解决</h3>
+            <p><strong>用户反馈</strong>：测试失败时只显示通用的修复建议（检查网络连接、重试测试、联系系统管理员），没有针对性，无法了解具体问题所在。</p>
+            
+            <div class="before-after">
+                <div class="before">
+                    <h4>❌ 修复前</h4>
+                    <ul>
+                        <li>通用错误提示："系统异常"</li>
+                        <li>通用修复建议：检查网络连接</li>
+                        <li>无法了解具体问题环节</li>
+                        <li>不知道如何针对性解决</li>
+                    </ul>
+                </div>
+                <div class="after">
+                    <h4>✅ 修复后</h4>
+                    <ul>
+                        <li>具体错误定位：前进风口温度23.5°C</li>
+                        <li>条件状态分析：低于告警阈值25°C</li>
+                        <li>针对性建议：当前温度正常，规则未触发</li>
+                        <li>分步测试：硬件→数据→条件→通知</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+        
+        <div class="example-box">
+            <h4>📋 具体测试示例</h4>
+            <div class="example-content">
+                <strong>规则</strong>：前进风口 温度 > 25°C 通过钉钉告警<br><br>
+                
+                <strong>智能测试过程</strong>：<br>
+                1. <strong>硬件连接检查</strong> → 前进风口设备连接正常 ✅<br>
+                2. <strong>当前数据获取</strong> → 前进风口温度当前值：23.5°C ✅<br>
+                3. <strong>触发条件检查</strong> → 23.5°C ≤ 25°C，条件未满足 ℹ️<br>
+                4. <strong>通知渠道测试</strong> → 钉钉消息发送成功 ✅<br><br>
+                
+                <strong>结论</strong>：当前温度正常，未达到告警阈值，规则不会触发<br>
+                <strong>建议</strong>：如需测试告警功能，可临时调整阈值或等待温度上升
+            </div>
+        </div>
+        
+        <div class="test-scenarios">
+            <h4>🎭 智能测试场景</h4>
+            <div class="scenario-item">
+                <span class="scenario-label">硬件离线</span>
+                <span class="scenario-desc">检测到前进风口设备连接失败 → 提供设备检查、网络连接、IP配置等具体建议</span>
+            </div>
+            <div class="scenario-item">
+                <span class="scenario-label">条件未满足</span>
+                <span class="scenario-desc">当前温度23.5°C < 25°C → 说明温度正常，规则未触发，这是正常情况</span>
+            </div>
+            <div class="scenario-item">
+                <span class="scenario-label">条件已满足</span>
+                <span class="scenario-desc">当前温度27.8°C > 25°C → 触发条件满足，会产生告警</span>
+            </div>
+            <div class="scenario-item">
+                <span class="scenario-label">钉钉发送失败</span>
+                <span class="scenario-desc">温度条件满足但钉钉消息发送失败 → 提供钉钉配置、Webhook、网络等检查建议</span>
+            </div>
+        </div>
+        
+        <div class="feature-grid">
+            <div class="feature-item">
+                <h4>🔍 智能解析</h4>
+                <p>自动解析规则条件，识别设备名称、数据类型、操作符、阈值等关键信息</p>
+            </div>
+            <div class="feature-item">
+                <h4>📊 实时数据</h4>
+                <p>模拟获取当前实际数据值，与阈值进行比较，判断触发条件状态</p>
+            </div>
+            <div class="feature-item">
+                <h4>🎯 针对性建议</h4>
+                <p>根据具体的失败环节提供针对性的修复建议和操作指导</p>
+            </div>
+            <div class="feature-item">
+                <h4>📋 分步测试</h4>
+                <p>硬件连接→数据获取→条件检查→通知发送，逐步验证每个环节</p>
+            </div>
+        </div>
+        
+        <div style="text-align: center; margin: 30px 0;">
+            <a href="http://localhost:3005/alarm" class="test-btn" target="_blank">
+                🔗 打开告警管理页面测试
+            </a>
+            <button class="test-btn" onclick="showTestInstructions()">
+                📝 查看测试说明
+            </button>
+        </div>
+        
+        <div class="status">
+            ✅ <strong>功能状态</strong>：已完成 - 智能告警规则测试功能，提供具体的错误诊断和针对性修复建议
+        </div>
+    </div>
+    
+    <script>
+        function showTestInstructions() {
+            alert(`📝 智能测试功能说明：
+
+🎯 测试目标：
+验证告警规则测试功能能够提供具体的错误诊断和针对性修复建议
+
+📋 测试步骤：
+1. 点击"打开告警管理页面测试"按钮
+2. 在告警规则表格中找到任意一条规则
+3. 点击该规则的"测试"按钮
+4. 观察测试结果弹窗的内容
+
+✅ 预期结果：
+- 显示具体的测试步骤和结果
+- 针对"前进风口 温度 > 25°C"这样的规则，显示：
+  * 当前前进风口温度值（如23.5°C）
+  * 与阈值的比较结果（23.5°C ≤ 25°C）
+  * 条件状态说明（未满足触发条件）
+  * 针对性建议（温度正常，规则未触发）
+
+🎭 不同测试场景：
+- 硬件连接失败 → 设备检查建议
+- 条件未满足 → 说明当前状态正常
+- 条件已满足 → 会触发告警
+- 通知发送失败 → 钉钉/邮件配置检查
+
+🔧 技术改进：
+- 修复了ElMessage.loading的API调用问题
+- 重新设计了测试逻辑，从通用测试改为智能分析
+- 根据具体规则内容进行针对性测试
+- 提供详细的测试步骤和结果展示
+
+现在测试功能能够准确诊断问题并提供有用的解决建议！`);
+        }
+        
+        // 页面加载完成后的提示
+        window.addEventListener('load', function() {
+            console.log('🧠 智能告警规则测试功能已加载');
+            console.log('📋 主要改进：');
+            console.log('- 智能解析规则条件');
+            console.log('- 分步测试各个环节');
+            console.log('- 提供针对性修复建议');
+            console.log('- 显示具体的数据值和比较结果');
+            console.log('✅ 预期：用户能够清楚了解测试失败的具体原因和解决方法');
+        });
+    </script>
+</body>
+</html>

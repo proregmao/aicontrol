@@ -68,6 +68,7 @@
       :title="isEdit ? '编辑传感器' : '添加传感器'"
       width="800px"
       max-height="80vh"
+      center
     >
       <el-form
         ref="formRef"

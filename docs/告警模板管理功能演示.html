@@ -1,0 +1,486 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>告警模板管理功能演示 - 智能设备管理系统</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', 'Helvetica Neue', Helvetica, Arial, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+            overflow: hidden;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+
+        .header h1 {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+            text-shadow: 0 2px 4px rgba(0,0,0,0.3);
+        }
+
+        .header p {
+            font-size: 1.2em;
+            opacity: 0.9;
+        }
+
+        .content {
+            padding: 40px;
+        }
+
+        .feature-section {
+            margin-bottom: 50px;
+        }
+
+        .section-title {
+            font-size: 1.8em;
+            color: #333;
+            margin-bottom: 20px;
+            padding-bottom: 10px;
+            border-bottom: 3px solid #4facfe;
+            display: flex;
+            align-items: center;
+        }
+
+        .section-title .emoji {
+            font-size: 1.2em;
+            margin-right: 10px;
+        }
+
+        .feature-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+            gap: 30px;
+            margin-top: 30px;
+        }
+
+        .feature-card {
+            background: #f8f9ff;
+            border-radius: 15px;
+            padding: 25px;
+            border-left: 5px solid #4facfe;
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+        }
+
+        .feature-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 10px 25px rgba(0,0,0,0.1);
+        }
+
+        .feature-card h3 {
+            color: #333;
+            margin-bottom: 15px;
+            font-size: 1.3em;
+        }
+
+        .feature-card p {
+            color: #666;
+            line-height: 1.6;
+            margin-bottom: 15px;
+        }
+
+        .feature-list {
+            list-style: none;
+            padding: 0;
+        }
+
+        .feature-list li {
+            padding: 8px 0;
+            color: #555;
+            position: relative;
+            padding-left: 25px;
+        }
+
+        .feature-list li:before {
+            content: "✅";
+            position: absolute;
+            left: 0;
+            top: 8px;
+        }
+
+        .template-types {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 25px;
+            margin-top: 30px;
+        }
+
+        .template-type {
+            background: white;
+            border-radius: 12px;
+            padding: 25px;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.08);
+            border: 2px solid #e1e8ed;
+            transition: all 0.3s ease;
+        }
+
+        .template-type:hover {
+            border-color: #4facfe;
+            transform: translateY(-3px);
+        }
+
+        .template-type .icon {
+            font-size: 2.5em;
+            margin-bottom: 15px;
+            display: block;
+        }
+
+        .template-type h4 {
+            color: #333;
+            margin-bottom: 10px;
+            font-size: 1.2em;
+        }
+
+        .template-type .description {
+            color: #666;
+            font-size: 0.95em;
+            line-height: 1.5;
+            margin-bottom: 15px;
+        }
+
+        .config-list {
+            list-style: none;
+            padding: 0;
+        }
+
+        .config-list li {
+            padding: 5px 0;
+            color: #777;
+            font-size: 0.9em;
+            position: relative;
+            padding-left: 20px;
+        }
+
+        .config-list li:before {
+            content: "⚙️";
+            position: absolute;
+            left: 0;
+            top: 5px;
+            font-size: 0.8em;
+        }
+
+        .api-section {
+            background: #f0f4f8;
+            border-radius: 15px;
+            padding: 30px;
+            margin-top: 30px;
+        }
+
+        .api-endpoint {
+            background: white;
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 15px;
+            border-left: 4px solid #28a745;
+        }
+
+        .api-endpoint .method {
+            display: inline-block;
+            background: #28a745;
+            color: white;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 0.8em;
+            font-weight: bold;
+            margin-right: 10px;
+        }
+
+        .api-endpoint .method.post {
+            background: #007bff;
+        }
+
+        .api-endpoint .method.put {
+            background: #ffc107;
+            color: #333;
+        }
+
+        .api-endpoint .method.delete {
+            background: #dc3545;
+        }
+
+        .api-endpoint .url {
+            font-family: 'Courier New', monospace;
+            background: #f8f9fa;
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-size: 0.9em;
+        }
+
+        .api-endpoint .description {
+            margin-top: 10px;
+            color: #666;
+            font-size: 0.95em;
+        }
+
+        .demo-section {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border-radius: 15px;
+            padding: 30px;
+            margin-top: 30px;
+            text-align: center;
+        }
+
+        .demo-section h3 {
+            margin-bottom: 20px;
+            font-size: 1.5em;
+        }
+
+        .demo-section p {
+            margin-bottom: 25px;
+            opacity: 0.9;
+            line-height: 1.6;
+        }
+
+        .demo-button {
+            display: inline-block;
+            background: white;
+            color: #667eea;
+            padding: 12px 30px;
+            border-radius: 25px;
+            text-decoration: none;
+            font-weight: bold;
+            transition: all 0.3s ease;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.2);
+        }
+
+        .demo-button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(0,0,0,0.3);
+        }
+
+        .footer {
+            background: #2c3e50;
+            color: white;
+            text-align: center;
+            padding: 30px;
+            margin-top: 50px;
+        }
+
+        .footer p {
+            opacity: 0.8;
+        }
+
+        @media (max-width: 768px) {
+            .header h1 {
+                font-size: 2em;
+            }
+            
+            .content {
+                padding: 20px;
+            }
+            
+            .feature-grid {
+                grid-template-columns: 1fr;
+            }
+            
+            .template-types {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>📧 告警模板管理功能</h1>
+            <p>智能设备管理系统 - 多模式告警通知解决方案</p>
+        </div>
+
+        <div class="content">
+            <!-- 功能概述 -->
+            <div class="feature-section">
+                <h2 class="section-title">
+                    <span class="emoji">🎯</span>
+                    功能概述
+                </h2>
+                <div class="feature-grid">
+                    <div class="feature-card">
+                        <h3>📧 邮件通知模板</h3>
+                        <p>支持SMTP邮件服务器配置，可自定义邮件模板内容，支持多收件人、抄送、密送功能。</p>
+                        <ul class="feature-list">
+                            <li>SMTP服务器配置</li>
+                            <li>自定义邮件模板</li>
+                            <li>多收件人支持</li>
+                            <li>邮件内容模板化</li>
+                        </ul>
+                    </div>
+                    <div class="feature-card">
+                        <h3>💻 界面提示模板</h3>
+                        <p>浏览器内弹窗告警，支持Toast提示、模态框、徽章提示等多种展示方式。</p>
+                        <ul class="feature-list">
+                            <li>多种提示类型</li>
+                            <li>自定义显示位置</li>
+                            <li>声音提醒功能</li>
+                            <li>自动消失时间</li>
+                        </ul>
+                    </div>
+                    <div class="feature-card">
+                        <h3>📱 钉钉通知模板</h3>
+                        <p>集成钉钉群机器人，支持Markdown格式消息，可@指定人员或全体成员。</p>
+                        <ul class="feature-list">
+                            <li>钉钉群机器人</li>
+                            <li>Markdown格式</li>
+                            <li>@人员功能</li>
+                            <li>安全签名验证</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 模板类型详解 -->
+            <div class="feature-section">
+                <h2 class="section-title">
+                    <span class="emoji">🔧</span>
+                    模板类型配置
+                </h2>
+                <div class="template-types">
+                    <div class="template-type">
+                        <span class="icon">📧</span>
+                        <h4>邮件通知配置</h4>
+                        <p class="description">完整的SMTP邮件服务器配置，支持SSL/TLS加密连接</p>
+                        <ul class="config-list">
+                            <li>SMTP服务器地址</li>
+                            <li>端口号（默认587）</li>
+                            <li>发送邮箱账号</li>
+                            <li>邮箱授权密码</li>
+                            <li>收件人列表</li>
+                            <li>邮件主题模板</li>
+                            <li>邮件内容模板</li>
+                        </ul>
+                    </div>
+                    <div class="template-type">
+                        <span class="icon">💻</span>
+                        <h4>界面提示配置</h4>
+                        <p class="description">灵活的浏览器内通知配置，支持多种展示效果</p>
+                        <ul class="config-list">
+                            <li>通知类型（Toast/Modal/Badge）</li>
+                            <li>显示位置（四个角落）</li>
+                            <li>显示时长（1-30秒）</li>
+                            <li>声音提醒开关</li>
+                            <li>图标映射配置</li>
+                            <li>颜色主题配置</li>
+                        </ul>
+                    </div>
+                    <div class="template-type">
+                        <span class="icon">📱</span>
+                        <h4>钉钉通知配置</h4>
+                        <p class="description">企业级钉钉群通知，支持富文本和@功能</p>
+                        <ul class="config-list">
+                            <li>Webhook URL</li>
+                            <li>安全密钥（可选）</li>
+                            <li>@手机号列表</li>
+                            <li>@所有人开关</li>
+                            <li>消息类型（Text/Markdown）</li>
+                            <li>消息内容模板</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+
+            <!-- API接口 -->
+            <div class="feature-section">
+                <h2 class="section-title">
+                    <span class="emoji">🔌</span>
+                    API接口文档
+                </h2>
+                <div class="api-section">
+                    <div class="api-endpoint">
+                        <span class="method">GET</span>
+                        <span class="url">/api/v1/alarms/templates</span>
+                        <div class="description">获取告警模板列表，支持按类型筛选</div>
+                    </div>
+                    <div class="api-endpoint">
+                        <span class="method post">POST</span>
+                        <span class="url">/api/v1/alarms/templates</span>
+                        <div class="description">创建新的告警模板</div>
+                    </div>
+                    <div class="api-endpoint">
+                        <span class="method put">PUT</span>
+                        <span class="url">/api/v1/alarms/templates/{id}</span>
+                        <div class="description">更新指定的告警模板</div>
+                    </div>
+                    <div class="api-endpoint">
+                        <span class="method delete">DELETE</span>
+                        <span class="url">/api/v1/alarms/templates/{id}</span>
+                        <div class="description">删除指定的告警模板</div>
+                    </div>
+                    <div class="api-endpoint">
+                        <span class="method post">POST</span>
+                        <span class="url">/api/v1/alarms/templates/{id}/test</span>
+                        <div class="description">测试指定的告警模板</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 在线演示 -->
+            <div class="demo-section">
+                <h3>🚀 在线演示</h3>
+                <p>访问智能设备管理系统，体验完整的告警模板管理功能</p>
+                <a href="http://localhost:3005/alarm" class="demo-button" target="_blank">
+                    立即体验 →
+                </a>
+            </div>
+        </div>
+
+        <div class="footer">
+            <p>© 2025 智能设备管理系统 - 告警模板管理功能演示</p>
+        </div>
+    </div>
+
+    <script>
+        // 添加一些交互效果
+        document.addEventListener('DOMContentLoaded', function() {
+            // 为功能卡片添加点击效果
+            const cards = document.querySelectorAll('.feature-card, .template-type');
+            cards.forEach(card => {
+                card.addEventListener('click', function() {
+                    this.style.transform = 'scale(0.98)';
+                    setTimeout(() => {
+                        this.style.transform = '';
+                    }, 150);
+                });
+            });
+
+            // 为API端点添加复制功能
+            const apiEndpoints = document.querySelectorAll('.api-endpoint .url');
+            apiEndpoints.forEach(endpoint => {
+                endpoint.addEventListener('click', function() {
+                    navigator.clipboard.writeText(this.textContent).then(() => {
+                        const originalText = this.textContent;
+                        this.textContent = '已复制!';
+                        this.style.background = '#d4edda';
+                        setTimeout(() => {
+                            this.textContent = originalText;
+                            this.style.background = '#f8f9fa';
+                        }, 1000);
+                    });
+                });
+                endpoint.style.cursor = 'pointer';
+                endpoint.title = '点击复制API地址';
+            });
+        });
+    </script>
+</body>
+</html>

@@ -93,7 +93,7 @@
     </div>
 
     <!-- 添加断路器对话框 -->
-    <el-dialog v-model="addDialogVisible" title="添加断路器" width="600px">
+    <el-dialog v-model="addDialogVisible" title="添加断路器" width="600px" center>
       <el-form :model="addForm" label-width="120px">
         <el-form-item label="断路器名称" required>
           <el-input v-model="addForm.breaker_name" placeholder="请输入断路器名称" />
@@ -175,7 +175,7 @@
     </el-dialog>
 
     <!-- 编辑断路器对话框 -->
-    <el-dialog v-model="editDialogVisible" title="编辑断路器" width="600px">
+    <el-dialog v-model="editDialogVisible" title="编辑断路器" width="600px" center>
       <el-form :model="editForm" label-width="120px">
         <el-form-item label="断路器名称">
           <el-input v-model="editForm.breaker_name" placeholder="请输入断路器名称" />
@@ -237,7 +237,7 @@
     </el-dialog>
 
     <!-- 绑定配置对话框 -->
-    <el-dialog v-model="bindingDialogVisible" title="绑定配置" width="800px">
+    <el-dialog v-model="bindingDialogVisible" title="绑定配置" width="800px" center>
       <div v-if="currentBreaker">
         <h4>断路器: {{ currentBreaker.breaker_name }}</h4>
         <p>当前绑定的服务器: {{ formatBoundServers(currentBreaker.bound_servers) }}</p>

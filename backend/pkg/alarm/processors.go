@@ -19,11 +19,88 @@ func NewTemperatureProcessor() *TemperatureProcessor {
 
 // Process 处理温度数据
 func (p *TemperatureProcessor) Process(data interface{}) (map[string]interface{}, error) {
-	tempData, ok := data.(map[string]interface{})
-	if !ok {
-		return nil, fmt.Errorf("无效的温度数据格式")
+	p.logger.Printf("🔍 接收到温度数据: %+v", data)
+
+	// 尝试处理数组格式的温度数据
+	if tempDataArray, ok := data.([]interface{}); ok {
+		p.logger.Printf("✅ 检测到数组格式温度数据，包含 %d 个传感器", len(tempDataArray))
+		return p.processTemperatureArray(tempDataArray)
 	}
 
+	// 尝试处理单个温度数据对象
+	if tempData, ok := data.(map[string]interface{}); ok {
+		p.logger.Printf("✅ 检测到单个温度数据对象")
+		return p.processSingleTemperature(tempData)
+	}
+
+	// 尝试处理 []map[string]interface{} 格式
+	if tempDataSlice, ok := data.([]map[string]interface{}); ok {
+		p.logger.Printf("✅ 检测到 []map[string]interface{} 格式温度数据，包含 %d 个传感器", len(tempDataSlice))
+		// 转换为 []interface{} 格式
+		tempDataArray := make([]interface{}, len(tempDataSlice))
+		for i, item := range tempDataSlice {
+			tempDataArray[i] = item
+		}
+		return p.processTemperatureArray(tempDataArray)
+	}
+
+	p.logger.Printf("❌ 无效的温度数据格式: %T", data)
+	return nil, fmt.Errorf("无效的温度数据格式")
+}
+
+// processTemperatureArray 处理温度数据数组
+func (p *TemperatureProcessor) processTemperatureArray(tempDataArray []interface{}) (map[string]interface{}, error) {
+	result := make(map[string]interface{})
+	temperatures := make(map[string]float64)
+
+	for _, item := range tempDataArray {
+		tempData, ok := item.(map[string]interface{})
+		if !ok {
+			p.logger.Printf("⚠️ 跳过无效的温度数据项: %+v", item)
+			continue
+		}
+
+		// 提取设备ID和温度
+		var deviceID string
+		if id, exists := tempData["device_id"]; exists {
+			deviceID = fmt.Sprintf("%v", id)
+		} else if sensorID, exists := tempData["sensor_id"]; exists {
+			if channel, exists := tempData["channel"]; exists {
+				deviceID = fmt.Sprintf("%v-%v", sensorID, channel)
+			}
+		}
+
+		if temp, exists := tempData["temperature"]; exists {
+			if tempFloat, ok := temp.(float64); ok {
+				temperatures[deviceID] = tempFloat
+				p.logger.Printf("📊 提取温度数据: %s = %.1f°C", deviceID, tempFloat)
+			}
+		}
+	}
+
+	result["temperatures"] = temperatures
+	result["sensor_count"] = len(temperatures)
+
+	// 计算平均温度和最高温度
+	if len(temperatures) > 0 {
+		var total, max float64
+		for _, temp := range temperatures {
+			total += temp
+			if temp > max {
+				max = temp
+			}
+		}
+		result["average_temperature"] = total / float64(len(temperatures))
+		result["max_temperature"] = max
+		result["temperature_status"] = p.getTemperatureStatus(max)
+	}
+
+	p.logger.Printf("✅ 处理温度数据数组完成: %+v", result)
+	return result, nil
+}
+
+// processSingleTemperature 处理单个温度数据
+func (p *TemperatureProcessor) processSingleTemperature(tempData map[string]interface{}) (map[string]interface{}, error) {
 	result := make(map[string]interface{})
 
 	// 提取温度值
@@ -52,7 +129,7 @@ func (p *TemperatureProcessor) Process(data interface{}) (map[string]interface{}
 		}
 	}
 
-	p.logger.Printf("处理温度数据: %v -> %v", data, result)
+	p.logger.Printf("✅ 处理单个温度数据完成: %+v", result)
 	return result, nil
 }
 
@@ -149,8 +226,25 @@ func (p *ServerProcessor) Process(data interface{}) (map[string]interface{}, err
 		result["service_status"] = serviceStatus
 	}
 
-	// 计算整体健康状态
+	// 提取服务器在线状态
+	if status, exists := serverData["status"]; exists {
+		result["status"] = status
+	}
+
+	// 提取连接状态
+	if connected, exists := serverData["connected"]; exists {
+		result["connected"] = connected
+	}
+
+	// 提取离线时长
+	if offlineDuration, exists := serverData["offline_duration"]; exists {
+		result["offline_duration"] = offlineDuration
+	}
+
+	// 计算整体健康状态（考虑在线状态）
+	p.logger.Printf("🔍 调用calculateHealthStatus前的result: %v", result)
 	result["health_status"] = p.calculateHealthStatus(result)
+	p.logger.Printf("🔍 调用calculateHealthStatus后的health_status: %v", result["health_status"])
 
 	p.logger.Printf("处理服务器数据: %v -> %v", data, result)
 	return result, nil
@@ -194,6 +288,29 @@ func (p *ServerProcessor) getDiskStatus(usage float64) string {
 
 // calculateHealthStatus 计算整体健康状态
 func (p *ServerProcessor) calculateHealthStatus(data map[string]interface{}) string {
+	p.logger.Printf("🔍 calculateHealthStatus接收到的数据: %v", data)
+
+	// 首先检查服务器是否在线
+	if status, exists := data["status"]; exists {
+		p.logger.Printf("🔍 检查status字段: %v", status)
+		if status == "offline" {
+			p.logger.Printf("✅ 检测到status=offline，返回offline")
+			return "offline"
+		}
+	} else {
+		p.logger.Printf("❌ 未找到status字段")
+	}
+
+	if connected, exists := data["connected"]; exists {
+		p.logger.Printf("🔍 检查connected字段: %v", connected)
+		if connected == false {
+			p.logger.Printf("✅ 检测到connected=false，返回offline")
+			return "offline"
+		}
+	} else {
+		p.logger.Printf("❌ 未找到connected字段")
+	}
+
 	criticalCount := 0
 	highCount := 0
 

@@ -417,6 +417,8 @@ func BroadcastTemperatureData(data interface{}) {
 func BroadcastBreakerData(data interface{}) {
 	if GlobalHub != nil {
 		GlobalHub.BroadcastMessage(MessageTypeBreakerData, data)
+		// 通知数据处理器
+		notifyDataHandlers("breaker", data)
 	}
 }
 
@@ -424,6 +426,8 @@ func BroadcastBreakerData(data interface{}) {
 func BroadcastServerData(data interface{}) {
 	if GlobalHub != nil {
 		GlobalHub.BroadcastMessage(MessageTypeServerData, data)
+		// 通知数据处理器
+		notifyDataHandlers("server", data)
 	}
 }
 

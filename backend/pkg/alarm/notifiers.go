@@ -84,29 +84,20 @@ func NewDingTalkNotifier(webhookURL, secret string) *DingTalkNotifier {
 
 // Send 发送钉钉通知
 func (n *DingTalkNotifier) Send(alarm *AlarmLog) error {
-	// 构建钉钉消息
+	// 构建钉钉消息 - 使用text类型，包含关键词"家"
 	message := map[string]interface{}{
-		"msgtype": "markdown",
-		"markdown": map[string]interface{}{
-			"title": fmt.Sprintf("[%s] %s", alarm.Level, alarm.Title),
-			"text": fmt.Sprintf(`## 🚨 系统告警通知
+		"msgtype": "text",
+		"text": map[string]interface{}{
+			"content": fmt.Sprintf(`🏠 家庭智能设备管理系统告警
 
-**告警规则:** %s  
-**告警级别:** %s  
-**告警描述:** %s  
-**数据源:** %s  
-**首次触发:** %s  
-**最后触发:** %s  
-**触发次数:** %d  
-
-> 请及时处理相关问题！`,
-				alarm.RuleName,
+告警级别: %s
+告警标题: %s
+告警描述: %s
+告警时间: %s`,
 				alarm.Level,
+				alarm.RuleName,  // 使用规则名称作为告警标题
 				alarm.Description,
-				alarm.Source,
-				alarm.FirstTime.Format("2006-01-02 15:04:05"),
-				alarm.LastTime.Format("2006-01-02 15:04:05"),
-				alarm.Count),
+				alarm.LastTime.Format("1/2/2006, 3:04:05 PM")), // 使用用户要求的时间格式
 		},
 	}
 
@@ -324,4 +315,52 @@ func (n *ConsoleNotifier) Send(alarm *AlarmLog) error {
 // GetType 获取通知器类型
 func (n *ConsoleNotifier) GetType() string {
 	return "console"
+}
+
+// UINotifier 界面通知器（用于界面提示）
+type UINotifier struct {
+	logger *log.Logger
+}
+
+// NewUINotifier 创建界面通知器
+func NewUINotifier() *UINotifier {
+	return &UINotifier{
+		logger: log.New(log.Writer(), "[UI_NOTIFIER] ", log.LstdFlags),
+	}
+}
+
+// Send 发送界面通知
+func (n *UINotifier) Send(alarm *AlarmLog) error {
+	n.logger.Printf(`
+========== 界面告警通知 ==========
+告警ID: %d
+规则名称: %s
+告警级别: %s
+告警标题: %s
+告警描述: %s
+数据源: %s
+状态: %s
+触发次数: %d
+首次触发: %s
+最后触发: %s
+原始数据: %s
+===============================`,
+		alarm.ID,
+		alarm.RuleName,
+		alarm.Level,
+		alarm.Title,
+		alarm.Description,
+		alarm.Source,
+		alarm.Status,
+		alarm.Count,
+		alarm.FirstTime.Format("2006-01-02 15:04:05"),
+		alarm.LastTime.Format("2006-01-02 15:04:05"),
+		alarm.Data)
+
+	return nil
+}
+
+// GetType 获取通知器类型
+func (n *UINotifier) GetType() string {
+	return "ui"
 }

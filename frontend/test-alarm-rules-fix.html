@@ -1,0 +1,374 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>告警规则修复测试</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 15px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+            overflow: hidden;
+        }
+        .header {
+            background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+        .header h1 {
+            margin: 0;
+            font-size: 2.5em;
+            font-weight: 300;
+        }
+        .content {
+            padding: 30px;
+        }
+        .section {
+            margin-bottom: 30px;
+            padding: 20px;
+            border-radius: 10px;
+            border-left: 5px solid #4facfe;
+            background: #f8f9ff;
+        }
+        .section h2 {
+            color: #333;
+            margin-top: 0;
+            font-size: 1.5em;
+        }
+        .test-button {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 12px 25px;
+            border-radius: 25px;
+            cursor: pointer;
+            font-size: 16px;
+            margin: 10px;
+            transition: all 0.3s ease;
+        }
+        .test-button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(0,0,0,0.2);
+        }
+        .result {
+            margin-top: 20px;
+            padding: 15px;
+            border-radius: 8px;
+            font-family: 'Courier New', monospace;
+            white-space: pre-wrap;
+            max-height: 400px;
+            overflow-y: auto;
+        }
+        .success {
+            background: #d4edda;
+            border: 1px solid #c3e6cb;
+            color: #155724;
+        }
+        .error {
+            background: #f8d7da;
+            border: 1px solid #f5c6cb;
+            color: #721c24;
+        }
+        .info {
+            background: #d1ecf1;
+            border: 1px solid #bee5eb;
+            color: #0c5460;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 15px;
+        }
+        th, td {
+            border: 1px solid #ddd;
+            padding: 12px;
+            text-align: left;
+        }
+        th {
+            background: #f2f2f2;
+            font-weight: bold;
+        }
+        .status-enabled {
+            color: #28a745;
+            font-weight: bold;
+        }
+        .status-disabled {
+            color: #dc3545;
+            font-weight: bold;
+        }
+        .level-critical {
+            color: #dc3545;
+            font-weight: bold;
+        }
+        .level-warning {
+            color: #ffc107;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🚨 告警规则修复测试</h1>
+            <p>验证前端显示和数据库同步问题修复</p>
+        </div>
+        
+        <div class="content">
+            <div class="section">
+                <h2>🔧 修复内容</h2>
+                <p><strong>问题</strong>：前端显示"greater_than"、"equals"等英文字段，而不是数据库中的真实规则</p>
+                <p><strong>原因</strong>：后端控制器使用模拟数据，而不是从数据库加载真实数据</p>
+                <p><strong>修复</strong>：修改GetAlarmRules函数，从数据库加载真实的告警规则数据</p>
+            </div>
+
+            <div class="section">
+                <h2>🧪 测试功能</h2>
+                <button class="test-button" onclick="testBackendAPI()">测试后端API</button>
+                <button class="test-button" onclick="testFrontendLoad()">测试前端加载</button>
+                <button class="test-button" onclick="compareData()">对比数据</button>
+                <button class="test-button" onclick="testAlarmEngine()">测试告警引擎</button>
+                <div id="testResult" class="result info" style="display: none;"></div>
+            </div>
+
+            <div class="section">
+                <h2>📊 告警规则数据</h2>
+                <div id="alarmRulesData"></div>
+            </div>
+
+            <div class="section">
+                <h2>✅ 验证结果</h2>
+                <div id="verificationResult"></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let backendData = null;
+        let frontendData = null;
+
+        async function testBackendAPI() {
+            const resultDiv = document.getElementById('testResult');
+            resultDiv.style.display = 'block';
+            resultDiv.className = 'result info';
+            resultDiv.textContent = '正在测试后端API...';
+
+            try {
+                // 模拟带认证的请求
+                const response = await fetch('http://localhost:8080/api/v1/alarms/rules', {
+                    headers: {
+                        'Authorization': 'Bearer test-token',
+                        'Content-Type': 'application/json'
+                    }
+                });
+
+                if (response.ok) {
+                    const data = await response.json();
+                    backendData = data;
+                    
+                    resultDiv.className = 'result success';
+                    resultDiv.textContent = `✅ 后端API测试成功！\n\n响应数据：\n${JSON.stringify(data, null, 2)}`;
+                    
+                    displayAlarmRules(data.data);
+                } else {
+                    resultDiv.className = 'result error';
+                    resultDiv.textContent = `❌ 后端API测试失败！\n状态码: ${response.status}\n错误信息: ${await response.text()}`;
+                }
+            } catch (error) {
+                resultDiv.className = 'result error';
+                resultDiv.textContent = `❌ 后端API测试失败！\n错误: ${error.message}`;
+            }
+        }
+
+        async function testFrontendLoad() {
+            const resultDiv = document.getElementById('testResult');
+            resultDiv.style.display = 'block';
+            resultDiv.className = 'result info';
+            resultDiv.textContent = '正在测试前端加载...';
+
+            try {
+                // 模拟前端加载逻辑
+                const response = await fetch('http://localhost:3005/alarm');
+                
+                if (response.ok) {
+                    resultDiv.className = 'result success';
+                    resultDiv.textContent = '✅ 前端页面加载成功！\n请在浏览器中访问 http://localhost:3005/alarm 查看实际效果';
+                } else {
+                    resultDiv.className = 'result error';
+                    resultDiv.textContent = `❌ 前端页面加载失败！\n状态码: ${response.status}`;
+                }
+            } catch (error) {
+                resultDiv.className = 'result info';
+                resultDiv.textContent = `ℹ️ 前端服务可能未启动\n请确保前端服务运行在 http://localhost:3005\n错误: ${error.message}`;
+            }
+        }
+
+        function displayAlarmRules(rules) {
+            const dataDiv = document.getElementById('alarmRulesData');
+            
+            if (!rules || rules.length === 0) {
+                dataDiv.innerHTML = '<p>暂无告警规则数据</p>';
+                return;
+            }
+
+            let tableHTML = `
+                <table>
+                    <thead>
+                        <tr>
+                            <th>ID</th>
+                            <th>规则名称</th>
+                            <th>告警类型</th>
+                            <th>触发条件</th>
+                            <th>告警等级</th>
+                            <th>通知方式</th>
+                            <th>状态</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+            `;
+
+            rules.forEach(rule => {
+                const statusClass = rule.enabled ? 'status-enabled' : 'status-disabled';
+                const levelClass = rule.level === '严重' ? 'level-critical' : 'level-warning';
+                
+                tableHTML += `
+                    <tr>
+                        <td>${rule.id}</td>
+                        <td>${rule.name}</td>
+                        <td>${rule.type}</td>
+                        <td>${rule.condition}</td>
+                        <td class="${levelClass}">${rule.level}</td>
+                        <td>${rule.notify_method}</td>
+                        <td class="${statusClass}">${rule.enabled ? '启用' : '禁用'}</td>
+                    </tr>
+                `;
+            });
+
+            tableHTML += '</tbody></table>';
+            dataDiv.innerHTML = tableHTML;
+        }
+
+        async function compareData() {
+            const resultDiv = document.getElementById('testResult');
+            resultDiv.style.display = 'block';
+            resultDiv.className = 'result info';
+            resultDiv.textContent = '正在对比数据...';
+
+            if (!backendData) {
+                resultDiv.className = 'result error';
+                resultDiv.textContent = '❌ 请先测试后端API获取数据';
+                return;
+            }
+
+            // 检查数据格式
+            const rules = backendData.data;
+            let issues = [];
+            let successes = [];
+
+            rules.forEach(rule => {
+                // 检查是否还有英文字段
+                if (typeof rule.condition === 'string' && 
+                    (rule.condition.includes('greater_than') || 
+                     rule.condition.includes('equals') || 
+                     rule.condition.includes('less_than'))) {
+                    issues.push(`规则 ${rule.name} 的条件字段仍包含英文: ${rule.condition}`);
+                } else {
+                    successes.push(`规则 ${rule.name} 的条件字段正确: ${rule.condition}`);
+                }
+
+                // 检查规则名称是否为中文
+                if (rule.name && rule.name.length > 0) {
+                    successes.push(`规则名称正确: ${rule.name}`);
+                } else {
+                    issues.push(`规则名称异常: ${rule.name}`);
+                }
+            });
+
+            let resultText = '📊 数据对比结果：\n\n';
+            
+            if (successes.length > 0) {
+                resultText += '✅ 成功项目：\n';
+                successes.forEach(success => {
+                    resultText += `  • ${success}\n`;
+                });
+                resultText += '\n';
+            }
+
+            if (issues.length > 0) {
+                resultText += '❌ 问题项目：\n';
+                issues.forEach(issue => {
+                    resultText += `  • ${issue}\n`;
+                });
+                resultDiv.className = 'result error';
+            } else {
+                resultText += '🎉 所有数据格式正确！修复成功！';
+                resultDiv.className = 'result success';
+            }
+
+            resultDiv.textContent = resultText;
+        }
+
+        async function testAlarmEngine() {
+            const resultDiv = document.getElementById('testResult');
+            resultDiv.style.display = 'block';
+            resultDiv.className = 'result info';
+            resultDiv.textContent = '正在测试告警引擎...';
+
+            try {
+                // 检查后端日志中的告警引擎状态
+                resultDiv.className = 'result success';
+                resultDiv.textContent = `✅ 告警引擎测试说明：
+
+1. 查看后端控制台日志，应该能看到：
+   - [ALARM] 📋 加载告警规则: ID=X, Name=规则名称
+   - [ALARM] 🚨 告警规则触发: 规则名称
+   - [DINGTALK_NOTIFIER] 钉钉通知已发送
+
+2. 当前温度数据: 33.3°C (超过30°C阈值)
+3. 告警规则应该正常触发并发送钉钉消息
+
+4. 前端显示应该与数据库一致：
+   - 规则名称: "温度过高告警" (不是"greater_than")
+   - 触发条件: "温度 > 30" (不是"equals")
+   - 告警等级: "严重" (不是"critical")`;
+            } catch (error) {
+                resultDiv.className = 'result error';
+                resultDiv.textContent = `❌ 告警引擎测试失败！\n错误: ${error.message}`;
+            }
+        }
+
+        // 页面加载时自动测试
+        window.onload = function() {
+            const verificationDiv = document.getElementById('verificationResult');
+            verificationDiv.innerHTML = `
+                <h3>🔍 修复验证步骤</h3>
+                <ol>
+                    <li><strong>点击"测试后端API"</strong> - 验证后端是否返回正确的数据库数据</li>
+                    <li><strong>点击"测试前端加载"</strong> - 验证前端页面是否能正常访问</li>
+                    <li><strong>点击"对比数据"</strong> - 检查数据格式是否正确</li>
+                    <li><strong>访问前端页面</strong> - 在浏览器中打开 <a href="http://localhost:3005/alarm" target="_blank">http://localhost:3005/alarm</a></li>
+                    <li><strong>验证显示内容</strong> - 确认显示的是中文规则名称而不是英文字段</li>
+                </ol>
+                
+                <h3>✅ 预期结果</h3>
+                <ul>
+                    <li>前端表格显示: "温度过高告警" (不是 "greater_than")</li>
+                    <li>触发条件显示: "温度 > 30" (不是 "equals")</li>
+                    <li>告警等级显示: "严重" (不是 "critical")</li>
+                    <li>通知方式显示: "钉钉" (不是 "webhook")</li>
+                </ul>
+            `;
+        };
+    </script>
+</body>
+</html>

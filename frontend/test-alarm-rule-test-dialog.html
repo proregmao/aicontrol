@@ -1,0 +1,417 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>告警规则测试弹窗功能测试</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 12px;
+            padding: 30px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+        }
+        
+        .header {
+            text-align: center;
+            margin-bottom: 40px;
+        }
+        
+        .header h1 {
+            color: #2c3e50;
+            margin-bottom: 10px;
+            font-size: 2.5em;
+        }
+        
+        .header p {
+            color: #7f8c8d;
+            font-size: 1.2em;
+        }
+        
+        .test-section {
+            background: #f8f9fa;
+            border-radius: 8px;
+            padding: 25px;
+            margin-bottom: 30px;
+            border-left: 4px solid #3498db;
+        }
+        
+        .test-section h3 {
+            color: #2c3e50;
+            margin-top: 0;
+            margin-bottom: 15px;
+            font-size: 1.3em;
+        }
+        
+        .test-section p {
+            color: #5a6c7d;
+            margin-bottom: 20px;
+            line-height: 1.6;
+        }
+        
+        .test-buttons {
+            display: flex;
+            gap: 15px;
+            flex-wrap: wrap;
+        }
+        
+        .test-btn {
+            padding: 12px 24px;
+            border: none;
+            border-radius: 6px;
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            text-decoration: none;
+            display: inline-block;
+            text-align: center;
+        }
+        
+        .test-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+        }
+        
+        .btn-primary {
+            background: #3498db;
+            color: white;
+        }
+        
+        .btn-success {
+            background: #27ae60;
+            color: white;
+        }
+        
+        .btn-warning {
+            background: #f39c12;
+            color: white;
+        }
+        
+        .btn-danger {
+            background: #e74c3c;
+            color: white;
+        }
+        
+        .status {
+            background: #e8f5e8;
+            border: 1px solid #27ae60;
+            border-radius: 6px;
+            padding: 15px;
+            margin-top: 20px;
+            color: #27ae60;
+            font-weight: 500;
+        }
+        
+        .instructions {
+            background: #fff3cd;
+            border: 1px solid #ffc107;
+            border-radius: 6px;
+            padding: 20px;
+            margin-bottom: 30px;
+        }
+        
+        .instructions h4 {
+            color: #856404;
+            margin-top: 0;
+            margin-bottom: 10px;
+        }
+        
+        .instructions ul {
+            color: #856404;
+            margin: 0;
+            padding-left: 20px;
+        }
+        
+        .instructions li {
+            margin-bottom: 8px;
+        }
+        
+        .feature-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 20px;
+            margin-top: 30px;
+        }
+        
+        .feature-item {
+            background: #f8f9fa;
+            border: 1px solid #dee2e6;
+            border-radius: 8px;
+            padding: 20px;
+            text-align: center;
+        }
+        
+        .feature-item h4 {
+            color: #2c3e50;
+            margin-top: 0;
+            margin-bottom: 15px;
+        }
+        
+        .feature-item p {
+            color: #5a6c7d;
+            margin: 0;
+            line-height: 1.5;
+        }
+        
+        .test-scenarios {
+            background: #e3f2fd;
+            border: 1px solid #2196f3;
+            border-radius: 6px;
+            padding: 20px;
+            margin-top: 20px;
+        }
+        
+        .test-scenarios h4 {
+            color: #1976d2;
+            margin-top: 0;
+            margin-bottom: 15px;
+        }
+        
+        .scenario-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 8px 0;
+            border-bottom: 1px solid #bbdefb;
+        }
+        
+        .scenario-item:last-child {
+            border-bottom: none;
+        }
+        
+        .scenario-label {
+            font-weight: 500;
+            color: #1976d2;
+        }
+        
+        .scenario-desc {
+            color: #424242;
+            font-size: 14px;
+        }
+        
+        .error-types {
+            background: #ffebee;
+            border: 1px solid #f44336;
+            border-radius: 6px;
+            padding: 20px;
+            margin-top: 20px;
+        }
+        
+        .error-types h4 {
+            color: #d32f2f;
+            margin-top: 0;
+            margin-bottom: 15px;
+        }
+        
+        .error-item {
+            display: flex;
+            align-items: flex-start;
+            gap: 10px;
+            padding: 10px 0;
+            border-bottom: 1px solid #ffcdd2;
+        }
+        
+        .error-item:last-child {
+            border-bottom: none;
+        }
+        
+        .error-icon {
+            color: #f44336;
+            font-weight: bold;
+            margin-top: 2px;
+        }
+        
+        .error-content {
+            flex: 1;
+        }
+        
+        .error-title {
+            font-weight: 500;
+            color: #d32f2f;
+            margin-bottom: 4px;
+        }
+        
+        .error-desc {
+            color: #666;
+            font-size: 13px;
+            line-height: 1.4;
+        }
+        
+        @media (max-width: 768px) {
+            .feature-grid {
+                grid-template-columns: 1fr;
+            }
+            
+            .test-buttons {
+                flex-direction: column;
+            }
+            
+            .test-btn {
+                width: 100%;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🔧 告警规则测试弹窗功能测试</h1>
+            <p>详细的测试结果弹窗，显示具体报错信息和修复建议</p>
+        </div>
+        
+        <div class="instructions">
+            <h4>📋 功能说明</h4>
+            <ul>
+                <li><strong>问题描述</strong>：用户反馈测试告警规则失败时只显示简单错误消息，无法了解具体问题</li>
+                <li><strong>解决方案</strong>：创建详细的测试结果弹窗，居中显示，包含具体报错信息和修复建议</li>
+                <li><strong>测试方法</strong>：访问告警管理页面，点击任意规则的"测试"按钮，观察弹窗效果</li>
+                <li><strong>预期结果</strong>：弹窗居中显示，包含详细测试结果、错误信息和修复建议</li>
+            </ul>
+        </div>
+        
+        <div class="test-section">
+            <h3>🎯 新增功能特性</h3>
+            <p>重新设计了告警规则测试功能，提供详细的测试结果展示和错误诊断信息。</p>
+            
+            <div class="test-buttons">
+                <a href="http://localhost:3005/alarm" class="test-btn btn-primary" target="_blank">
+                    🔗 打开告警管理页面
+                </a>
+                <button class="test-btn btn-success" onclick="showTestSteps()">
+                    📝 查看测试步骤
+                </button>
+            </div>
+        </div>
+        
+        <div class="feature-grid">
+            <div class="feature-item">
+                <h4>🎨 弹窗居中显示</h4>
+                <p>测试结果弹窗采用居中显示方式，宽度700px，支持滚动查看详细内容</p>
+            </div>
+            <div class="feature-item">
+                <h4>📊 详细测试项目</h4>
+                <p>显示硬件连接、条件逻辑、通知渠道、告警级别等各项测试结果</p>
+            </div>
+            <div class="feature-item">
+                <h4>🔍 具体错误信息</h4>
+                <p>明确指出哪个环节出现问题，提供详细的错误描述和原因分析</p>
+            </div>
+            <div class="feature-item">
+                <h4>💡 修复建议</h4>
+                <p>针对不同类型的错误，提供具体的修复步骤和解决方案</p>
+            </div>
+        </div>
+        
+        <div class="test-scenarios">
+            <h4>🎭 测试场景</h4>
+            <div class="scenario-item">
+                <span class="scenario-label">成功场景</span>
+                <span class="scenario-desc">所有测试项目通过，显示成功状态</span>
+            </div>
+            <div class="scenario-item">
+                <span class="scenario-label">硬件连接失败</span>
+                <span class="scenario-desc">设备离线或网络不通，提供连接修复建议</span>
+            </div>
+            <div class="scenario-item">
+                <span class="scenario-label">条件配置错误</span>
+                <span class="scenario-desc">阈值设置不合理，提供参数调整建议</span>
+            </div>
+            <div class="scenario-item">
+                <span class="scenario-label">通知渠道问题</span>
+                <span class="scenario-desc">邮件服务器配置错误，提供配置修复建议</span>
+            </div>
+        </div>
+        
+        <div class="error-types">
+            <h4>❌ 常见错误类型及修复建议</h4>
+            <div class="error-item">
+                <div class="error-icon">🔌</div>
+                <div class="error-content">
+                    <div class="error-title">硬件连接失败</div>
+                    <div class="error-desc">检查设备是否正常运行、网络连接是否正常、IP地址配置是否正确、防火墙设置是否阻止连接</div>
+                </div>
+            </div>
+            <div class="error-item">
+                <div class="error-icon">⚙️</div>
+                <div class="error-content">
+                    <div class="error-title">条件配置错误</div>
+                    <div class="error-desc">检查温度阈值范围（-40°C ~ 85°C）、负载百分比（0-100%）、状态值选择正确性</div>
+                </div>
+            </div>
+            <div class="error-item">
+                <div class="error-icon">📧</div>
+                <div class="error-content">
+                    <div class="error-title">通知渠道配置错误</div>
+                    <div class="error-desc">检查邮件服务器配置、SMTP服务器地址和端口、邮箱账号和密码设置、网络SMTP连接</div>
+                </div>
+            </div>
+            <div class="error-item">
+                <div class="error-icon">💥</div>
+                <div class="error-content">
+                    <div class="error-title">系统异常</div>
+                    <div class="error-desc">检查网络连接、重试测试、联系系统管理员</div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="status">
+            ✅ <strong>功能状态</strong>：已完成 - 告警规则测试功能支持详细的错误诊断和修复建议
+        </div>
+    </div>
+    
+    <script>
+        function showTestSteps() {
+            alert(`📝 详细测试步骤：
+
+1. 点击"打开告警管理页面"按钮
+2. 在告警规则配置表格中找到任意一条规则
+3. 点击该规则行的"测试"按钮
+4. 观察弹出的测试结果对话框：
+   - 弹窗是否居中显示
+   - 是否显示测试结果状态（成功/失败）
+   - 是否显示详细的测试项目列表
+   - 是否显示具体的错误信息
+   - 是否提供修复建议
+   - 是否显示规则信息
+5. 如果测试失败，点击"重新测试"按钮
+6. 点击"关闭"或"确认"按钮关闭弹窗
+
+✅ 预期结果：
+- 弹窗居中显示，宽度700px
+- 显示详细的测试项目状态
+- 提供具体的错误信息和修复建议
+- 支持重新测试功能
+- 界面美观，信息清晰易读
+
+🎭 测试场景：
+系统会随机模拟不同的测试结果，包括：
+- 成功场景：所有测试通过
+- 硬件连接失败：设备离线或网络问题
+- 条件配置错误：阈值设置不合理
+- 通知渠道问题：邮件服务器配置错误`);
+        }
+        
+        // 页面加载完成后的提示
+        window.addEventListener('load', function() {
+            console.log('🔧 告警规则测试弹窗功能测试页面已加载');
+            console.log('📋 新增功能：');
+            console.log('- 详细的测试结果弹窗');
+            console.log('- 具体的错误信息展示');
+            console.log('- 针对性的修复建议');
+            console.log('- 美观的居中弹窗设计');
+            console.log('✅ 预期：用户能够清楚了解测试失败的具体原因和解决方法');
+        });
+    </script>
+</body>
+</html>

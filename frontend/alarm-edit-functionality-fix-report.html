@@ -1,0 +1,368 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>告警规则编辑功能修复报告</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            line-height: 1.6;
+            margin: 0;
+            padding: 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 15px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+            overflow: hidden;
+        }
+        .header {
+            background: linear-gradient(135deg, #4CAF50 0%, #45a049 100%);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+        .header h1 {
+            margin: 0;
+            font-size: 2.5em;
+            font-weight: 300;
+        }
+        .header p {
+            margin: 10px 0 0 0;
+            font-size: 1.2em;
+            opacity: 0.9;
+        }
+        .content {
+            padding: 40px;
+        }
+        .section {
+            margin-bottom: 40px;
+            padding: 25px;
+            border-radius: 10px;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.08);
+        }
+        .success {
+            background: linear-gradient(135deg, #d4edda 0%, #c3e6cb 100%);
+            border-left: 5px solid #28a745;
+        }
+        .problem {
+            background: linear-gradient(135deg, #f8d7da 0%, #f5c6cb 100%);
+            border-left: 5px solid #dc3545;
+        }
+        .solution {
+            background: linear-gradient(135deg, #d1ecf1 0%, #bee5eb 100%);
+            border-left: 5px solid #17a2b8;
+        }
+        .technical {
+            background: linear-gradient(135deg, #e2e3e5 0%, #d6d8db 100%);
+            border-left: 5px solid #6c757d;
+        }
+        h2 {
+            color: #333;
+            margin-top: 0;
+            font-size: 1.8em;
+            display: flex;
+            align-items: center;
+        }
+        h3 {
+            color: #555;
+            font-size: 1.3em;
+            margin-top: 25px;
+        }
+        .icon {
+            font-size: 1.5em;
+            margin-right: 10px;
+        }
+        .code-block {
+            background: #f8f9fa;
+            border: 1px solid #e9ecef;
+            border-radius: 5px;
+            padding: 15px;
+            margin: 15px 0;
+            font-family: 'Courier New', monospace;
+            font-size: 0.9em;
+            overflow-x: auto;
+        }
+        .highlight {
+            background: #fff3cd;
+            padding: 2px 5px;
+            border-radius: 3px;
+            font-weight: bold;
+        }
+        .comparison-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 20px 0;
+        }
+        .comparison-table th,
+        .comparison-table td {
+            border: 1px solid #ddd;
+            padding: 12px;
+            text-align: left;
+        }
+        .comparison-table th {
+            background: #f8f9fa;
+            font-weight: bold;
+        }
+        .status-ok {
+            color: #28a745;
+            font-weight: bold;
+        }
+        .status-error {
+            color: #dc3545;
+            font-weight: bold;
+        }
+        .timeline {
+            position: relative;
+            padding-left: 30px;
+        }
+        .timeline::before {
+            content: '';
+            position: absolute;
+            left: 15px;
+            top: 0;
+            bottom: 0;
+            width: 2px;
+            background: #007bff;
+        }
+        .timeline-item {
+            position: relative;
+            margin-bottom: 20px;
+            padding: 15px;
+            background: #f8f9fa;
+            border-radius: 5px;
+        }
+        .timeline-item::before {
+            content: '';
+            position: absolute;
+            left: -22px;
+            top: 20px;
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            background: #007bff;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🎉 告警规则编辑功能修复报告</h1>
+            <p>完美解决编辑弹窗数据显示和保存问题</p>
+            <p>修复时间: 2025年9月21日 11:37</p>
+        </div>
+
+        <div class="content">
+            <!-- 问题概述 -->
+            <div class="section problem">
+                <h2><span class="icon">❌</span>问题概述</h2>
+                <p>用户反映告警规则编辑功能存在两个严重问题：</p>
+                <ol>
+                    <li><strong>编辑弹窗不显示已经存在的信息</strong> - 点击编辑按钮后，弹窗中的字段显示为空或默认值</li>
+                    <li><strong>编辑后也不能保存</strong> - 修改数据后点击保存，更改没有真正保存到数据库</li>
+                </ol>
+                
+                <h3>具体表现</h3>
+                <ul>
+                    <li>规则名称、告警类型、触发条件等字段显示为空</li>
+                    <li>通知方式显示"请选择通知方式"而不是实际值</li>
+                    <li>保存后数据库中的数据没有更新</li>
+                    <li>前端显示保存成功，但实际上是假成功</li>
+                </ul>
+            </div>
+
+            <!-- 根本原因分析 -->
+            <div class="section technical">
+                <h2><span class="icon">🔍</span>根本原因分析</h2>
+                
+                <h3>1. 前端数据绑定问题</h3>
+                <div class="code-block">
+// 问题：通知方式字段映射不正确
+if (rule.notifyMethod && typeof rule.notifyMethod === 'string') {
+    // 字段名不匹配，应该是 notify_method
+}
+                </div>
+
+                <h3>2. 后端API临时实现</h3>
+                <div class="code-block">
+// 问题：UpdateAlarmRule 函数只是模拟响应，没有真正更新数据库
+func (c *AlarmController) UpdateAlarmRule(ctx *gin.Context) {
+    // 临时实现：返回更新成功的规则信息
+    rule := gin.H{
+        "id": id,
+        "rule_name": req["rule_name"],
+        // ... 只是返回模拟数据，没有数据库操作
+    }
+}
+                </div>
+
+                <h3>3. 数据格式转换问题</h3>
+                <p>前端期望的通知方式格式与后端返回的格式不匹配，导致数据显示异常。</p>
+            </div>
+
+            <!-- 修复方案 -->
+            <div class="section solution">
+                <h2><span class="icon">🔧</span>修复方案</h2>
+                
+                <h3>1. 前端数据绑定修复</h3>
+                <div class="code-block">
+// 修复：正确处理 notify_method 字段
+if (rule.notify_method && typeof rule.notify_method === 'string') {
+    currentRule.value.notifyMethods = rule.notify_method.split(' + ').map(method => {
+        const methodMap = {
+            '界面提示': '界面提示',
+            '邮件': '邮件通知',
+            '短信': '短信通知',
+            '钉钉': '钉钉通知'
+        }
+        return methodMap[method.trim()] || method.trim()
+    })
+}
+                </div>
+
+                <h3>2. 后端API真实实现</h3>
+                <div class="code-block">
+// 修复：实现真正的数据库更新逻辑
+func (c *AlarmController) UpdateAlarmRule(ctx *gin.Context) {
+    // 查找现有的告警规则
+    var dbRule models.AlarmRule
+    if err := c.db.First(&dbRule, id).Error; err != nil {
+        // 处理错误
+    }
+    
+    // 更新规则字段
+    if notifyMethod, ok := req["notify_method"].(string); ok {
+        dbRule.NotifyMethod = notifyMethod
+    }
+    
+    // 保存到数据库
+    if err := c.db.Save(&dbRule).Error; err != nil {
+        // 处理错误
+    }
+}
+                </div>
+            </div>
+
+            <!-- 修复过程 -->
+            <div class="section technical">
+                <h2><span class="icon">⚙️</span>修复过程</h2>
+                
+                <div class="timeline">
+                    <div class="timeline-item">
+                        <strong>步骤1: 问题定位</strong><br>
+                        通过浏览器开发者工具和后端日志，确认前端能正确发送请求，但后端只返回模拟数据
+                    </div>
+                    
+                    <div class="timeline-item">
+                        <strong>步骤2: 前端数据绑定修复</strong><br>
+                        修复 editAlarmRule 函数中的数据映射逻辑，正确处理 notify_method 字段
+                    </div>
+                    
+                    <div class="timeline-item">
+                        <strong>步骤3: 后端API实现</strong><br>
+                        将 UpdateAlarmRule 函数从临时实现改为真正的数据库操作
+                    </div>
+                    
+                    <div class="timeline-item">
+                        <strong>步骤4: 数据库验证</strong><br>
+                        通过 PostgreSQL 查询确认数据已正确更新到数据库
+                    </div>
+                    
+                    <div class="timeline-item">
+                        <strong>步骤5: 端到端测试</strong><br>
+                        完整测试编辑功能，确认数据显示和保存都正常工作
+                    </div>
+                </div>
+            </div>
+
+            <!-- 修复结果 -->
+            <div class="section success">
+                <h2><span class="icon">✅</span>修复结果</h2>
+                
+                <table class="comparison-table">
+                    <thead>
+                        <tr>
+                            <th>功能项</th>
+                            <th>修复前</th>
+                            <th>修复后</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td><strong>编辑数据加载</strong></td>
+                            <td class="status-error">字段显示为空或默认值</td>
+                            <td class="status-ok">✅ 正确显示现有规则的所有信息</td>
+                        </tr>
+                        <tr>
+                            <td><strong>通知方式显示</strong></td>
+                            <td class="status-error">"请选择通知方式"</td>
+                            <td class="status-ok">✅ 正确显示"界面提示 + 邮件"</td>
+                        </tr>
+                        <tr>
+                            <td><strong>数据保存</strong></td>
+                            <td class="status-error">假保存，数据库未更新</td>
+                            <td class="status-ok">✅ 真实保存到数据库</td>
+                        </tr>
+                        <tr>
+                            <td><strong>数据同步</strong></td>
+                            <td class="status-error">前后端数据不一致</td>
+                            <td class="status-ok">✅ 前后端数据完全同步</td>
+                        </tr>
+                        <tr>
+                            <td><strong>用户体验</strong></td>
+                            <td class="status-error">编辑功能完全不可用</td>
+                            <td class="status-ok">✅ 编辑功能完全正常</td>
+                        </tr>
+                    </tbody>
+                </table>
+
+                <h3>验证结果</h3>
+                <ul>
+                    <li>✅ <strong>数据库验证</strong>: notify_method 字段已更新为 "界面提示 + 邮件"</li>
+                    <li>✅ <strong>前端显示验证</strong>: 表格中正确显示更新后的通知方式</li>
+                    <li>✅ <strong>编辑弹窗验证</strong>: 所有字段都正确显示现有数据</li>
+                    <li>✅ <strong>保存功能验证</strong>: 修改后能成功保存到数据库</li>
+                    <li>✅ <strong>数据同步验证</strong>: 刷新数据后显示最新的数据库内容</li>
+                </ul>
+            </div>
+
+            <!-- 技术改进 -->
+            <div class="section technical">
+                <h2><span class="icon">🚀</span>技术改进亮点</h2>
+                
+                <h3>1. 数据映射增强</h3>
+                <p>改进了前端数据映射逻辑，支持多种字段名格式，提高了兼容性。</p>
+                
+                <h3>2. 错误处理完善</h3>
+                <p>添加了完整的错误处理机制，包括数据库操作失败、字段验证等。</p>
+                
+                <h3>3. 调试信息优化</h3>
+                <p>增加了详细的控制台日志，便于问题定位和调试。</p>
+                
+                <h3>4. 数据验证机制</h3>
+                <p>实现了端到端的数据验证，确保前后端数据一致性。</p>
+            </div>
+
+            <!-- 总结 -->
+            <div class="section success">
+                <h2><span class="icon">🎯</span>总结</h2>
+                <p><strong>告警规则编辑功能已完全修复！</strong></p>
+                
+                <div class="highlight">
+                    <p>✅ <strong>编辑弹窗正确显示现有信息</strong> - 所有字段都能正确加载和显示</p>
+                    <p>✅ <strong>编辑后能正常保存</strong> - 修改数据后能成功保存到数据库</p>
+                    <p>✅ <strong>数据格式转换正确</strong> - 前后端数据格式完全兼容</p>
+                    <p>✅ <strong>用户体验优化</strong> - 操作流程更加流畅和直观</p>
+                </div>
+                
+                <p><strong>用户现在可以正常编辑和保存告警规则，不会再遇到数据显示和保存问题！</strong></p>
+            </div>
+        </div>
+    </div>
+</body>
+</html>

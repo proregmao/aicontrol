@@ -1,0 +1,343 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>保存功能调试</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 12px;
+            padding: 30px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+        }
+        
+        .header {
+            text-align: center;
+            margin-bottom: 40px;
+        }
+        
+        .header h1 {
+            color: #2c3e50;
+            margin-bottom: 10px;
+            font-size: 2.5em;
+        }
+        
+        .debug-section {
+            background: #f8f9fa;
+            border: 1px solid #dee2e6;
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 20px;
+        }
+        
+        .debug-section h3 {
+            color: #495057;
+            margin-top: 0;
+            margin-bottom: 15px;
+        }
+        
+        .test-btn {
+            padding: 12px 24px;
+            border: none;
+            border-radius: 6px;
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            background: #3498db;
+            color: white;
+            margin: 5px;
+        }
+        
+        .test-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+        }
+        
+        .test-btn.success {
+            background: #27ae60;
+        }
+        
+        .test-btn.danger {
+            background: #e74c3c;
+        }
+        
+        .console-output {
+            background: #2c3e50;
+            color: #ecf0f1;
+            padding: 15px;
+            border-radius: 4px;
+            font-family: 'Courier New', monospace;
+            font-size: 13px;
+            max-height: 400px;
+            overflow-y: auto;
+            white-space: pre-wrap;
+            margin-top: 10px;
+        }
+        
+        .instructions {
+            background: #fff3cd;
+            border: 1px solid #ffc107;
+            border-radius: 6px;
+            padding: 20px;
+            margin-bottom: 20px;
+        }
+        
+        .instructions h4 {
+            color: #856404;
+            margin-top: 0;
+            margin-bottom: 10px;
+        }
+        
+        .instructions ol {
+            color: #856404;
+            margin: 0;
+            padding-left: 20px;
+        }
+        
+        .status {
+            padding: 15px;
+            border-radius: 6px;
+            margin: 10px 0;
+            font-weight: 500;
+        }
+        
+        .status.success {
+            background: #d4edda;
+            border: 1px solid #28a745;
+            color: #155724;
+        }
+        
+        .status.error {
+            background: #f8d7da;
+            border: 1px solid #dc3545;
+            color: #721c24;
+        }
+        
+        .status.warning {
+            background: #fff3cd;
+            border: 1px solid #ffc107;
+            color: #856404;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🔧 保存功能调试</h1>
+            <p>专门调试钉钉配置保存问题</p>
+        </div>
+        
+        <div class="instructions">
+            <h4>📋 调试步骤</h4>
+            <ol>
+                <li>打开浏览器开发者工具（F12）</li>
+                <li>切换到Console标签页</li>
+                <li>点击"打开告警管理页面"</li>
+                <li>点击"告警模板管理"</li>
+                <li>编辑钉钉模板或新增钉钉模板</li>
+                <li>填写Webhook URL</li>
+                <li>点击保存，观察控制台输出</li>
+                <li>如果有问题，回到这个页面查看调试信息</li>
+            </ol>
+        </div>
+        
+        <div class="debug-section">
+            <h3>🔍 本地存储检查</h3>
+            <button class="test-btn" onclick="checkLocalStorage()">检查本地存储</button>
+            <button class="test-btn success" onclick="simulateSave()">模拟保存测试</button>
+            <button class="test-btn danger" onclick="clearLocalStorage()">清空本地存储</button>
+            <div id="storageOutput" class="console-output" style="display: none;"></div>
+        </div>
+        
+        <div class="debug-section">
+            <h3>🔗 快速访问</h3>
+            <a href="http://localhost:3005/alarm" class="test-btn" target="_blank">打开告警管理页面</a>
+            <button class="test-btn" onclick="showDebugTips()">显示调试提示</button>
+        </div>
+        
+        <div id="statusMessage" style="display: none;"></div>
+    </div>
+    
+    <script>
+        function log(message, outputId = 'storageOutput') {
+            const output = document.getElementById(outputId);
+            output.style.display = 'block';
+            output.textContent += new Date().toLocaleTimeString() + ': ' + message + '\n';
+            console.log(message);
+        }
+        
+        function showStatus(message, type = 'info') {
+            const statusDiv = document.getElementById('statusMessage');
+            statusDiv.style.display = 'block';
+            statusDiv.className = `status ${type}`;
+            statusDiv.textContent = message;
+            
+            setTimeout(() => {
+                statusDiv.style.display = 'none';
+            }, 5000);
+        }
+        
+        function checkLocalStorage() {
+            const output = document.getElementById('storageOutput');
+            output.style.display = 'block';
+            output.textContent = '';
+            
+            log('🔍 检查本地存储...');
+            
+            const templates = localStorage.getItem('alarm_templates');
+            if (templates) {
+                try {
+                    const parsedTemplates = JSON.parse(templates);
+                    log(`✅ 找到 ${parsedTemplates.length} 个模板`);
+                    
+                    parsedTemplates.forEach((template, index) => {
+                        log(`模板 ${index + 1}:`);
+                        log(`  - ID: ${template.id}`);
+                        log(`  - 名称: ${template.name}`);
+                        log(`  - 类型: ${template.type}`);
+                        log(`  - 状态: ${template.enabled ? '启用' : '禁用'}`);
+                        
+                        if (template.type === 'dingtalk') {
+                            log(`  - Webhook: ${template.config?.webhook_url || '未配置'}`);
+                            log(`  - 密钥: ${template.config?.secret || '未配置'}`);
+                            log(`  - 完整配置: ${JSON.stringify(template.config, null, 2)}`);
+                        }
+                        log('');
+                    });
+                    
+                    showStatus('✅ 本地存储检查完成，详情请查看控制台输出', 'success');
+                } catch (error) {
+                    log('❌ 解析模板数据失败: ' + error.message);
+                    showStatus('❌ 解析模板数据失败', 'error');
+                }
+            } else {
+                log('❌ 本地存储中没有找到模板数据');
+                showStatus('⚠️ 本地存储中没有找到模板数据', 'warning');
+            }
+        }
+        
+        function simulateSave() {
+            const output = document.getElementById('storageOutput');
+            output.style.display = 'block';
+            output.textContent = '';
+            
+            log('🧪 开始模拟保存测试...');
+            
+            // 模拟一个钉钉模板数据
+            const testTemplate = {
+                id: Date.now(),
+                name: '测试钉钉模板',
+                type: 'dingtalk',
+                description: '用于测试保存功能的钉钉模板',
+                enabled: true,
+                config: {
+                    webhook_url: 'https://oapi.dingtalk.com/robot/send?access_token=aa8128a14b15242b3559b1eaa0aacb02fe866dbbb66c82b5602ec40b76cf60b6',
+                    secret: 'test_secret_123',
+                    at_mobiles: [],
+                    at_all: false,
+                    message_type: 'markdown'
+                }
+            };
+            
+            log('📋 测试模板数据:');
+            log(JSON.stringify(testTemplate, null, 2));
+            
+            try {
+                // 获取现有模板
+                let templates = [];
+                const stored = localStorage.getItem('alarm_templates');
+                if (stored) {
+                    templates = JSON.parse(stored);
+                    log(`📂 现有模板数量: ${templates.length}`);
+                }
+                
+                // 添加测试模板
+                templates.push(testTemplate);
+                log(`➕ 添加测试模板，新数量: ${templates.length}`);
+                
+                // 保存到本地存储
+                localStorage.setItem('alarm_templates', JSON.stringify(templates));
+                log('💾 保存到本地存储成功');
+                
+                // 验证保存结果
+                const savedData = localStorage.getItem('alarm_templates');
+                const parsedData = JSON.parse(savedData);
+                const savedTemplate = parsedData.find(t => t.id === testTemplate.id);
+                
+                if (savedTemplate) {
+                    log('✅ 验证成功：模板已正确保存');
+                    log('🔍 保存的Webhook URL:');
+                    log(savedTemplate.config.webhook_url);
+                    
+                    if (savedTemplate.config.webhook_url === testTemplate.config.webhook_url) {
+                        log('✅ Webhook URL完整性验证通过');
+                        showStatus('✅ 模拟保存测试成功', 'success');
+                    } else {
+                        log('❌ Webhook URL完整性验证失败');
+                        showStatus('❌ Webhook URL保存不完整', 'error');
+                    }
+                } else {
+                    log('❌ 验证失败：找不到保存的模板');
+                    showStatus('❌ 模板保存失败', 'error');
+                }
+                
+            } catch (error) {
+                log('❌ 模拟保存失败: ' + error.message);
+                showStatus('❌ 模拟保存失败', 'error');
+            }
+        }
+        
+        function clearLocalStorage() {
+            if (confirm('确定要清空本地存储的模板数据吗？')) {
+                localStorage.removeItem('alarm_templates');
+                log('🗑️ 本地存储已清空');
+                showStatus('🗑️ 本地存储已清空', 'warning');
+            }
+        }
+        
+        function showDebugTips() {
+            alert(`🔧 调试提示：
+
+📋 关键调试信息：
+1. "🔧 开始保存模板..." - 保存开始
+2. "📋 当前表单数据:" - 显示要保存的数据
+3. "✅ 表单验证通过" - 验证成功
+4. "💾 直接使用本地存储保存..." - 开始保存
+5. "📊 保存前的表单数据:" - 保存前的最终数据
+6. "✅ 本地存储保存完成" - 保存完成
+
+🔍 如果看到错误：
+- "❌ 保存模板失败:" - 查看具体错误信息
+- "请输入钉钉Webhook URL" - URL为空
+- "请输入正确的钉钉Webhook URL格式" - URL格式错误
+
+💡 调试建议：
+1. 确保填写了完整的Webhook URL
+2. 检查URL格式是否正确
+3. 观察控制台中的config对象是否包含webhook_url
+4. 如果保存成功但刷新后消失，检查loadTemplates函数`);
+        }
+        
+        // 页面加载时的提示
+        window.addEventListener('load', function() {
+            console.log('🔧 保存功能调试页面已加载');
+            console.log('💡 提示：请打开告警管理页面进行实际测试');
+            console.log('📋 调试流程：编辑钉钉模板 → 填写Webhook URL → 保存 → 观察控制台输出');
+            
+            showStatus('📋 调试页面已准备就绪，请按照说明进行测试', 'success');
+        });
+    </script>
+</body>
+</html>

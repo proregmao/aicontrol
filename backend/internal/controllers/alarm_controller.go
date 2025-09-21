@@ -1,21 +1,27 @@
 package controllers
 
 import (
+	"bytes"
+	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"smart-device-management/internal/models"
 	"strconv"
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"gorm.io/gorm"
 )
 
 type AlarmController struct {
-	// alarmService *services.AlarmService
+	db *gorm.DB
 }
 
-func NewAlarmController() *AlarmController {
-	return &AlarmController{}
+func NewAlarmController(db *gorm.DB) *AlarmController {
+	return &AlarmController{
+		db: db,
+	}
 }
 
 // GetAlarms 获取告警列表
@@ -134,62 +140,46 @@ func (c *AlarmController) GetAlarms(ctx *gin.Context) {
 func (c *AlarmController) GetAlarmRules(ctx *gin.Context) {
 	enabledStr := ctx.Query("enabled")
 
-	// 临时模拟数据
-	rules := []gin.H{
-		{
-			"id":          1,
-			"rule_name":   "温度过高告警",
-			"description": "当温度传感器读数超过设定阈值时触发告警",
-			"device_type": "temperature",
-			"metric":      "temperature",
-			"condition":   "greater_than",
-			"threshold":   25.0,
-			"level":       "warning",
-			"enabled":     true,
-			"notification_settings": gin.H{
-				"email":   true,
-				"sms":     false,
-				"webhook": true,
-			},
-			"created_at": "2025-09-15T08:00:00Z",
-			"updated_at": "2025-09-15T08:00:00Z",
-		},
-		{
-			"id":          2,
-			"rule_name":   "服务器离线告警",
-			"description": "当服务器连接中断超过5分钟时触发告警",
-			"device_type": "server",
-			"metric":      "connection_status",
-			"condition":   "equals",
-			"threshold":   "offline",
-			"level":       "critical",
-			"enabled":     true,
-			"notification_settings": gin.H{
-				"email":   true,
-				"sms":     true,
-				"webhook": true,
-			},
-			"created_at": "2025-09-15T08:00:00Z",
-			"updated_at": "2025-09-15T08:00:00Z",
-		},
-	}
+	// 从数据库加载真实的告警规则
+	var rules []models.AlarmRule
+	query := c.db.Model(&models.AlarmRule{})
 
-	// 过滤数据
+	// 过滤启用状态
 	if enabledStr != "" {
 		enabled := enabledStr == "true"
-		filteredRules := []gin.H{}
-		for _, rule := range rules {
-			if rule["enabled"] == enabled {
-				filteredRules = append(filteredRules, rule)
-			}
-		}
-		rules = filteredRules
+		query = query.Where("enabled = ?", enabled)
+	}
+
+	// 执行查询
+	if err := query.Find(&rules).Error; err != nil {
+		ctx.JSON(http.StatusInternalServerError, models.APIResponse{
+			Code:    http.StatusInternalServerError,
+			Message: "获取告警规则失败: " + err.Error(),
+			Data:    nil,
+		})
+		return
+	}
+
+	// 转换为前端需要的格式
+	var responseRules []gin.H
+	for _, rule := range rules {
+		responseRules = append(responseRules, gin.H{
+			"id":            rule.ID,
+			"name":          rule.Name,
+			"type":          rule.Type,
+			"condition":     rule.Condition,
+			"level":         rule.Level,
+			"notify_method": rule.NotifyMethod,
+			"enabled":       rule.Enabled,
+			"created_at":    rule.CreatedAt,
+			"updated_at":    rule.UpdatedAt,
+		})
 	}
 
 	ctx.JSON(http.StatusOK, models.APIResponse{
 		Code:    http.StatusOK,
 		Message: "获取告警规则成功",
-		Data:    rules,
+		Data:    responseRules,
 	})
 }
 
@@ -273,19 +263,58 @@ func (c *AlarmController) UpdateAlarmRule(ctx *gin.Context) {
 		return
 	}
 
-	// 临时实现：返回更新成功的规则信息
+	// 查找现有的告警规则
+	var dbRule models.AlarmRule
+	if err := c.db.First(&dbRule, id).Error; err != nil {
+		ctx.JSON(http.StatusNotFound, models.APIResponse{
+			Code:    http.StatusNotFound,
+			Message: "告警规则不存在",
+			Error:   err.Error(),
+		})
+		return
+	}
+
+	// 更新规则字段
+	if name, ok := req["name"].(string); ok && name != "" {
+		dbRule.Name = name
+	}
+	if ruleType, ok := req["type"].(string); ok && ruleType != "" {
+		dbRule.Type = ruleType
+	}
+	if condition, ok := req["condition"].(string); ok && condition != "" {
+		dbRule.Condition = condition
+	}
+	if level, ok := req["level"].(string); ok && level != "" {
+		dbRule.Level = level
+	}
+	if notifyMethod, ok := req["notify_method"].(string); ok {
+		dbRule.NotifyMethod = notifyMethod
+	}
+	if enabled, ok := req["enabled"].(bool); ok {
+		dbRule.Enabled = enabled
+	}
+
+	// 保存到数据库
+	if err := c.db.Save(&dbRule).Error; err != nil {
+		ctx.JSON(http.StatusInternalServerError, models.APIResponse{
+			Code:    http.StatusInternalServerError,
+			Message: "更新告警规则失败",
+			Error:   err.Error(),
+		})
+		return
+	}
+
+	// 返回更新成功的规则信息
 	rule := gin.H{
-		"id":                    id,
-		"rule_name":             req["rule_name"],
-		"description":           req["description"],
-		"device_type":           req["device_type"],
-		"metric":                req["metric"],
-		"condition":             req["condition"],
-		"threshold":             req["threshold"],
-		"level":                 req["level"],
-		"enabled":               req["enabled"],
-		"notification_settings": req["notification_settings"],
-		"updated_at":            "2025-09-15T10:30:00Z",
+		"id":            dbRule.ID,
+		"name":          dbRule.Name,
+		"type":          dbRule.Type,
+		"condition":     dbRule.Condition,
+		"level":         dbRule.Level,
+		"notify_method": dbRule.NotifyMethod,
+		"enabled":       dbRule.Enabled,
+		"created_at":    dbRule.CreatedAt,
+		"updated_at":    dbRule.UpdatedAt,
 	}
 
 	ctx.JSON(http.StatusOK, models.APIResponse{
@@ -548,5 +577,599 @@ func (c *AlarmController) GetAlarmStatistics(ctx *gin.Context) {
 		Code:    http.StatusOK,
 		Message: "获取告警统计成功",
 		Data:    statistics,
+	})
+}
+
+// GetAlarmTemplates 获取告警模板列表
+// @Summary 获取告警模板列表
+// @Description 获取告警通知模板列表
+// @Tags alarms
+// @Accept json
+// @Produce json
+// @Param type query string false "模板类型" Enums(email,ui,dingtalk)
+// @Success 200 {object} models.APIResponse{data=[]gin.H}
+// @Failure 500 {object} models.APIResponse
+// @Router /api/v1/alarms/templates [get]
+func (c *AlarmController) GetAlarmTemplates(ctx *gin.Context) {
+	templateType := ctx.Query("type")
+
+	// 从数据库查询告警模板
+	var dbTemplates []models.AlarmTemplate
+	query := c.db.Model(&models.AlarmTemplate{})
+
+	// 根据类型筛选
+	if templateType != "" {
+		query = query.Where("type = ?", templateType)
+	}
+
+	if err := query.Find(&dbTemplates).Error; err != nil {
+		ctx.JSON(http.StatusInternalServerError, models.APIResponse{
+			Code:    http.StatusInternalServerError,
+			Message: "查询告警模板失败",
+			Error:   err.Error(),
+		})
+		return
+	}
+
+	// 转换为前端期望的格式
+	templates := make([]gin.H, 0, len(dbTemplates))
+	for _, template := range dbTemplates {
+		// 解析配置JSON
+		var config interface{}
+		if template.Config != "" {
+			if err := json.Unmarshal([]byte(template.Config), &config); err != nil {
+				// 如果解析失败，使用空对象
+				config = gin.H{}
+			}
+		} else {
+			config = gin.H{}
+		}
+
+		templates = append(templates, gin.H{
+			"id":          template.ID,
+			"name":        template.Name,
+			"type":        template.Type,
+			"description": template.Description,
+			"enabled":     template.Enabled,
+			"config":      config,
+			"created_at":  template.CreatedAt,
+			"updated_at":  template.UpdatedAt,
+		})
+	}
+
+	// 如果数据库中没有模板，返回默认模板并保存到数据库
+	if len(templates) == 0 {
+		templates = c.getDefaultTemplates()
+
+		// 将默认模板保存到数据库
+		for _, template := range templates {
+			c.saveDefaultTemplate(template)
+		}
+	}
+
+	ctx.JSON(http.StatusOK, models.APIResponse{
+		Code:    http.StatusOK,
+		Message: "获取告警模板成功",
+		Data:    templates,
+	})
+}
+
+// getDefaultTemplates 获取默认模板
+func (c *AlarmController) getDefaultTemplates() []gin.H {
+	return []gin.H{
+		{
+			"id":          1,
+			"name":        "钉钉告警模板",
+			"type":        "dingtalk",
+			"description": "通过钉钉机器人发送告警消息",
+			"enabled":     true,
+			"config": gin.H{
+				"webhook_url": "",
+				"secret":      "",
+				"at_mobiles":  []string{},
+				"at_all":      false,
+				"message_type": "markdown",
+			},
+		},
+		{
+			"id":          2,
+			"name":        "邮件告警模板",
+			"type":        "email",
+			"description": "通过邮件发送告警消息",
+			"enabled":     true,
+			"config": gin.H{
+				"smtp_server":   "",
+				"smtp_port":     587,
+				"from_address":  "",
+				"to_addresses":  []string{},
+			},
+		},
+		{
+			"id":          3,
+			"name":        "界面提示模板",
+			"type":        "ui",
+			"description": "在界面上显示告警提示",
+			"enabled":     true,
+			"config": gin.H{
+				"position":      "top-right",
+				"duration":      5000,
+				"sound_enabled": true,
+			},
+		},
+	}
+}
+
+// saveDefaultTemplate 保存默认模板到数据库
+func (c *AlarmController) saveDefaultTemplate(template gin.H) {
+	configBytes, _ := json.Marshal(template["config"])
+
+	dbTemplate := models.AlarmTemplate{
+		Name:        template["name"].(string),
+		Type:        template["type"].(string),
+		Description: template["description"].(string),
+		Config:      string(configBytes),
+		Enabled:     template["enabled"].(bool),
+	}
+
+	c.db.Create(&dbTemplate)
+}
+
+// CreateAlarmTemplate 创建告警模板
+// @Summary 创建告警模板
+// @Description 创建新的告警通知模板
+// @Tags alarms
+// @Accept json
+// @Produce json
+// @Param template body gin.H true "模板信息"
+// @Success 201 {object} models.APIResponse{data=gin.H}
+// @Failure 400 {object} models.APIResponse
+// @Failure 500 {object} models.APIResponse
+// @Router /api/v1/alarms/templates [post]
+func (c *AlarmController) CreateAlarmTemplate(ctx *gin.Context) {
+	var req gin.H
+	if err := ctx.ShouldBindJSON(&req); err != nil {
+		ctx.JSON(http.StatusBadRequest, models.APIResponse{
+			Code:    http.StatusBadRequest,
+			Message: "请求参数错误",
+			Error:   err.Error(),
+		})
+		return
+	}
+
+	// 验证必需字段
+	if req["name"] == nil || req["type"] == nil || req["config"] == nil {
+		ctx.JSON(http.StatusBadRequest, models.APIResponse{
+			Code:    http.StatusBadRequest,
+			Message: "缺少必需字段: name, type, config",
+		})
+		return
+	}
+
+	// 验证模板类型
+	templateType := req["type"].(string)
+	if templateType != "email" && templateType != "ui" && templateType != "dingtalk" {
+		ctx.JSON(http.StatusBadRequest, models.APIResponse{
+			Code:    http.StatusBadRequest,
+			Message: "不支持的模板类型，支持: email, ui, dingtalk",
+		})
+		return
+	}
+
+	// 序列化配置为JSON
+	configBytes, err := json.Marshal(req["config"])
+	if err != nil {
+		ctx.JSON(http.StatusBadRequest, models.APIResponse{
+			Code:    http.StatusBadRequest,
+			Message: "配置格式错误",
+			Error:   err.Error(),
+		})
+		return
+	}
+
+	// 创建数据库模型
+	dbTemplate := models.AlarmTemplate{
+		Name:        req["name"].(string),
+		Type:        req["type"].(string),
+		Description: req["description"].(string),
+		Config:      string(configBytes),
+		Enabled:     req["enabled"].(bool),
+	}
+
+	// 保存到数据库
+	if err := c.db.Create(&dbTemplate).Error; err != nil {
+		ctx.JSON(http.StatusInternalServerError, models.APIResponse{
+			Code:    http.StatusInternalServerError,
+			Message: "创建告警模板失败",
+			Error:   err.Error(),
+		})
+		return
+	}
+
+	// 返回创建成功的模板信息
+	template := gin.H{
+		"id":          dbTemplate.ID,
+		"name":        dbTemplate.Name,
+		"type":        dbTemplate.Type,
+		"description": dbTemplate.Description,
+		"enabled":     dbTemplate.Enabled,
+		"config":      req["config"],
+		"created_at":  dbTemplate.CreatedAt,
+		"updated_at":  dbTemplate.UpdatedAt,
+	}
+
+	ctx.JSON(http.StatusCreated, models.APIResponse{
+		Code:    http.StatusCreated,
+		Message: "告警模板创建成功",
+		Data:    template,
+	})
+}
+
+// UpdateAlarmTemplate 更新告警模板
+// @Summary 更新告警模板
+// @Description 更新指定的告警通知模板
+// @Tags alarms
+// @Accept json
+// @Produce json
+// @Param id path int true "模板ID"
+// @Param template body gin.H true "模板信息"
+// @Success 200 {object} models.APIResponse{data=gin.H}
+// @Failure 400 {object} models.APIResponse
+// @Failure 404 {object} models.APIResponse
+// @Failure 500 {object} models.APIResponse
+// @Router /api/v1/alarms/templates/{id} [put]
+func (c *AlarmController) UpdateAlarmTemplate(ctx *gin.Context) {
+	idStr := ctx.Param("id")
+	id, err := strconv.Atoi(idStr)
+	if err != nil {
+		ctx.JSON(http.StatusBadRequest, models.APIResponse{
+			Code:    http.StatusBadRequest,
+			Message: "无效的模板ID",
+		})
+		return
+	}
+
+	var req gin.H
+	if err := ctx.ShouldBindJSON(&req); err != nil {
+		ctx.JSON(http.StatusBadRequest, models.APIResponse{
+			Code:    http.StatusBadRequest,
+			Message: "请求参数错误",
+			Error:   err.Error(),
+		})
+		return
+	}
+
+	// 查找现有模板
+	var dbTemplate models.AlarmTemplate
+	if err := c.db.First(&dbTemplate, id).Error; err != nil {
+		ctx.JSON(http.StatusNotFound, models.APIResponse{
+			Code:    http.StatusNotFound,
+			Message: "告警模板不存在",
+		})
+		return
+	}
+
+	// 序列化配置为JSON
+	configBytes, err := json.Marshal(req["config"])
+	if err != nil {
+		ctx.JSON(http.StatusBadRequest, models.APIResponse{
+			Code:    http.StatusBadRequest,
+			Message: "配置格式错误",
+			Error:   err.Error(),
+		})
+		return
+	}
+
+	// 更新模板信息
+	dbTemplate.Name = req["name"].(string)
+	dbTemplate.Type = req["type"].(string)
+	dbTemplate.Description = req["description"].(string)
+	dbTemplate.Config = string(configBytes)
+	dbTemplate.Enabled = req["enabled"].(bool)
+
+	// 保存到数据库
+	if err := c.db.Save(&dbTemplate).Error; err != nil {
+		ctx.JSON(http.StatusInternalServerError, models.APIResponse{
+			Code:    http.StatusInternalServerError,
+			Message: "更新告警模板失败",
+			Error:   err.Error(),
+		})
+		return
+	}
+
+	// 返回更新成功的模板信息
+	template := gin.H{
+		"id":          dbTemplate.ID,
+		"name":        dbTemplate.Name,
+		"type":        dbTemplate.Type,
+		"description": dbTemplate.Description,
+		"enabled":     dbTemplate.Enabled,
+		"config":      req["config"],
+		"created_at":  dbTemplate.CreatedAt,
+		"updated_at":  dbTemplate.UpdatedAt,
+	}
+
+	ctx.JSON(http.StatusOK, models.APIResponse{
+		Code:    http.StatusOK,
+		Message: "告警模板更新成功",
+		Data:    template,
+	})
+}
+
+// DeleteAlarmTemplate 删除告警模板
+// @Summary 删除告警模板
+// @Description 删除指定的告警通知模板
+// @Tags alarms
+// @Accept json
+// @Produce json
+// @Param id path int true "模板ID"
+// @Success 200 {object} models.APIResponse
+// @Failure 400 {object} models.APIResponse
+// @Failure 404 {object} models.APIResponse
+// @Failure 500 {object} models.APIResponse
+// @Router /api/v1/alarms/templates/{id} [delete]
+func (c *AlarmController) DeleteAlarmTemplate(ctx *gin.Context) {
+	idStr := ctx.Param("id")
+	id, err := strconv.Atoi(idStr)
+	if err != nil {
+		ctx.JSON(http.StatusBadRequest, models.APIResponse{
+			Code:    http.StatusBadRequest,
+			Message: "无效的模板ID",
+		})
+		return
+	}
+
+	// 查找现有模板
+	var dbTemplate models.AlarmTemplate
+	if err := c.db.First(&dbTemplate, id).Error; err != nil {
+		ctx.JSON(http.StatusNotFound, models.APIResponse{
+			Code:    http.StatusNotFound,
+			Message: "告警模板不存在",
+		})
+		return
+	}
+
+	// 删除模板
+	if err := c.db.Delete(&dbTemplate).Error; err != nil {
+		ctx.JSON(http.StatusInternalServerError, models.APIResponse{
+			Code:    http.StatusInternalServerError,
+			Message: "删除告警模板失败",
+			Error:   err.Error(),
+		})
+		return
+	}
+
+	ctx.JSON(http.StatusOK, models.APIResponse{
+		Code:    http.StatusOK,
+		Message: fmt.Sprintf("告警模板 %d 删除成功", id),
+	})
+}
+
+// TestAlarmTemplate 测试告警模板
+// @Summary 测试告警模板
+// @Description 测试指定的告警通知模板
+// @Tags alarms
+// @Accept json
+// @Produce json
+// @Param id path int true "模板ID"
+// @Param test_data body gin.H false "测试数据"
+// @Success 200 {object} models.APIResponse{data=gin.H}
+// @Failure 400 {object} models.APIResponse
+// @Failure 404 {object} models.APIResponse
+// @Failure 500 {object} models.APIResponse
+// @Router /api/v1/alarms/templates/{id}/test [post]
+func (c *AlarmController) TestAlarmTemplate(ctx *gin.Context) {
+	idStr := ctx.Param("id")
+	id, err := strconv.Atoi(idStr)
+	if err != nil {
+		ctx.JSON(http.StatusBadRequest, models.APIResponse{
+			Code:    http.StatusBadRequest,
+			Message: "无效的模板ID",
+		})
+		return
+	}
+
+	var testData gin.H
+	if err := ctx.ShouldBindJSON(&testData); err != nil {
+		// 使用默认测试数据
+		testData = gin.H{
+			"rule_name":   "温度过高告警",
+			"level":       "warning",
+			"title":       "机房温度异常",
+			"description": "前进风口温度超过阈值25°C，当前温度28.5°C",
+			"source":      "temperature_sensor",
+			"first_time":  "2025-09-20T14:30:00Z",
+			"last_time":   "2025-09-20T14:35:00Z",
+			"count":       3,
+			"data":        `{"sensor_id": "temp_001", "location": "前进风口", "temperature": 28.5, "threshold": 25.0}`,
+		}
+	}
+
+	// 模拟测试结果
+	testResult := gin.H{
+		"template_id":   id,
+		"test_status":   "success",
+		"test_time":     "2025-09-20T14:40:00Z",
+		"test_data":     testData,
+		"rendered_content": gin.H{
+			"subject": fmt.Sprintf("[%s] %s - 智能设备管理系统", testData["level"], testData["title"]),
+			"body": fmt.Sprintf(`
+告警详情:
+- 规则名称: %s
+- 告警级别: %s
+- 告警描述: %s
+- 数据源: %s
+- 首次触发: %s
+- 最后触发: %s
+- 触发次数: %v
+
+原始数据:
+%s
+
+请及时处理相关问题！
+`, testData["rule_name"], testData["level"], testData["description"],
+				testData["source"], testData["first_time"], testData["last_time"],
+				testData["count"], testData["data"]),
+		},
+		"delivery_status": "模拟发送成功",
+	}
+
+	ctx.JSON(http.StatusOK, models.APIResponse{
+		Code:    http.StatusOK,
+		Message: "告警模板测试完成",
+		Data:    testResult,
+	})
+}
+
+// SendDingTalkMessage 发送钉钉消息
+// @Summary 发送钉钉消息
+// @Description 通过后端代理发送钉钉消息，解决CORS问题
+// @Tags alarms
+// @Accept json
+// @Produce json
+// @Param message body gin.H true "钉钉消息内容"
+// @Success 200 {object} models.APIResponse{data=gin.H}
+// @Failure 400 {object} models.APIResponse
+// @Failure 500 {object} models.APIResponse
+// @Router /api/v1/alarms/dingtalk/send [post]
+func (c *AlarmController) SendDingTalkMessage(ctx *gin.Context) {
+	fmt.Println("🔔 收到钉钉消息发送请求")
+
+	var req gin.H
+	if err := ctx.ShouldBindJSON(&req); err != nil {
+		fmt.Printf("❌ 请求参数解析失败: %v\n", err)
+		ctx.JSON(http.StatusBadRequest, models.APIResponse{
+			Code:    http.StatusBadRequest,
+			Message: "请求参数错误",
+			Error:   err.Error(),
+		})
+		return
+	}
+
+	fmt.Printf("📋 收到的请求参数: %+v\n", req)
+
+	// 验证必需字段
+	webhookURL, ok := req["webhook_url"].(string)
+	if !ok || webhookURL == "" {
+		fmt.Printf("❌ webhook_url字段验证失败: ok=%v, url=%s\n", ok, webhookURL)
+		ctx.JSON(http.StatusBadRequest, models.APIResponse{
+			Code:    http.StatusBadRequest,
+			Message: "缺少webhook_url字段",
+		})
+		return
+	}
+
+	message, ok := req["message"]
+	if !ok {
+		fmt.Printf("❌ message字段验证失败: ok=%v\n", ok)
+		ctx.JSON(http.StatusBadRequest, models.APIResponse{
+			Code:    http.StatusBadRequest,
+			Message: "缺少message字段",
+		})
+		return
+	}
+
+	fmt.Printf("✅ 参数验证通过 - webhook_url: %s\n", webhookURL)
+	fmt.Printf("✅ 参数验证通过 - message: %+v\n", message)
+
+	// 将消息转换为JSON
+	messageBytes, err := json.Marshal(message)
+	if err != nil {
+		fmt.Printf("❌ JSON序列化失败: %v\n", err)
+		ctx.JSON(http.StatusBadRequest, models.APIResponse{
+			Code:    http.StatusBadRequest,
+			Message: "消息格式错误",
+			Error:   err.Error(),
+		})
+		return
+	}
+
+	fmt.Printf("📝 序列化后的消息: %s\n", string(messageBytes))
+
+	// 发送HTTP请求到钉钉API
+	fmt.Printf("🚀 开始发送HTTP请求到钉钉API: %s\n", webhookURL)
+	resp, err := http.Post(webhookURL, "application/json", bytes.NewBuffer(messageBytes))
+	if err != nil {
+		fmt.Printf("❌ HTTP请求发送失败: %v\n", err)
+		ctx.JSON(http.StatusInternalServerError, models.APIResponse{
+			Code:    http.StatusInternalServerError,
+			Message: "发送钉钉消息失败",
+			Error:   err.Error(),
+		})
+		return
+	}
+	defer resp.Body.Close()
+
+	fmt.Printf("📡 收到钉钉API响应，状态码: %d\n", resp.StatusCode)
+
+	// 读取响应
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		fmt.Printf("❌ 读取响应失败: %v\n", err)
+		ctx.JSON(http.StatusInternalServerError, models.APIResponse{
+			Code:    http.StatusInternalServerError,
+			Message: "读取钉钉响应失败",
+			Error:   err.Error(),
+		})
+		return
+	}
+
+	fmt.Printf("📋 钉钉API响应内容: %s\n", string(body))
+
+	// 解析钉钉API响应
+	var dingTalkResp gin.H
+	if err := json.Unmarshal(body, &dingTalkResp); err != nil {
+		ctx.JSON(http.StatusInternalServerError, models.APIResponse{
+			Code:    http.StatusInternalServerError,
+			Message: "解析钉钉响应失败",
+			Error:   err.Error(),
+		})
+		return
+	}
+
+	// 检查钉钉API响应状态
+	errcode, ok := dingTalkResp["errcode"].(float64)
+	if !ok {
+		errcode = -1
+	}
+
+	fmt.Printf("🔍 钉钉API响应状态码: %v\n", errcode)
+
+	if errcode != 0 {
+		errmsg, _ := dingTalkResp["errmsg"].(string)
+		fmt.Printf("❌ 钉钉API返回错误: errcode=%v, errmsg=%s\n", errcode, errmsg)
+
+		// 根据错误码提供更具体的错误信息
+		var userFriendlyMessage string
+		switch int(errcode) {
+		case 310000:
+			userFriendlyMessage = "钉钉机器人关键词验证失败。请在消息中包含机器人配置的关键词，或联系群管理员修改机器人设置。"
+		case 300001:
+			userFriendlyMessage = "钉钉机器人access_token无效，请检查Webhook URL是否正确。"
+		case 300002:
+			userFriendlyMessage = "钉钉机器人已被禁用，请联系群管理员重新启用。"
+		default:
+			userFriendlyMessage = fmt.Sprintf("钉钉API错误: %s", errmsg)
+		}
+
+		ctx.JSON(http.StatusBadRequest, models.APIResponse{
+			Code:    http.StatusBadRequest,
+			Message: userFriendlyMessage,
+			Data: gin.H{
+				"dingtalk_response": dingTalkResp,
+				"errcode": errcode,
+				"errmsg": errmsg,
+			},
+		})
+		return
+	}
+
+	// 成功响应
+	ctx.JSON(http.StatusOK, models.APIResponse{
+		Code:    http.StatusOK,
+		Message: "钉钉消息发送成功",
+		Data: gin.H{
+			"dingtalk_response": dingTalkResp,
+			"http_status":       resp.StatusCode,
+		},
 	})
 }

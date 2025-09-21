@@ -434,14 +434,28 @@ func (m *AIStrategyMonitor) loadLatestTemperatureData() {
 	m.temperatureData = make(map[string]float64)
 
 	// 添加新数据
+	temperatureDataForBroadcast := make([]map[string]interface{}, 0)
 	for _, reading := range readings {
 		// 构建传感器ID格式: "传感器ID-通道号" (如 "24-1", "24-2")
 		deviceID := fmt.Sprintf("%d-%d", reading.SensorID, reading.Channel)
 		m.temperatureData[deviceID] = reading.Temperature
+
+		// 准备广播数据
+		temperatureDataForBroadcast = append(temperatureDataForBroadcast, map[string]interface{}{
+			"sensor_id":   reading.SensorID,
+			"channel":     reading.Channel,
+			"device_id":   deviceID,
+			"temperature": reading.Temperature,
+			"recorded_at": reading.RecordedAt,
+		})
 	}
 
 	if len(readings) > 0 {
 		m.logger.Debug("从数据库加载温度数据", "count", len(readings), "data", m.temperatureData)
+
+		// 广播温度数据到WebSocket，触发告警引擎
+		websocket.BroadcastTemperatureData(temperatureDataForBroadcast)
+		m.logger.Debug("广播温度数据到WebSocket", "count", len(temperatureDataForBroadcast))
 	}
 }
 

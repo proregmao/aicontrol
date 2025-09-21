@@ -1,0 +1,347 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>长Webhook URL测试</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 12px;
+            padding: 30px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+        }
+        
+        .header {
+            text-align: center;
+            margin-bottom: 40px;
+        }
+        
+        .header h1 {
+            color: #2c3e50;
+            margin-bottom: 10px;
+            font-size: 2.5em;
+        }
+        
+        .test-section {
+            background: #f8f9fa;
+            border: 1px solid #dee2e6;
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 20px;
+        }
+        
+        .test-section h3 {
+            color: #495057;
+            margin-top: 0;
+            margin-bottom: 15px;
+        }
+        
+        .url-input {
+            width: 100%;
+            padding: 12px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 14px;
+            font-family: 'Courier New', monospace;
+            margin-bottom: 10px;
+        }
+        
+        .url-info {
+            background: #e3f2fd;
+            border: 1px solid #2196f3;
+            border-radius: 4px;
+            padding: 15px;
+            margin: 10px 0;
+            font-family: 'Courier New', monospace;
+            font-size: 13px;
+        }
+        
+        .test-btn {
+            padding: 12px 24px;
+            border: none;
+            border-radius: 6px;
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            background: #3498db;
+            color: white;
+            margin: 5px;
+        }
+        
+        .test-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+        }
+        
+        .test-btn.success {
+            background: #27ae60;
+        }
+        
+        .test-btn.danger {
+            background: #e74c3c;
+        }
+        
+        .result {
+            background: #2c3e50;
+            color: #ecf0f1;
+            padding: 15px;
+            border-radius: 4px;
+            font-family: 'Courier New', monospace;
+            font-size: 13px;
+            white-space: pre-wrap;
+            margin-top: 10px;
+            max-height: 200px;
+            overflow-y: auto;
+        }
+        
+        .warning {
+            background: #fff3cd;
+            border: 1px solid #ffc107;
+            border-radius: 4px;
+            padding: 15px;
+            margin: 10px 0;
+            color: #856404;
+        }
+        
+        .success {
+            background: #d4edda;
+            border: 1px solid #28a745;
+            border-radius: 4px;
+            padding: 15px;
+            margin: 10px 0;
+            color: #155724;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🔗 长Webhook URL测试</h1>
+            <p>测试钉钉Webhook URL长度处理</p>
+        </div>
+        
+        <div class="test-section">
+            <h3>📏 URL长度分析</h3>
+            <p>您的钉钉Webhook URL：</p>
+            <input type="text" class="url-input" id="webhookUrl" 
+                   value="https://oapi.dingtalk.com/robot/send?access_token=aa8128a14b15242b3559b1eaa0aacb02fe866dbbb66c82b5602ec40b76cf60b6"
+                   oninput="analyzeUrl()">
+            
+            <div id="urlInfo" class="url-info">
+                <div>URL长度: <span id="urlLength">0</span> 字符</div>
+                <div>格式验证: <span id="urlValid">未验证</span></div>
+                <div>Token长度: <span id="tokenLength">0</span> 字符</div>
+            </div>
+            
+            <button class="test-btn" onclick="testUrlSave()">测试URL保存</button>
+            <button class="test-btn success" onclick="testInLocalStorage()">测试本地存储</button>
+            <button class="test-btn danger" onclick="clearTest()">清除测试</button>
+        </div>
+        
+        <div class="test-section">
+            <h3>🔧 保存测试结果</h3>
+            <div id="testResult" class="result" style="display: none;"></div>
+        </div>
+        
+        <div class="warning">
+            <h4>⚠️ 可能的问题</h4>
+            <ul>
+                <li><strong>URL长度限制</strong>：某些输入框可能有最大长度限制</li>
+                <li><strong>数据库字段长度</strong>：后端数据库字段可能不够长</li>
+                <li><strong>JSON序列化问题</strong>：长字符串在序列化时可能被截断</li>
+                <li><strong>浏览器限制</strong>：某些浏览器对URL长度有限制</li>
+            </ul>
+        </div>
+        
+        <div class="success">
+            <h4>✅ 解决方案</h4>
+            <ul>
+                <li><strong>增加输入框maxlength</strong>：设置为500字符</li>
+                <li><strong>添加字符计数</strong>：显示当前输入长度</li>
+                <li><strong>URL验证增强</strong>：实时验证URL格式</li>
+                <li><strong>本地存储测试</strong>：验证长URL能否正确保存</li>
+            </ul>
+        </div>
+        
+        <div class="test-section">
+            <h3>🔗 快速访问</h3>
+            <a href="http://localhost:3005/alarm" class="test-btn" target="_blank">打开告警管理页面</a>
+            <button class="test-btn" onclick="copyUrl()">复制测试URL</button>
+        </div>
+    </div>
+    
+    <script>
+        function analyzeUrl() {
+            const url = document.getElementById('webhookUrl').value;
+            const urlLength = document.getElementById('urlLength');
+            const urlValid = document.getElementById('urlValid');
+            const tokenLength = document.getElementById('tokenLength');
+            
+            // 更新长度
+            urlLength.textContent = url.length;
+            
+            // 验证格式
+            const pattern = /^https:\/\/oapi\.dingtalk\.com\/robot\/send\?access_token=(.+)/;
+            const match = url.match(pattern);
+            
+            if (match) {
+                urlValid.textContent = '✅ 有效';
+                urlValid.style.color = '#27ae60';
+                tokenLength.textContent = match[1].length;
+            } else {
+                urlValid.textContent = '❌ 无效';
+                urlValid.style.color = '#e74c3c';
+                tokenLength.textContent = '0';
+            }
+            
+            // 长度警告
+            if (url.length > 255) {
+                urlLength.style.color = '#e74c3c';
+                urlLength.textContent += ' (可能过长)';
+            } else {
+                urlLength.style.color = '#27ae60';
+            }
+        }
+        
+        function testUrlSave() {
+            const url = document.getElementById('webhookUrl').value;
+            const result = document.getElementById('testResult');
+            result.style.display = 'block';
+            result.textContent = '';
+            
+            function log(message) {
+                result.textContent += new Date().toLocaleTimeString() + ': ' + message + '\n';
+                console.log(message);
+            }
+            
+            log('🔧 开始测试URL保存...');
+            log('URL: ' + url);
+            log('长度: ' + url.length + ' 字符');
+            
+            // 测试JSON序列化
+            const testData = {
+                id: 1,
+                name: '测试钉钉模板',
+                type: 'dingtalk',
+                config: {
+                    webhook_url: url,
+                    secret: 'test_secret'
+                }
+            };
+            
+            try {
+                const jsonString = JSON.stringify(testData);
+                log('✅ JSON序列化成功');
+                log('JSON长度: ' + jsonString.length + ' 字符');
+                
+                // 测试JSON解析
+                const parsed = JSON.parse(jsonString);
+                if (parsed.config.webhook_url === url) {
+                    log('✅ JSON解析成功，URL完整');
+                } else {
+                    log('❌ JSON解析后URL不完整');
+                    log('原始: ' + url.substring(0, 50) + '...');
+                    log('解析: ' + parsed.config.webhook_url.substring(0, 50) + '...');
+                }
+            } catch (error) {
+                log('❌ JSON处理失败: ' + error.message);
+            }
+        }
+        
+        function testInLocalStorage() {
+            const url = document.getElementById('webhookUrl').value;
+            const result = document.getElementById('testResult');
+            result.style.display = 'block';
+            result.textContent = '';
+            
+            function log(message) {
+                result.textContent += new Date().toLocaleTimeString() + ': ' + message + '\n';
+                console.log(message);
+            }
+            
+            log('💾 测试本地存储...');
+            
+            const testTemplate = {
+                id: Date.now(),
+                name: '长URL测试模板',
+                type: 'dingtalk',
+                description: '测试长Webhook URL的保存',
+                enabled: true,
+                config: {
+                    webhook_url: url,
+                    secret: 'test_secret',
+                    at_mobiles: [],
+                    at_all: false,
+                    message_type: 'markdown'
+                }
+            };
+            
+            try {
+                // 保存到本地存储
+                const key = 'test_long_url_template';
+                localStorage.setItem(key, JSON.stringify(testTemplate));
+                log('✅ 保存到本地存储成功');
+                
+                // 从本地存储读取
+                const stored = localStorage.getItem(key);
+                if (stored) {
+                    const parsed = JSON.parse(stored);
+                    log('✅ 从本地存储读取成功');
+                    
+                    if (parsed.config.webhook_url === url) {
+                        log('✅ URL完整性验证通过');
+                        log('原始长度: ' + url.length);
+                        log('存储长度: ' + parsed.config.webhook_url.length);
+                    } else {
+                        log('❌ URL完整性验证失败');
+                        log('原始: ' + url);
+                        log('存储: ' + parsed.config.webhook_url);
+                    }
+                } else {
+                    log('❌ 从本地存储读取失败');
+                }
+                
+                // 清理测试数据
+                localStorage.removeItem(key);
+                
+            } catch (error) {
+                log('❌ 本地存储测试失败: ' + error.message);
+            }
+        }
+        
+        function clearTest() {
+            const result = document.getElementById('testResult');
+            result.style.display = 'none';
+            result.textContent = '';
+        }
+        
+        function copyUrl() {
+            const url = document.getElementById('webhookUrl').value;
+            navigator.clipboard.writeText(url).then(() => {
+                alert('✅ URL已复制到剪贴板');
+            }).catch(err => {
+                alert('❌ 复制失败: ' + err.message);
+            });
+        }
+        
+        // 页面加载时自动分析
+        window.addEventListener('load', function() {
+            analyzeUrl();
+            console.log('🔗 长Webhook URL测试页面已加载');
+            console.log('💡 提示：这个URL长度为 ' + document.getElementById('webhookUrl').value.length + ' 字符');
+        });
+    </script>
+</body>
+</html>

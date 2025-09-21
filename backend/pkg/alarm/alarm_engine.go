@@ -1,12 +1,14 @@
 package alarm
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
 	"log"
+	"regexp"
+	"strconv"
 	"sync"
 	"time"
+	"gorm.io/gorm"
 )
 
 // AlarmEngine 告警引擎
@@ -18,6 +20,7 @@ type AlarmEngine struct {
 	running     bool
 	logger      *log.Logger
 	alarmBuffer map[string]*AlarmLog // 用于去重
+	db          *gorm.DB             // 数据库连接
 }
 
 // AlarmRule 告警规则
@@ -79,13 +82,14 @@ type Notifier interface {
 }
 
 // NewAlarmEngine 创建告警引擎
-func NewAlarmEngine() *AlarmEngine {
+func NewAlarmEngine(db *gorm.DB) *AlarmEngine {
 	return &AlarmEngine{
 		rules:       make(map[int]*AlarmRule),
 		processors:  make(map[string]DataProcessor),
 		notifiers:   make(map[string]Notifier),
 		logger:      log.New(log.Writer(), "[ALARM] ", log.LstdFlags),
 		alarmBuffer: make(map[string]*AlarmLog),
+		db:          db,
 	}
 }
 
@@ -96,6 +100,12 @@ func (e *AlarmEngine) Start() error {
 
 	if e.running {
 		return fmt.Errorf("告警引擎已经在运行")
+	}
+
+	// 从数据库加载告警规则
+	if err := e.loadRulesFromDB(); err != nil {
+		e.logger.Printf("加载告警规则失败: %v", err)
+		// 不阻止启动，继续运行
 	}
 
 	e.running = true
@@ -158,19 +168,27 @@ func (e *AlarmEngine) RegisterNotifier(notifier Notifier) {
 
 // ProcessData 处理数据并检查告警
 func (e *AlarmEngine) ProcessData(dataType string, data interface{}) error {
+	e.logger.Printf("🔍 收到数据处理请求: dataType=%s, data=%+v", dataType, data)
+
 	e.mutex.RLock()
 	processor, exists := e.processors[dataType]
 	if !exists {
 		e.mutex.RUnlock()
+		e.logger.Printf("❌ 未找到数据处理器: %s", dataType)
 		return fmt.Errorf("未找到数据处理器: %s", dataType)
 	}
 	e.mutex.RUnlock()
 
+	e.logger.Printf("✅ 找到数据处理器: %s", dataType)
+
 	// 处理数据
 	processedData, err := processor.Process(data)
 	if err != nil {
+		e.logger.Printf("❌ 数据处理失败: %v", err)
 		return fmt.Errorf("数据处理失败: %v", err)
 	}
+
+	e.logger.Printf("✅ 数据处理完成: %+v", processedData)
 
 	// 检查所有相关规则
 	e.mutex.RLock()
@@ -182,10 +200,16 @@ func (e *AlarmEngine) ProcessData(dataType string, data interface{}) error {
 	}
 	e.mutex.RUnlock()
 
+	e.logger.Printf("📋 找到 %d 个相关告警规则 (dataType=%s)", len(rules), dataType)
+
 	// 评估规则
 	for _, rule := range rules {
+		e.logger.Printf("🔍 评估告警规则: %s (ID=%d)", rule.Name, rule.ID)
 		if e.evaluateRule(rule, processedData) {
+			e.logger.Printf("🚨 告警规则触发: %s", rule.Name)
 			e.triggerAlarm(rule, processedData, data)
+		} else {
+			e.logger.Printf("✅ 告警规则未触发: %s", rule.Name)
 		}
 	}
 
@@ -397,4 +421,251 @@ func (e *AlarmEngine) GetStatus() map[string]interface{} {
 		"processors":    len(e.processors),
 		"notifiers":     len(e.notifiers),
 	}
+}
+
+// loadRulesFromDB 从数据库加载告警规则
+func (e *AlarmEngine) loadRulesFromDB() error {
+	if e.db == nil {
+		return fmt.Errorf("数据库连接未初始化")
+	}
+
+	// 定义数据库告警规则结构
+	type DBAlarmRule struct {
+		ID           uint   `gorm:"primaryKey"`
+		Name         string `gorm:"not null;size:255"`
+		Type         string `gorm:"not null;size:100"`
+		Condition    string `gorm:"not null;type:text"`
+		Level        string `gorm:"not null;size:50"`
+		NotifyMethod string `gorm:"size:500"`
+		Enabled      bool   `gorm:"default:true"`
+	}
+
+	var dbRules []DBAlarmRule
+	if err := e.db.Table("alarm_rules").Where("enabled = ?", true).Find(&dbRules).Error; err != nil {
+		return fmt.Errorf("查询数据库告警规则失败: %v", err)
+	}
+
+	loadedCount := 0
+	for _, dbRule := range dbRules {
+		// 转换为告警引擎规则格式
+		mappedDataType := e.mapTypeToDataType(dbRule.Type)
+		e.logger.Printf("🔄 规则类型映射: '%s' → '%s'", dbRule.Type, mappedDataType)
+
+		alarmRule := &AlarmRule{
+			ID:          int(dbRule.ID),
+			Name:        dbRule.Name,
+			Description: dbRule.Condition,
+			DataType:    mappedDataType,
+			Conditions:  e.parseConditions(dbRule.Condition),
+			Actions:     e.parseActions(dbRule.NotifyMethod),
+			Enabled:     dbRule.Enabled,
+			Priority:    e.mapLevelToPriority(dbRule.Level),
+			Cooldown:    300, // 默认5分钟冷却时间
+			Config:      make(map[string]interface{}),
+			CreatedAt:   time.Now(),
+			UpdatedAt:   time.Now(),
+		}
+
+		e.logger.Printf("📋 加载告警规则: ID=%d, Name='%s', DataType='%s', Enabled=%t",
+			alarmRule.ID, alarmRule.Name, alarmRule.DataType, alarmRule.Enabled)
+
+		e.rules[alarmRule.ID] = alarmRule
+		loadedCount++
+	}
+
+	e.logger.Printf("从数据库加载到 %d 个告警规则", loadedCount)
+	return nil
+}
+
+// mapTypeToDataType 将数据库中的告警类型映射到数据类型
+func (e *AlarmEngine) mapTypeToDataType(alarmType string) string {
+	switch alarmType {
+	case "温度异常":
+		return "temperature"
+	case "电气异常":
+		return "breaker"
+	case "设备异常":
+		return "server"
+	default:
+		return "temperature" // 默认为温度类型
+	}
+}
+
+// mapLevelToPriority 将告警等级映射到优先级
+func (e *AlarmEngine) mapLevelToPriority(level string) string {
+	switch level {
+	case "严重":
+		return "critical"
+	case "警告":
+		return "medium"
+	case "信息":
+		return "low"
+	default:
+		return "medium"
+	}
+}
+
+// parseConditions 解析条件字符串为条件数组
+func (e *AlarmEngine) parseConditions(conditionStr string) []AlarmCondition {
+	conditions := []AlarmCondition{}
+
+	e.logger.Printf("🔍 解析条件字符串: '%s'", conditionStr)
+
+	// 解析电压条件 - 支持动态数值提取
+	if contains(conditionStr, "电压") {
+		if contains(conditionStr, "<") {
+			// 提取数值，如 "电压 < 200V" 或 "电压 < 200"
+			value := e.extractNumericValue(conditionStr, "<")
+			conditions = append(conditions, AlarmCondition{
+				Field:    "voltage",
+				Operator: "<",
+				Value:    value,
+				Logic:    "and",
+			})
+			e.logger.Printf("✅ 解析电压条件: voltage < %.1f", value)
+		} else if contains(conditionStr, ">") {
+			value := e.extractNumericValue(conditionStr, ">")
+			conditions = append(conditions, AlarmCondition{
+				Field:    "voltage",
+				Operator: ">",
+				Value:    value,
+				Logic:    "and",
+			})
+			e.logger.Printf("✅ 解析电压条件: voltage > %.1f", value)
+		}
+	}
+
+	// 解析温度条件 - 支持动态数值提取
+	if contains(conditionStr, "温度") {
+		if contains(conditionStr, ">") {
+			// 提取数值，如 "温度 > 30" 或 "前进风口 温度 > 25°C"
+			value := e.extractNumericValue(conditionStr, ">")
+			conditions = append(conditions, AlarmCondition{
+				Field:    "max_temperature", // 使用实际的数据字段名
+				Operator: ">",
+				Value:    value,
+				Logic:    "and",
+			})
+			e.logger.Printf("✅ 解析温度条件: max_temperature > %.1f", value)
+		} else if contains(conditionStr, "<") {
+			value := e.extractNumericValue(conditionStr, "<")
+			conditions = append(conditions, AlarmCondition{
+				Field:    "max_temperature",
+				Operator: "<",
+				Value:    value,
+				Logic:    "and",
+			})
+			e.logger.Printf("✅ 解析温度条件: max_temperature < %.1f", value)
+		}
+	}
+
+	// 解析设备状态条件
+	if contains(conditionStr, "设备") && contains(conditionStr, "中断") {
+		conditions = append(conditions, AlarmCondition{
+			Field:    "health_status",
+			Operator: "=",
+			Value:    "offline",
+			Logic:    "and",
+		})
+		e.logger.Printf("✅ 解析设备条件: health_status = offline")
+	}
+
+	// 如果没有解析到条件，添加一个默认条件
+	if len(conditions) == 0 {
+		e.logger.Printf("⚠️ 未能解析条件，使用默认条件")
+		conditions = append(conditions, AlarmCondition{
+			Field:    "value",
+			Operator: ">",
+			Value:    0,
+			Logic:    "and",
+		})
+	}
+
+	e.logger.Printf("📋 解析完成，共 %d 个条件", len(conditions))
+	return conditions
+}
+
+// extractNumericValue 从条件字符串中提取数值
+func (e *AlarmEngine) extractNumericValue(conditionStr, operator string) float64 {
+	// 使用正则表达式提取数值
+
+	// 构建正则表达式，匹配操作符后的数值
+	pattern := fmt.Sprintf(`%s\s*(\d+(?:\.\d+)?)`, regexp.QuoteMeta(operator))
+	re := regexp.MustCompile(pattern)
+
+	matches := re.FindStringSubmatch(conditionStr)
+	if len(matches) >= 2 {
+		if value, err := strconv.ParseFloat(matches[1], 64); err == nil {
+			e.logger.Printf("🔢 提取数值: '%s' → %.1f", conditionStr, value)
+			return value
+		}
+	}
+
+	// 如果提取失败，返回默认值
+	e.logger.Printf("⚠️ 无法提取数值，使用默认值: '%s'", conditionStr)
+	if contains(conditionStr, "温度") {
+		return 30.0 // 温度默认阈值
+	} else if contains(conditionStr, "电压") {
+		return 200.0 // 电压默认阈值
+	}
+	return 0.0
+}
+
+// parseActions 解析通知方式为动作数组
+func (e *AlarmEngine) parseActions(notifyMethod string) []AlarmAction {
+	e.logger.Printf("🔍 解析通知方式: '%s'", notifyMethod)
+	actions := []AlarmAction{}
+
+	if contains(notifyMethod, "钉钉") {
+		e.logger.Printf("✅ 添加钉钉通知动作")
+		actions = append(actions, AlarmAction{
+			Type: "dingtalk",
+			Config: map[string]interface{}{
+				"webhook_url": "", // 可以从配置中获取
+			},
+		})
+	}
+
+	if contains(notifyMethod, "邮件") {
+		e.logger.Printf("✅ 添加邮件通知动作")
+		actions = append(actions, AlarmAction{
+			Type: "email",
+			Config: map[string]interface{}{
+				"to": "", // 可以从配置中获取
+			},
+		})
+	}
+
+	if contains(notifyMethod, "界面提示") || contains(notifyMethod, "界面") {
+		e.logger.Printf("✅ 添加界面通知动作")
+		actions = append(actions, AlarmAction{
+			Type: "ui",
+			Config: map[string]interface{}{},
+		})
+	}
+
+	e.logger.Printf("📋 解析完成，共 %d 个通知动作", len(actions))
+	for i, action := range actions {
+		e.logger.Printf("  动作 %d: %s", i+1, action.Type)
+	}
+
+	return actions
+}
+
+// contains 检查字符串是否包含子字符串
+func contains(s, substr string) bool {
+	return len(s) >= len(substr) && (s == substr ||
+		(len(s) > len(substr) &&
+			(s[:len(substr)] == substr ||
+			 s[len(s)-len(substr):] == substr ||
+			 containsInMiddle(s, substr))))
+}
+
+func containsInMiddle(s, substr string) bool {
+	for i := 0; i <= len(s)-len(substr); i++ {
+		if s[i:i+len(substr)] == substr {
+			return true
+		}
+	}
+	return false
 }

@@ -147,7 +147,79 @@ func AutoMigrate() error {
 	// 注意：这里需要在实际使用时导入相应的模型
 	// 目前先跳过自动迁移，让API调用时触发
 
+	// 创建告警相关表
+	if err := createAlarmTables(); err != nil {
+		logrus.Warn("创建告警表失败: ", err)
+	}
+
 	logrus.Info("数据库表结构迁移完成")
+	return nil
+}
+
+// createAlarmTables 创建告警相关表
+func createAlarmTables() error {
+	// 创建告警规则表
+	createAlarmRulesSQL := `
+	CREATE TABLE IF NOT EXISTS alarm_rules (
+		id SERIAL PRIMARY KEY,
+		name VARCHAR(255) NOT NULL,
+		type VARCHAR(100) NOT NULL,
+		condition TEXT NOT NULL,
+		level VARCHAR(50) NOT NULL,
+		notify_method VARCHAR(500),
+		enabled BOOLEAN DEFAULT true,
+		created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+		updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+		deleted_at TIMESTAMP
+	);`
+
+	if err := DB.Exec(createAlarmRulesSQL).Error; err != nil {
+		return fmt.Errorf("创建alarm_rules表失败: %v", err)
+	}
+
+	// 创建告警模板表
+	createAlarmTemplatesSQL := `
+	CREATE TABLE IF NOT EXISTS alarm_templates (
+		id SERIAL PRIMARY KEY,
+		name VARCHAR(255) NOT NULL,
+		type VARCHAR(100) NOT NULL,
+		description VARCHAR(500),
+		content TEXT NOT NULL,
+		webhook_url VARCHAR(500),
+		enabled BOOLEAN DEFAULT true,
+		created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+		updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+		deleted_at TIMESTAMP
+	);`
+
+	if err := DB.Exec(createAlarmTemplatesSQL).Error; err != nil {
+		return fmt.Errorf("创建alarm_templates表失败: %v", err)
+	}
+
+	// 创建告警日志表
+	createAlarmLogsSQL := `
+	CREATE TABLE IF NOT EXISTS alarm_logs (
+		id SERIAL PRIMARY KEY,
+		rule_id INTEGER NOT NULL,
+		rule_name VARCHAR(255) NOT NULL,
+		type VARCHAR(100) NOT NULL,
+		level VARCHAR(50) NOT NULL,
+		message TEXT NOT NULL,
+		source VARCHAR(255),
+		status VARCHAR(50) DEFAULT 'active',
+		count INTEGER DEFAULT 1,
+		first_time TIMESTAMP,
+		last_time TIMESTAMP,
+		created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+		updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+		deleted_at TIMESTAMP
+	);`
+
+	if err := DB.Exec(createAlarmLogsSQL).Error; err != nil {
+		return fmt.Errorf("创建alarm_logs表失败: %v", err)
+	}
+
+	logrus.Info("告警相关表创建完成")
 	return nil
 }
 

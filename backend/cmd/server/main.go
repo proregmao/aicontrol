@@ -20,6 +20,7 @@ import (
 	"smart-device-management/internal/repositories"
 	"smart-device-management/internal/services"
 	"smart-device-management/internal/utils"
+	"smart-device-management/pkg/alarm"
 	"smart-device-management/pkg/database"
 	"smart-device-management/pkg/logger"
 	"smart-device-management/pkg/websocket"
@@ -64,6 +65,11 @@ func main() {
 		logrus.Warn("启动AI策略监控失败: ", err)
 	}
 
+	// 启动告警引擎
+	if err := startAlarmEngine(); err != nil {
+		logrus.Warn("启动告警引擎失败: ", err)
+	}
+
 	// 设置Gin模式
 	if cfg.App.Env == "production" {
 		gin.SetMode(gin.ReleaseMode)
@@ -106,6 +112,7 @@ func main() {
 // 全局变量保存监控服务引用
 var globalBreakerStatusMonitor *services.BreakerStatusMonitor
 var globalAIStrategyMonitor *services.AIStrategyMonitor
+var globalAlarmEngine *alarm.AlarmEngine
 
 // startBreakerStatusMonitor 启动断路器状态监控服务
 func startBreakerStatusMonitor() error {
@@ -156,6 +163,117 @@ func startAIStrategyMonitor() error {
 	logrus.Info("AI策略监控服务已启动")
 	return nil
 }
+
+// startAlarmEngine 启动告警引擎
+func startAlarmEngine() error {
+	// 获取数据库连接
+	db := database.GetDB()
+	if db == nil {
+		return fmt.Errorf("数据库连接未初始化")
+	}
+
+	// 创建告警引擎
+	alarmEngine := alarm.NewAlarmEngine(db)
+
+	// 注册钉钉通知器
+	dingTalkNotifier := alarm.NewDingTalkNotifier("https://oapi.dingtalk.com/robot/send?access_token=aa8128a14b15242b3559b1eaa0aacb02fe866dbbb66c82b5602ec40b76cf60b6", "")
+	alarmEngine.RegisterNotifier(dingTalkNotifier)
+
+	// 注册界面通知器
+	uiNotifier := alarm.NewUINotifier()
+	alarmEngine.RegisterNotifier(uiNotifier)
+
+	// 注册数据处理器
+	temperatureProcessor := alarm.NewTemperatureProcessor()
+	serverProcessor := alarm.NewServerProcessor()
+	breakerProcessor := alarm.NewBreakerProcessor()
+
+	alarmEngine.RegisterProcessor(temperatureProcessor)
+	alarmEngine.RegisterProcessor(serverProcessor)
+	alarmEngine.RegisterProcessor(breakerProcessor)
+
+	// 启动告警引擎（会自动从数据库加载规则）
+	if err := alarmEngine.Start(); err != nil {
+		return fmt.Errorf("启动告警引擎失败: %w", err)
+	}
+
+	// 注册告警引擎数据处理器到WebSocket
+	websocket.RegisterDataHandler("temperature", func(data interface{}) {
+		if err := alarmEngine.ProcessData("temperature", data); err != nil {
+			logrus.Warn("告警引擎处理温度数据失败: ", err)
+		}
+	})
+
+	websocket.RegisterDataHandler("breaker", func(data interface{}) {
+		if err := alarmEngine.ProcessData("breaker", data); err != nil {
+			logrus.Warn("告警引擎处理断路器数据失败: ", err)
+		}
+	})
+
+	websocket.RegisterDataHandler("server", func(data interface{}) {
+		if err := alarmEngine.ProcessData("server", data); err != nil {
+			logrus.Warn("告警引擎处理服务器数据失败: ", err)
+		}
+	})
+
+	// 保存全局引用
+	globalAlarmEngine = alarmEngine
+
+	// 启动服务器状态监控器
+	go func() {
+		logrus.Info("启动服务器状态监控器")
+		ticker := time.NewTicker(30 * time.Second) // 每30秒检查一次
+		defer ticker.Stop()
+
+		for {
+			select {
+			case <-ticker.C:
+				// 查询所有启用监控的服务器
+				var servers []struct {
+					ID        uint   `json:"id"`
+					Name      string `json:"server_name"`
+					IPAddress string `json:"ip_address"`
+					Status    string `json:"status"`
+					Connected bool   `json:"connected"`
+				}
+
+				err := db.Table("servers").
+					Where("is_monitored = ? AND deleted_at IS NULL", true).
+					Find(&servers).Error
+
+				if err != nil {
+					logrus.Warnf("查询服务器状态失败: %v", err)
+					continue
+				}
+
+				// 检查每个服务器的状态
+				for _, server := range servers {
+					if server.Status == "offline" || !server.Connected {
+						// 发送服务器离线数据到告警引擎
+						serverData := map[string]interface{}{
+							"server_id":        server.ID,
+							"server_name":      server.Name,
+							"ip_address":       server.IPAddress,
+							"status":           "offline",
+							"connected":        false,
+							"offline_duration": 35, // 模拟离线时间超过30秒
+						}
+
+						err := alarmEngine.ProcessData("server", serverData)
+						if err != nil {
+							logrus.Warnf("处理服务器告警数据失败: %v", err)
+						}
+					}
+				}
+			}
+		}
+	}()
+
+	logrus.Info("告警引擎已启动")
+	return nil
+}
+
+
 
 // initLogger 初始化日志配置
 func initLogger(cfg *config.Config) {
@@ -339,7 +457,7 @@ func setupRouter() *gin.Engine {
 	}
 
 	// 告警管理路由
-	alarmController := controllers.NewAlarmController()
+	alarmController := controllers.NewAlarmController(database.GetDB())
 	alarmGroup := apiV1.Group("/alarms")
 	{
 		alarmGroup.GET("", middleware.AuthMiddleware(), alarmController.GetAlarms)
@@ -351,6 +469,16 @@ func setupRouter() *gin.Engine {
 		alarmGroup.GET("/statistics", middleware.AuthMiddleware(), alarmController.GetAlarmStatistics)
 		alarmGroup.POST("/:id/acknowledge", middleware.AuthMiddleware(), middleware.RequireOperator(), alarmController.AcknowledgeAlarm)
 		alarmGroup.POST("/:id/resolve", middleware.AuthMiddleware(), middleware.RequireOperator(), alarmController.ResolveAlarm)
+
+		// 告警模板管理路由
+		alarmGroup.GET("/templates", middleware.AuthMiddleware(), alarmController.GetAlarmTemplates)
+		alarmGroup.POST("/templates", middleware.AuthMiddleware(), middleware.RequireOperator(), alarmController.CreateAlarmTemplate)
+		alarmGroup.PUT("/templates/:id", middleware.AuthMiddleware(), middleware.RequireOperator(), alarmController.UpdateAlarmTemplate)
+		alarmGroup.DELETE("/templates/:id", middleware.AuthMiddleware(), middleware.RequireOperator(), alarmController.DeleteAlarmTemplate)
+		alarmGroup.POST("/templates/:id/test", middleware.AuthMiddleware(), middleware.RequireOperator(), alarmController.TestAlarmTemplate)
+
+		// 钉钉消息发送路由（解决CORS问题）
+		alarmGroup.POST("/dingtalk/send", middleware.AuthMiddleware(), alarmController.SendDingTalkMessage)
 	}
 
 	// AI智能控制路由

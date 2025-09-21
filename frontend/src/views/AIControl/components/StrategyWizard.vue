@@ -4,6 +4,7 @@
     :title="isEditMode ? '编辑AI智能策略' : '新增AI智能策略'"
     width="800px"
     :close-on-click-modal="false"
+    center
     @close="handleClose"
   >
     <div class="wizard-container">

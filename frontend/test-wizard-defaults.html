@@ -1,0 +1,300 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>新增规则向导默认值修复测试</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 12px;
+            padding: 30px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+        }
+        
+        .header {
+            text-align: center;
+            margin-bottom: 40px;
+        }
+        
+        .header h1 {
+            color: #2c3e50;
+            margin-bottom: 10px;
+            font-size: 2.5em;
+        }
+        
+        .header p {
+            color: #7f8c8d;
+            font-size: 1.2em;
+        }
+        
+        .test-section {
+            background: #f8f9fa;
+            border-radius: 8px;
+            padding: 25px;
+            margin-bottom: 30px;
+            border-left: 4px solid #3498db;
+        }
+        
+        .test-section h3 {
+            color: #2c3e50;
+            margin-top: 0;
+            margin-bottom: 15px;
+            font-size: 1.3em;
+        }
+        
+        .test-section p {
+            color: #5a6c7d;
+            margin-bottom: 20px;
+            line-height: 1.6;
+        }
+        
+        .test-buttons {
+            display: flex;
+            gap: 15px;
+            flex-wrap: wrap;
+        }
+        
+        .test-btn {
+            padding: 12px 24px;
+            border: none;
+            border-radius: 6px;
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            text-decoration: none;
+            display: inline-block;
+            text-align: center;
+        }
+        
+        .test-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+        }
+        
+        .btn-primary {
+            background: #3498db;
+            color: white;
+        }
+        
+        .btn-success {
+            background: #27ae60;
+            color: white;
+        }
+        
+        .btn-warning {
+            background: #f39c12;
+            color: white;
+        }
+        
+        .btn-danger {
+            background: #e74c3c;
+            color: white;
+        }
+        
+        .status {
+            background: #e8f5e8;
+            border: 1px solid #27ae60;
+            border-radius: 6px;
+            padding: 15px;
+            margin-top: 20px;
+            color: #27ae60;
+            font-weight: 500;
+        }
+        
+        .instructions {
+            background: #fff3cd;
+            border: 1px solid #ffc107;
+            border-radius: 6px;
+            padding: 20px;
+            margin-bottom: 30px;
+        }
+        
+        .instructions h4 {
+            color: #856404;
+            margin-top: 0;
+            margin-bottom: 10px;
+        }
+        
+        .instructions ul {
+            color: #856404;
+            margin: 0;
+            padding-left: 20px;
+        }
+        
+        .instructions li {
+            margin-bottom: 8px;
+        }
+        
+        .test-cases {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+            gap: 20px;
+            margin-top: 30px;
+        }
+        
+        .test-case {
+            background: #f8f9fa;
+            border: 2px solid #dee2e6;
+            border-radius: 8px;
+            padding: 20px;
+            text-align: center;
+        }
+        
+        .test-case h4 {
+            color: #495057;
+            margin-top: 0;
+            margin-bottom: 15px;
+            font-size: 1.1em;
+        }
+        
+        .test-case .step {
+            background: #e9ecef;
+            border-radius: 4px;
+            padding: 8px 12px;
+            margin: 8px 0;
+            font-size: 0.9em;
+        }
+        
+        .step.step1 {
+            background: #cce5ff;
+            color: #0066cc;
+        }
+        
+        .step.step2 {
+            background: #d4edda;
+            color: #155724;
+        }
+        
+        .step.step3 {
+            background: #fff3cd;
+            color: #856404;
+        }
+        
+        .arrow {
+            font-size: 1.5em;
+            color: #6c757d;
+            margin: 10px 0;
+        }
+        
+        @media (max-width: 768px) {
+            .test-cases {
+                grid-template-columns: 1fr;
+            }
+            
+            .test-buttons {
+                flex-direction: column;
+            }
+            
+            .test-btn {
+                width: 100%;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🧙‍♂️ 新增规则向导默认值修复测试</h1>
+            <p>验证告警类型选择后的硬件类型和设备默认值设置</p>
+        </div>
+        
+        <div class="instructions">
+            <h4>📋 测试说明</h4>
+            <ul>
+                <li><strong>问题描述</strong>：新增规则向导中，第一步选择告警类型后，第二步的硬件类型和设备选择没有自动设置默认值</li>
+                <li><strong>修复方案</strong>：根据第一步选择的告警类型，自动设置第二步的硬件类型默认值，并选择第一个可用设备</li>
+                <li><strong>测试方法</strong>：点击下方按钮访问告警管理页面，点击"新增规则"，测试不同告警类型的默认值设置</li>
+                <li><strong>预期结果</strong>：选择告警类型后进入第二步时，硬件类型和设备应该自动设置为对应的默认值</li>
+            </ul>
+        </div>
+        
+        <div class="test-section">
+            <h3>🔧 修复内容</h3>
+            <p>添加了智能默认值设置逻辑，根据告警类型自动选择对应的硬件类型和第一个可用设备，提升用户体验。</p>
+            
+            <div class="test-buttons">
+                <a href="http://localhost:3005/alarm" class="test-btn btn-primary" target="_blank">
+                    🔗 打开告警管理页面
+                </a>
+                <button class="test-btn btn-success" onclick="showTestSteps()">
+                    📝 查看测试步骤
+                </button>
+            </div>
+        </div>
+        
+        <div class="test-cases">
+            <div class="test-case">
+                <h4>🌡️ 温度异常测试</h4>
+                <div class="step step1">第一步：选择"温度异常"</div>
+                <div class="arrow">↓</div>
+                <div class="step step2">第二步：自动选择"温度传感器"</div>
+                <div class="arrow">↓</div>
+                <div class="step step3">设备：自动选择第一个温度传感器</div>
+            </div>
+            
+            <div class="test-case">
+                <h4>⚡ 电气异常测试</h4>
+                <div class="step step1">第一步：选择"电气异常"</div>
+                <div class="arrow">↓</div>
+                <div class="step step2">第二步：自动选择"断路器"</div>
+                <div class="arrow">↓</div>
+                <div class="step step3">设备：自动选择第一个断路器</div>
+            </div>
+            
+            <div class="test-case">
+                <h4>🖥️ 设备异常测试</h4>
+                <div class="step step1">第一步：选择"设备异常"</div>
+                <div class="arrow">↓</div>
+                <div class="step step2">第二步：自动选择"服务器"</div>
+                <div class="arrow">↓</div>
+                <div class="step step3">设备：自动选择第一个服务器</div>
+            </div>
+        </div>
+        
+        <div class="status">
+            ✅ <strong>修复状态</strong>：已完成 - 新增规则向导现在会根据告警类型自动设置硬件类型和设备默认值
+        </div>
+    </div>
+    
+    <script>
+        function showTestSteps() {
+            alert(`📝 详细测试步骤：
+
+1. 点击"打开告警管理页面"按钮
+2. 在告警规则配置区域点击"新增规则"按钮
+3. 在第一步"基本信息"中：
+   - 输入规则名称
+   - 选择不同的告警类型（温度异常/电气异常/设备异常）
+4. 点击"下一步"进入第二步"硬件选择"
+5. 观察硬件类型和设备选择是否自动设置为对应的默认值
+
+✅ 预期结果：
+- 温度异常 → 自动选择温度传感器 + 第一个传感器设备
+- 电气异常 → 自动选择断路器 + 第一个断路器设备  
+- 设备异常 → 自动选择服务器 + 第一个服务器设备`);
+        }
+        
+        // 页面加载完成后的提示
+        window.addEventListener('load', function() {
+            console.log('🧙‍♂️ 新增规则向导默认值修复测试页面已加载');
+            console.log('📋 测试重点：');
+            console.log('1. 温度异常 → 温度传感器 + 第一个设备');
+            console.log('2. 电气异常 → 断路器 + 第一个设备');
+            console.log('3. 设备异常 → 服务器 + 第一个设备');
+            console.log('✅ 预期：选择告警类型后自动设置对应的硬件类型和设备默认值');
+        });
+    </script>
+</body>
+</html>
