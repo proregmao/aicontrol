@@ -520,3 +520,436 @@ func (c *TemperatureController) DeleteSensor(ctx *gin.Context) {
 		Data:    gin.H{"deleted_id": id},
 	})
 }
+
+// TemperatureAlarmRule 温度告警规则结构
+type TemperatureAlarmRule struct {
+	ID               uint      `json:"id" gorm:"primaryKey"`
+	Probe            string    `json:"probe" gorm:"size:50;not null"`
+	Location         string    `json:"location" gorm:"size:100;not null"`
+	NormalRange      string    `json:"normalRange" gorm:"size:50;not null"`
+	WarningThreshold string    `json:"warningThreshold" gorm:"size:50;not null"`
+	DangerThreshold  string    `json:"dangerThreshold" gorm:"size:50;not null"`
+	Status           string    `json:"status" gorm:"size:20;default:'正常'"`
+	Enabled          bool      `json:"enabled" gorm:"default:true"`
+	CreatedAt        time.Time `json:"createdAt"`
+	UpdatedAt        time.Time `json:"updatedAt"`
+}
+
+// TableName 指定表名
+func (TemperatureAlarmRule) TableName() string {
+	return "temperature_alarm_rules"
+}
+
+// GetAlarmRules 获取告警规则列表
+// @Summary 获取告警规则列表
+// @Description 获取所有温度告警规则
+// @Tags temperature
+// @Accept json
+// @Produce json
+// @Success 200 {object} models.APIResponse{data=[]AlarmRule}
+// @Failure 500 {object} models.APIResponse
+// @Router /api/v1/temperature/alarm-rules [get]
+func (c *TemperatureController) GetAlarmRules(ctx *gin.Context) {
+	db := database.GetDB()
+	if db == nil {
+		ctx.JSON(http.StatusInternalServerError, models.APIResponse{
+			Code:    http.StatusInternalServerError,
+			Message: "数据库连接未初始化",
+		})
+		return
+	}
+
+	// 确保表存在
+	if err := db.AutoMigrate(&TemperatureAlarmRule{}); err != nil {
+		fmt.Printf("创建温度告警规则表失败: %v\n", err)
+	}
+
+	var alarmRules []TemperatureAlarmRule
+	err := db.Order("id ASC").Find(&alarmRules).Error
+	if err != nil {
+		ctx.JSON(http.StatusInternalServerError, models.APIResponse{
+			Code:    http.StatusInternalServerError,
+			Message: fmt.Sprintf("获取告警规则失败: %v", err),
+		})
+		return
+	}
+
+	// 如果数据库中没有数据，创建默认数据
+	if len(alarmRules) == 0 {
+		defaultRules := []TemperatureAlarmRule{
+			{
+				Probe:            "探头1",
+				Location:         "室温监测",
+				NormalRange:      "18-25°C",
+				WarningThreshold: "25-30°C",
+				DangerThreshold:  ">30°C",
+				Status:           "正常",
+				Enabled:          true,
+			},
+			{
+				Probe:            "探头2",
+				Location:         "进风口",
+				NormalRange:      "18-25°C",
+				WarningThreshold: "25-30°C",
+				DangerThreshold:  ">30°C",
+				Status:           "正常",
+				Enabled:          true,
+			},
+			{
+				Probe:            "探头3",
+				Location:         "出风口",
+				NormalRange:      "30-45°C",
+				WarningThreshold: "45-60°C",
+				DangerThreshold:  ">60°C",
+				Status:           "警告",
+				Enabled:          true,
+			},
+			{
+				Probe:            "探头4",
+				Location:         "网络设备",
+				NormalRange:      "22-40°C",
+				WarningThreshold: "40-50°C",
+				DangerThreshold:  ">50°C",
+				Status:           "正常",
+				Enabled:          true,
+			},
+		}
+
+		// 批量创建默认规则
+		if err := db.Create(&defaultRules).Error; err != nil {
+			fmt.Printf("创建默认告警规则失败: %v\n", err)
+		} else {
+			alarmRules = defaultRules
+		}
+	}
+
+	ctx.JSON(http.StatusOK, models.APIResponse{
+		Code:    http.StatusOK,
+		Message: "获取告警规则列表成功",
+		Data:    alarmRules,
+	})
+}
+
+// CreateAlarmRule 创建告警规则
+// @Summary 创建告警规则
+// @Description 创建新的温度告警规则
+// @Tags temperature
+// @Accept json
+// @Produce json
+// @Param rule body AlarmRule true "告警规则"
+// @Success 201 {object} models.APIResponse{data=AlarmRule}
+// @Failure 400 {object} models.APIResponse
+// @Failure 500 {object} models.APIResponse
+// @Router /api/v1/temperature/alarm-rules [post]
+func (c *TemperatureController) CreateAlarmRule(ctx *gin.Context) {
+	db := database.GetDB()
+	if db == nil {
+		ctx.JSON(http.StatusInternalServerError, models.APIResponse{
+			Code:    http.StatusInternalServerError,
+			Message: "数据库连接未初始化",
+		})
+		return
+	}
+
+	var req gin.H
+	if err := ctx.ShouldBindJSON(&req); err != nil {
+		ctx.JSON(http.StatusBadRequest, models.APIResponse{
+			Code:    http.StatusBadRequest,
+			Message: "请求参数错误",
+			Error:   err.Error(),
+		})
+		return
+	}
+
+	// 验证必填字段
+	if req["probe"] == nil || req["location"] == nil {
+		ctx.JSON(http.StatusBadRequest, models.APIResponse{
+			Code:    http.StatusBadRequest,
+			Message: "探头和位置为必填字段",
+		})
+		return
+	}
+
+	// 创建新的告警规则
+	newRule := TemperatureAlarmRule{
+		Probe:            req["probe"].(string),
+		Location:         req["location"].(string),
+		NormalRange:      req["normalRange"].(string),
+		WarningThreshold: req["warningThreshold"].(string),
+		DangerThreshold:  req["dangerThreshold"].(string),
+		Status:           "正常",
+		Enabled:          true, // 默认启用
+	}
+
+	// 安全处理enabled字段
+	if enabledVal, ok := req["enabled"]; ok {
+		if enabled, ok := enabledVal.(bool); ok {
+			newRule.Enabled = enabled
+		}
+	}
+
+	// 保存到数据库
+	if err := db.Create(&newRule).Error; err != nil {
+		ctx.JSON(http.StatusInternalServerError, models.APIResponse{
+			Code:    http.StatusInternalServerError,
+			Message: fmt.Sprintf("创建告警规则失败: %v", err),
+		})
+		return
+	}
+
+	ctx.JSON(http.StatusCreated, models.APIResponse{
+		Code:    http.StatusCreated,
+		Message: "告警规则创建成功",
+		Data:    newRule,
+	})
+}
+
+// UpdateAlarmRule 更新告警规则
+// @Summary 更新告警规则
+// @Description 更新指定的温度告警规则
+// @Tags temperature
+// @Accept json
+// @Produce json
+// @Param id path int true "告警规则ID"
+// @Param rule body AlarmRule true "告警规则"
+// @Success 200 {object} models.APIResponse{data=AlarmRule}
+// @Failure 400 {object} models.APIResponse
+// @Failure 404 {object} models.APIResponse
+// @Failure 500 {object} models.APIResponse
+// @Router /api/v1/temperature/alarm-rules/{id} [put]
+func (c *TemperatureController) UpdateAlarmRule(ctx *gin.Context) {
+	db := database.GetDB()
+	if db == nil {
+		ctx.JSON(http.StatusInternalServerError, models.APIResponse{
+			Code:    http.StatusInternalServerError,
+			Message: "数据库连接未初始化",
+		})
+		return
+	}
+
+	idStr := ctx.Param("id")
+	id, err := strconv.Atoi(idStr)
+	if err != nil {
+		ctx.JSON(http.StatusBadRequest, models.APIResponse{
+			Code:    http.StatusBadRequest,
+			Message: "无效的告警规则ID",
+			Error:   err.Error(),
+		})
+		return
+	}
+
+	var req gin.H
+	if err := ctx.ShouldBindJSON(&req); err != nil {
+		ctx.JSON(http.StatusBadRequest, models.APIResponse{
+			Code:    http.StatusBadRequest,
+			Message: "请求参数错误",
+			Error:   err.Error(),
+		})
+		return
+	}
+
+	// 查找现有规则
+	var existingRule TemperatureAlarmRule
+	if err := db.First(&existingRule, id).Error; err != nil {
+		ctx.JSON(http.StatusNotFound, models.APIResponse{
+			Code:    http.StatusNotFound,
+			Message: "告警规则不存在",
+		})
+		return
+	}
+
+	// 更新字段
+	if req["probe"] != nil {
+		existingRule.Probe = req["probe"].(string)
+	}
+	if req["location"] != nil {
+		existingRule.Location = req["location"].(string)
+	}
+	if req["normalRange"] != nil {
+		existingRule.NormalRange = req["normalRange"].(string)
+	}
+	if req["warningThreshold"] != nil {
+		existingRule.WarningThreshold = req["warningThreshold"].(string)
+	}
+	if req["dangerThreshold"] != nil {
+		existingRule.DangerThreshold = req["dangerThreshold"].(string)
+	}
+	if req["status"] != nil {
+		existingRule.Status = req["status"].(string)
+	}
+	if req["enabled"] != nil {
+		existingRule.Enabled = req["enabled"].(bool)
+	}
+
+	// 保存到数据库
+	if err := db.Save(&existingRule).Error; err != nil {
+		ctx.JSON(http.StatusInternalServerError, models.APIResponse{
+			Code:    http.StatusInternalServerError,
+			Message: fmt.Sprintf("更新告警规则失败: %v", err),
+		})
+		return
+	}
+
+	ctx.JSON(http.StatusOK, models.APIResponse{
+		Code:    http.StatusOK,
+		Message: "告警规则更新成功",
+		Data:    existingRule,
+	})
+}
+
+// UpdateAlarmRuleByPUT 通过PUT方法更新告警规则（无ID参数）
+// @Summary 更新告警规则
+// @Description 更新温度告警规则
+// @Tags temperature
+// @Accept json
+// @Produce json
+// @Param rule body AlarmRule true "告警规则"
+// @Success 200 {object} models.APIResponse{data=AlarmRule}
+// @Failure 400 {object} models.APIResponse
+// @Failure 500 {object} models.APIResponse
+// @Router /api/v1/temperature/alarm-rules [put]
+func (c *TemperatureController) UpdateAlarmRuleByPUT(ctx *gin.Context) {
+	db := database.GetDB()
+	if db == nil {
+		ctx.JSON(http.StatusInternalServerError, models.APIResponse{
+			Code:    http.StatusInternalServerError,
+			Message: "数据库连接未初始化",
+		})
+		return
+	}
+
+	var req gin.H
+	if err := ctx.ShouldBindJSON(&req); err != nil {
+		ctx.JSON(http.StatusBadRequest, models.APIResponse{
+			Code:    http.StatusBadRequest,
+			Message: "请求参数错误",
+			Error:   err.Error(),
+		})
+		return
+	}
+
+	// 从请求中获取ID
+	var id int
+	if req["id"] != nil {
+		if idFloat, ok := req["id"].(float64); ok {
+			id = int(idFloat)
+		} else if idInt, ok := req["id"].(int); ok {
+			id = idInt
+		}
+	}
+
+	if id == 0 {
+		ctx.JSON(http.StatusBadRequest, models.APIResponse{
+			Code:    http.StatusBadRequest,
+			Message: "缺少告警规则ID",
+		})
+		return
+	}
+
+	// 查找现有规则
+	var existingRule TemperatureAlarmRule
+	if err := db.First(&existingRule, id).Error; err != nil {
+		ctx.JSON(http.StatusNotFound, models.APIResponse{
+			Code:    http.StatusNotFound,
+			Message: "告警规则不存在",
+		})
+		return
+	}
+
+	// 更新字段
+	if req["probe"] != nil {
+		existingRule.Probe = req["probe"].(string)
+	}
+	if req["location"] != nil {
+		existingRule.Location = req["location"].(string)
+	}
+	if req["normalRange"] != nil {
+		existingRule.NormalRange = req["normalRange"].(string)
+	}
+	if req["warningThreshold"] != nil {
+		existingRule.WarningThreshold = req["warningThreshold"].(string)
+	}
+	if req["dangerThreshold"] != nil {
+		existingRule.DangerThreshold = req["dangerThreshold"].(string)
+	}
+	if req["status"] != nil {
+		existingRule.Status = req["status"].(string)
+	}
+	if req["enabled"] != nil {
+		existingRule.Enabled = req["enabled"].(bool)
+	}
+
+	// 保存到数据库
+	if err := db.Save(&existingRule).Error; err != nil {
+		ctx.JSON(http.StatusInternalServerError, models.APIResponse{
+			Code:    http.StatusInternalServerError,
+			Message: fmt.Sprintf("更新告警规则失败: %v", err),
+		})
+		return
+	}
+
+	ctx.JSON(http.StatusOK, models.APIResponse{
+		Code:    http.StatusOK,
+		Message: "告警规则更新成功",
+		Data:    existingRule,
+	})
+}
+
+// DeleteAlarmRule 删除告警规则
+// @Summary 删除告警规则
+// @Description 删除指定的温度告警规则
+// @Tags temperature
+// @Accept json
+// @Produce json
+// @Param id path int true "告警规则ID"
+// @Success 200 {object} models.APIResponse
+// @Failure 400 {object} models.APIResponse
+// @Failure 404 {object} models.APIResponse
+// @Failure 500 {object} models.APIResponse
+// @Router /api/v1/temperature/alarm-rules/{id} [delete]
+func (c *TemperatureController) DeleteAlarmRule(ctx *gin.Context) {
+	db := database.GetDB()
+	if db == nil {
+		ctx.JSON(http.StatusInternalServerError, models.APIResponse{
+			Code:    http.StatusInternalServerError,
+			Message: "数据库连接未初始化",
+		})
+		return
+	}
+
+	idStr := ctx.Param("id")
+	id, err := strconv.Atoi(idStr)
+	if err != nil {
+		ctx.JSON(http.StatusBadRequest, models.APIResponse{
+			Code:    http.StatusBadRequest,
+			Message: "无效的告警规则ID",
+			Error:   err.Error(),
+		})
+		return
+	}
+
+	// 检查规则是否存在
+	var existingRule TemperatureAlarmRule
+	if err := db.First(&existingRule, id).Error; err != nil {
+		ctx.JSON(http.StatusNotFound, models.APIResponse{
+			Code:    http.StatusNotFound,
+			Message: "告警规则不存在",
+		})
+		return
+	}
+
+	// 删除规则
+	if err := db.Delete(&existingRule).Error; err != nil {
+		ctx.JSON(http.StatusInternalServerError, models.APIResponse{
+			Code:    http.StatusInternalServerError,
+			Message: fmt.Sprintf("删除告警规则失败: %v", err),
+		})
+		return
+	}
+
+	ctx.JSON(http.StatusOK, models.APIResponse{
+		Code:    http.StatusOK,
+		Message: fmt.Sprintf("告警规则 %d 删除成功", id),
+		Data:    gin.H{"deleted_id": id},
+	})
+}

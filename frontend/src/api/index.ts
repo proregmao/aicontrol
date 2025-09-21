@@ -10,8 +10,10 @@ export interface ApiResponse<T = any> {
 
 // 获取API基础URL
 const getApiBaseUrl = () => {
-  // 使用正确的8080端口，与后端服务一致
-  return 'http://localhost:8080/api/v1'
+  // 生产环境使用当前域名和2999端口
+  const host = window.location.hostname
+  const port = import.meta.env.VITE_API_PORT || '2999'
+  return `http://${host}:${port}/api/v1`
 }
 
 // 创建axios实例

@@ -298,7 +298,10 @@ export function useWebSocket(options: WebSocketOptions) {
 
 // 创建全局WebSocket实例
 export function createGlobalWebSocket() {
-  const wsUrl = import.meta.env.VITE_WS_URL || 'ws://localhost:8080/ws'
+  // 生产环境使用当前域名和2999端口
+  const host = window.location.hostname
+  const port = import.meta.env.VITE_WS_PORT || '2999'
+  const wsUrl = import.meta.env.VITE_WS_URL || `ws://${host}:${port}/ws`
   
   return useWebSocket({
     url: wsUrl,

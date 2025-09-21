@@ -295,7 +295,7 @@ const handleStrategyAction = ({ action, strategy }) => {
 const editStrategy = async (strategy) => {
   try {
     // 获取策略详细信息
-    const response = await fetch(`http://localhost:8080/api/v1/ai-control/strategies/${strategy.id}`, {
+    const response = await fetch(`http://${window.location.hostname}:2999/api/v1/ai-control/strategies/${strategy.id}`, {
       method: 'GET',
       headers: {
         'Authorization': `Bearer ${localStorage.getItem('token')}`,
@@ -327,7 +327,7 @@ const testStrategy = async (strategy) => {
   try {
     ElMessage.info('正在执行策略测试...')
 
-    const response = await fetch(`http://localhost:8080/api/v1/ai-control/strategies/${strategy.id}/execute`, {
+    const response = await fetch(`http://${window.location.hostname}:2999/api/v1/ai-control/strategies/${strategy.id}/execute`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -573,7 +573,7 @@ const api = {
   // 获取AI策略列表
   getStrategies: async () => {
     try {
-      const response = await fetch('http://localhost:8080/api/v1/ai-control/strategies', {
+      const response = await fetch(`http://${window.location.hostname}:2999/api/v1/ai-control/strategies`, {
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('token')}`
         }
@@ -594,7 +594,7 @@ const api = {
   // 获取控制历史记录
   getHistory: async () => {
     try {
-      const response = await fetch('http://localhost:8080/api/v1/ai-control/executions', {
+      const response = await fetch(`http://${window.location.hostname}:2999/api/v1/ai-control/executions`, {
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('token')}`
         }
@@ -616,7 +616,7 @@ const api = {
   toggleStrategy: async (id: number, status: string) => {
     try {
       const enabled = status === '启用'
-      const response = await fetch(`http://localhost:8080/api/v1/ai-control/strategies/${id}/toggle`, {
+      const response = await fetch(`http://${window.location.hostname}:2999/api/v1/ai-control/strategies/${id}/toggle`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -634,7 +634,7 @@ const api = {
   // 删除策略
   deleteStrategy: async (id: number) => {
     try {
-      const response = await fetch(`http://localhost:8080/api/v1/ai-control/strategies/${id}`, {
+      const response = await fetch(`http://${window.location.hostname}:2999/api/v1/ai-control/strategies/${id}`, {
         method: 'DELETE',
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('token')}`

@@ -279,7 +279,7 @@ const autoDetectSensor = async () => {
   try {
     // 调用后端API进行设备检测
     const token = localStorage.getItem('token')
-    const response = await fetch('http://localhost:8080/api/v1/sensors/detect', {
+    const response = await fetch(`http://${window.location.hostname}:2999/api/v1/sensors/detect`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -537,8 +537,8 @@ const saveSensor = async () => {
     // 调用API保存传感器配置
     const token = localStorage.getItem('token')
     const url = isEdit.value
-      ? `http://localhost:8080/api/v1/sensors/${currentSensorId.value}`
-      : 'http://localhost:8080/api/v1/sensors'
+      ? `http://${window.location.hostname}:2999/api/v1/sensors/${currentSensorId.value}`
+      : `http://${window.location.hostname}:2999/api/v1/sensors`
     const method = isEdit.value ? 'PUT' : 'POST'
 
     const response = await fetch(url, {
@@ -581,7 +581,7 @@ const loadChannels = async (isAutoRefresh = false) => {
     }
 
     const token = localStorage.getItem('token')
-    const response = await fetch('http://localhost:8080/api/v1/sensors/channels', {
+    const response = await fetch(`http://${window.location.hostname}:2999/api/v1/sensors/channels`, {
       headers: {
         'Authorization': `Bearer ${token}`
       }
@@ -650,7 +650,7 @@ const loadChannels = async (isAutoRefresh = false) => {
 const loadSensors = async (isAutoRefresh = false) => {
   try {
     const token = localStorage.getItem('token')
-    const response = await fetch('http://localhost:8080/api/v1/sensors', {
+    const response = await fetch(`http://${window.location.hostname}:2999/api/v1/sensors`, {
       method: 'GET',
       headers: {
         'Authorization': `Bearer ${token}`
@@ -738,7 +738,7 @@ const deleteChannel = async (channel: any) => {
       }
     )
 
-    const response = await fetch(`http://localhost:8080/api/v1/sensors/${channel.id}/channels/${channel.channel_number}`, {
+    const response = await fetch(`http://${window.location.hostname}:2999/api/v1/sensors/${channel.id}/channels/${channel.channel_number}`, {
       method: 'DELETE',
       headers: {
         'Authorization': `Bearer ${localStorage.getItem('token')}`,
@@ -784,7 +784,7 @@ const testSensor = async (sensor: any) => {
 
   try {
     const token = localStorage.getItem('token')
-    const response = await fetch(`http://localhost:8080/api/v1/sensors/${sensor.id}/test`, {
+    const response = await fetch(`http://${window.location.hostname}:2999/api/v1/sensors/${sensor.id}/test`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -845,7 +845,7 @@ const deleteSensor = async (sensor: any) => {
 
     // 执行删除操作
     const token = localStorage.getItem('token')
-    const response = await fetch(`http://localhost:8080/api/v1/sensors/${sensor.id}`, {
+    const response = await fetch(`http://${window.location.hostname}:2999/api/v1/sensors/${sensor.id}`, {
       method: 'DELETE',
       headers: {
         'Content-Type': 'application/json',

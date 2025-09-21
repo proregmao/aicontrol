@@ -318,7 +318,10 @@ export const alarmApi = {
   // 实时告警
   subscribeAlarms: async (callback: (alarm: Alarm) => void) => {
     // WebSocket 连接实现
-    const ws = new WebSocket(`${process.env.VUE_APP_WS_URL || 'ws://localhost:8080'}/api/v1/alarms/subscribe`)
+    // 生产环境使用当前域名和2999端口
+    const host = window.location.hostname
+    const port = '2999'
+    const ws = new WebSocket(`${process.env.VUE_APP_WS_URL || `ws://${host}:${port}`}/api/v1/alarms/subscribe`)
     
     ws.onmessage = (event) => {
       try {

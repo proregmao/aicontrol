@@ -27,7 +27,10 @@ export class WebSocketService {
   private listeners: Map<WebSocketEventType, Function[]> = new Map()
 
   constructor(url?: string) {
-    this.url = url || `ws://localhost:8080/ws`
+    // 生产环境使用当前域名和2999端口
+    const host = window.location.hostname
+    const port = '2999'
+    this.url = url || `ws://${host}:${port}/ws`
   }
 
   // 连接WebSocket

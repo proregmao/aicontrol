@@ -373,7 +373,10 @@ export const aiControlApi = {
 
   // 实时监控
   subscribeAIEvents: async (callback: (event: any) => void) => {
-    const ws = new WebSocket(`${process.env.VUE_APP_WS_URL || 'ws://localhost:8080'}/api/v1/ai-control/events`)
+    // 生产环境使用当前域名和2999端口
+    const host = window.location.hostname
+    const port = '2999'
+    const ws = new WebSocket(`${process.env.VUE_APP_WS_URL || `ws://${host}:${port}`}/api/v1/ai-control/events`)
     
     ws.onmessage = (event) => {
       try {

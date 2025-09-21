@@ -400,6 +400,13 @@ func setupRouter() *gin.Engine {
 		temperatureGroup.DELETE("/sensors/:id", middleware.AuthMiddleware(), middleware.RequireOperator(), temperatureController.DeleteSensor)
 		temperatureGroup.GET("/history", middleware.AuthMiddleware(), temperatureController.GetHistory)
 		temperatureGroup.GET("/realtime", middleware.AuthMiddleware(), temperatureController.GetRealtime)
+
+		// 告警规则管理路由
+		temperatureGroup.GET("/alarm-rules", middleware.AuthMiddleware(), temperatureController.GetAlarmRules)
+		temperatureGroup.POST("/alarm-rules", middleware.AuthMiddleware(), middleware.RequireOperator(), temperatureController.CreateAlarmRule)
+		temperatureGroup.PUT("/alarm-rules", middleware.AuthMiddleware(), middleware.RequireOperator(), temperatureController.UpdateAlarmRuleByPUT)
+		temperatureGroup.PUT("/alarm-rules/:id", middleware.AuthMiddleware(), middleware.RequireOperator(), temperatureController.UpdateAlarmRule)
+		temperatureGroup.DELETE("/alarm-rules/:id", middleware.AuthMiddleware(), middleware.RequireOperator(), temperatureController.DeleteAlarmRule)
 	}
 
 	// 服务器管理路由

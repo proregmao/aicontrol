@@ -1,0 +1,276 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>温度监控告警数据持久化修复完成报告</title>
+    <style>
+        body {
+            font-family: 'Microsoft YaHei', Arial, sans-serif;
+            line-height: 1.6;
+            margin: 0;
+            padding: 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 15px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+            overflow: hidden;
+        }
+        .header {
+            background: linear-gradient(135deg, #4CAF50 0%, #45a049 100%);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+        .header h1 {
+            margin: 0;
+            font-size: 2.5em;
+            font-weight: 300;
+        }
+        .header p {
+            margin: 10px 0 0 0;
+            font-size: 1.2em;
+            opacity: 0.9;
+        }
+        .content {
+            padding: 40px;
+        }
+        .section {
+            margin-bottom: 40px;
+            padding: 25px;
+            border-radius: 10px;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.08);
+        }
+        .success {
+            background: linear-gradient(135deg, #d4edda 0%, #c3e6cb 100%);
+            border-left: 5px solid #28a745;
+        }
+        .info {
+            background: linear-gradient(135deg, #d1ecf1 0%, #bee5eb 100%);
+            border-left: 5px solid #17a2b8;
+        }
+        .warning {
+            background: linear-gradient(135deg, #fff3cd 0%, #ffeaa7 100%);
+            border-left: 5px solid #ffc107;
+        }
+        h2 {
+            color: #333;
+            margin-top: 0;
+            font-size: 1.8em;
+            font-weight: 500;
+        }
+        h3 {
+            color: #555;
+            font-size: 1.4em;
+            margin-top: 25px;
+            font-weight: 500;
+        }
+        .code-block {
+            background: #f8f9fa;
+            border: 1px solid #e9ecef;
+            border-radius: 8px;
+            padding: 15px;
+            margin: 15px 0;
+            font-family: 'Consolas', 'Monaco', monospace;
+            font-size: 0.9em;
+            overflow-x: auto;
+        }
+        .highlight {
+            background: #fff3cd;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-weight: bold;
+        }
+        .status-badge {
+            display: inline-block;
+            padding: 5px 12px;
+            border-radius: 20px;
+            font-size: 0.9em;
+            font-weight: bold;
+            margin: 5px;
+        }
+        .success-badge {
+            background: #28a745;
+            color: white;
+        }
+        .info-badge {
+            background: #17a2b8;
+            color: white;
+        }
+        ul {
+            padding-left: 20px;
+        }
+        li {
+            margin-bottom: 8px;
+        }
+        .test-result {
+            background: #f8f9fa;
+            border-radius: 8px;
+            padding: 15px;
+            margin: 10px 0;
+            border-left: 4px solid #28a745;
+        }
+        .footer {
+            background: #f8f9fa;
+            padding: 20px;
+            text-align: center;
+            color: #666;
+            border-top: 1px solid #e9ecef;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🎉 温度监控告警数据持久化修复完成</h1>
+            <p>智能设备管理系统 - 数据保存功能全面修复</p>
+        </div>
+
+        <div class="content">
+            <div class="section success">
+                <h2>✅ 修复完成总结</h2>
+                <p>您反映的<span class="highlight">"编辑的内容不能保存"</span>问题已经完全解决！现在温度监控页面的告警规则可以正常保存到数据库，并且与实时监控的警告范围完全关联。</p>
+                
+                <div class="status-badge success-badge">数据持久化 ✓</div>
+                <div class="status-badge success-badge">实时关联 ✓</div>
+                <div class="status-badge success-badge">CRUD操作 ✓</div>
+                <div class="status-badge success-badge">数据验证 ✓</div>
+            </div>
+
+            <div class="section info">
+                <h2>🔧 核心问题分析与修复</h2>
+                
+                <h3>1. 问题根本原因</h3>
+                <ul>
+                    <li><strong>数据库表结构冲突</strong>：原有的 <code>alarm_rules</code> 表结构与温度告警规则不匹配</li>
+                    <li><strong>模拟数据返回</strong>：API方法只返回模拟数据，没有实际保存到数据库</li>
+                    <li><strong>前端显示硬编码</strong>：实时监控的警告范围是硬编码的，没有与告警规则关联</li>
+                </ul>
+
+                <h3>2. 完整修复方案</h3>
+                <ul>
+                    <li><strong>创建专用数据表</strong>：新建 <code>temperature_alarm_rules</code> 表，专门存储温度告警规则</li>
+                    <li><strong>实现真实CRUD</strong>：所有API方法都连接数据库，实现真实的增删改查操作</li>
+                    <li><strong>动态数据关联</strong>：前端实时监控卡片从告警规则动态获取警告范围</li>
+                    <li><strong>数据同步更新</strong>：修改告警规则后，实时监控显示立即更新</li>
+                </ul>
+            </div>
+
+            <div class="section success">
+                <h2>🗄️ 数据库结构设计</h2>
+                
+                <h3>新建表：temperature_alarm_rules</h3>
+                <div class="code-block">
+CREATE TABLE temperature_alarm_rules (
+    id SERIAL PRIMARY KEY,
+    probe VARCHAR(50) NOT NULL,           -- 探头名称
+    location VARCHAR(100) NOT NULL,       -- 位置描述
+    normal_range VARCHAR(50) NOT NULL,    -- 正常范围
+    warning_threshold VARCHAR(50) NOT NULL, -- 警告阈值
+    danger_threshold VARCHAR(50) NOT NULL,  -- 危险阈值
+    status VARCHAR(20) DEFAULT '正常',     -- 当前状态
+    enabled BOOLEAN DEFAULT true,         -- 是否启用
+    created_at TIMESTAMP DEFAULT NOW(),   -- 创建时间
+    updated_at TIMESTAMP DEFAULT NOW()    -- 更新时间
+);
+                </div>
+
+                <h3>默认数据初始化</h3>
+                <ul>
+                    <li>探头1 (室温监测): 正常范围 18-25°C</li>
+                    <li>探头2 (进风口): 正常范围 18-25°C</li>
+                    <li>探头3 (出风口): 正常范围 30-45°C</li>
+                    <li>探头4 (网络设备): 正常范围 22-40°C</li>
+                </ul>
+            </div>
+
+            <div class="section info">
+                <h2>🔄 API功能验证</h2>
+                
+                <div class="test-result">
+                    <h3>✅ 获取告警规则列表</h3>
+                    <div class="code-block">GET /api/v1/temperature/alarm-rules
+状态: 200 OK
+返回: 4条默认告警规则数据</div>
+                </div>
+
+                <div class="test-result">
+                    <h3>✅ 创建新告警规则</h3>
+                    <div class="code-block">POST /api/v1/temperature/alarm-rules
+测试数据: 探头5, 测试位置, 20-30°C
+状态: 201 Created
+结果: 成功创建ID=5的新规则</div>
+                </div>
+
+                <div class="test-result">
+                    <h3>✅ 更新告警规则</h3>
+                    <div class="code-block">PUT /api/v1/temperature/alarm-rules/5
+更新数据: 位置改为"更新的测试位置", 范围改为15-35°C
+状态: 200 OK
+结果: 数据成功更新并保存</div>
+                </div>
+
+                <div class="test-result">
+                    <h3>✅ 删除告警规则</h3>
+                    <div class="code-block">DELETE /api/v1/temperature/alarm-rules/5
+状态: 200 OK
+结果: 规则成功删除</div>
+                </div>
+            </div>
+
+            <div class="section warning">
+                <h2>🔗 实时监控关联功能</h2>
+                
+                <h3>动态警告范围显示</h3>
+                <p>现在实时监控页面的警告范围不再是硬编码，而是从告警规则动态获取：</p>
+                
+                <ul>
+                    <li><strong>探头1 (室温)</strong>：显示范围来自告警规则的 normalRange 字段</li>
+                    <li><strong>探头2 (进风口)</strong>：显示范围来自告警规则的 normalRange 字段</li>
+                    <li><strong>探头3 (出风口)</strong>：显示范围来自告警规则的 normalRange 字段</li>
+                    <li><strong>探头4 (网络设备)</strong>：显示范围来自告警规则的 normalRange 字段</li>
+                </ul>
+
+                <h3>实时更新机制</h3>
+                <p>当您修改告警规则后，页面刷新时会自动：</p>
+                <ul>
+                    <li>重新加载告警规则数据</li>
+                    <li>更新探头显示信息</li>
+                    <li>同步警告范围显示</li>
+                    <li>更新探头名称和位置描述</li>
+                </ul>
+            </div>
+
+            <div class="section success">
+                <h2>🌐 系统访问信息</h2>
+                
+                <div class="code-block">
+<strong>温度监控页面：</strong> http://192.168.110.21:3000/temperature/monitor
+<strong>登录信息：</strong> 用户名 admin，密码 admin123
+<strong>后端API：</strong> http://192.168.110.21:2999/api/v1/temperature/alarm-rules
+                </div>
+
+                <h3>🎯 现在可用的完整功能</h3>
+                <ul>
+                    <li>✅ <strong>查看告警规则</strong>：显示所有配置的告警规则，数据来自数据库</li>
+                    <li>✅ <strong>设置新告警</strong>：点击"设置告警"创建新规则，保存到数据库</li>
+                    <li>✅ <strong>编辑告警规则</strong>：点击"编辑"修改规则，更新保存到数据库</li>
+                    <li>✅ <strong>删除告警规则</strong>：点击"删除"移除规则，从数据库删除</li>
+                    <li>✅ <strong>实时监控关联</strong>：监控卡片的警告范围与告警规则同步</li>
+                    <li>✅ <strong>数据持久化</strong>：所有修改都永久保存，重启服务后数据不丢失</li>
+                </ul>
+            </div>
+        </div>
+
+        <div class="footer">
+            <p>🎉 <strong>修复完成！</strong> 温度监控告警功能现在完全可用，数据保存和实时关联功能都已正常工作！</p>
+            <p>修复时间: 2025年9月22日 | 智能设备管理系统</p>
+        </div>
+    </div>
+</body>
+</html>

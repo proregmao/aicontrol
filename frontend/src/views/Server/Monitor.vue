@@ -281,7 +281,7 @@ const loadServers = async (isAutoRefresh = false) => {
       loading.value = true
     }
 
-    const response = await fetch('http://localhost:8080/api/v1/servers', {
+    const response = await fetch(`http://${window.location.hostname}:2999/api/v1/servers`, {
       method: 'GET',
       headers: {
         'Authorization': `Bearer ${localStorage.getItem('token')}`,
@@ -440,7 +440,7 @@ const detectAndSaveHardware = async () => {
 
     console.log('开始检测硬件信息:', detectRequest)
 
-    const response = await fetch('http://localhost:8080/api/v1/servers/detect-hardware', {
+    const response = await fetch(`http://${window.location.hostname}:2999/api/v1/servers/detect-hardware`, {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${localStorage.getItem('token')}`,
@@ -490,7 +490,7 @@ const testServerConnection = async () => {
   try {
     ElMessage.info('正在测试连接...')
 
-    const response = await fetch(`http://localhost:8080/api/v1/servers/${selectedServer.value.id}/test`, {
+    const response = await fetch(`http://${window.location.hostname}:2999/api/v1/servers/${selectedServer.value.id}/test`, {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${localStorage.getItem('token')}`,
@@ -524,7 +524,7 @@ const loadHardwareInfo = async () => {
     console.log('开始获取硬件信息，服务器ID:', selectedServer.value.id)
 
     // 调用后端API获取真实硬件信息
-    const response = await fetch(`http://localhost:8080/api/v1/servers/${selectedServer.value.id}/hardware`, {
+    const response = await fetch(`http://${window.location.hostname}:2999/api/v1/servers/${selectedServer.value.id}/hardware`, {
       method: 'GET',
       headers: {
         'Authorization': `Bearer ${localStorage.getItem('token')}`,

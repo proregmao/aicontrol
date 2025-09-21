@@ -242,7 +242,7 @@ const loadServers = async (isAutoRefresh = false) => {
       loading.value = true
     }
 
-    const response = await fetch('http://localhost:8080/api/v1/servers', {
+    const response = await fetch(`http://${window.location.hostname}:2999/api/v1/servers`, {
       method: 'GET',
       headers: {
         'Authorization': `Bearer ${localStorage.getItem('token')}`,
@@ -426,7 +426,7 @@ const detectHardware = async () => {
 
     console.log('开始检测硬件信息:', detectRequest)
 
-    const response = await fetch('http://localhost:8080/api/v1/servers/detect-hardware', {
+    const response = await fetch(`http://${window.location.hostname}:2999/api/v1/servers/detect-hardware`, {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${localStorage.getItem('token')}`,
@@ -587,7 +587,7 @@ const batchDeleteServers = async () => {
 
     // 批量删除API调用
     const deletePromises = selectedServers.value.map((server: any) =>
-      fetch(`http://localhost:8080/api/v1/servers/${server.id}`, {
+      fetch(`http://${window.location.hostname}:2999/api/v1/servers/${server.id}`, {
         method: 'DELETE',
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('token')}`,
@@ -624,7 +624,7 @@ const deleteServer = async (server: any) => {
     )
 
     // 调用后端API删除服务器
-    const response = await fetch(`http://localhost:8080/api/v1/servers/${server.id}`, {
+    const response = await fetch(`http://${window.location.hostname}:2999/api/v1/servers/${server.id}`, {
       method: 'DELETE',
       headers: {
         'Authorization': `Bearer ${localStorage.getItem('token')}`,
@@ -677,7 +677,7 @@ const loadBreakers = async (isAutoRefresh = false) => {
   }
 
   try {
-    const response = await fetch('http://localhost:8080/api/v1/breakers', {
+    const response = await fetch(`http://${window.location.hostname}:2999/api/v1/breakers`, {
       method: 'GET',
       headers: {
         'Authorization': `Bearer ${localStorage.getItem('token')}`,

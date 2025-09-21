@@ -706,7 +706,7 @@ const refreshLoading = ref(false)
 const loadAlarmRulesFromAPI = async () => {
   try {
     console.log('🔄 开始从后端API加载告警规则...')
-    const response = await fetch('http://localhost:8080/api/v1/alarms/rules', {
+    const response = await fetch(`http://${window.location.hostname}:2999/api/v1/alarms/rules`, {
       method: 'GET',
       headers: {
         'Content-Type': 'application/json',
@@ -1333,7 +1333,7 @@ const testNotificationChannel = async (rule: any): Promise<any> => {
       }
 
       // 发送钉钉消息
-      const response = await fetch('http://localhost:8080/api/v1/alarms/dingtalk/send', {
+      const response = await fetch(`http://${window.location.hostname}:2999/api/v1/alarms/dingtalk/send`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -1479,7 +1479,7 @@ const deleteAlarmRule = async (rule: any) => {
     console.log('用户确认删除，开始执行删除操作')
 
     // 调用后端API删除规则
-    const response = await fetch(`http://localhost:8080/api/v1/alarms/rules/${rule.id}`, {
+    const response = await fetch(`http://${window.location.hostname}:2999/api/v1/alarms/rules/${rule.id}`, {
       method: 'DELETE',
       headers: {
         'Content-Type': 'application/json',
@@ -1582,7 +1582,7 @@ const saveNewRule = async () => {
       console.log('🔧 准备发送到后端的数据:', apiData)
 
       // 调用后端API创建规则
-      const response = await fetch('http://localhost:8080/api/v1/alarms/rules', {
+      const response = await fetch(`http://${window.location.hostname}:2999/api/v1/alarms/rules`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -1700,7 +1700,7 @@ const saveEditRule = async () => {
     console.log('🔧 保存告警规则数据:', updateData)
 
     // 调用后端API更新规则
-    const response = await fetch(`http://localhost:8080/api/v1/alarms/rules/${currentRule.value.id}`, {
+    const response = await fetch(`http://${window.location.hostname}:2999/api/v1/alarms/rules/${currentRule.value.id}`, {
       method: 'PUT',
       headers: {
         'Content-Type': 'application/json',
@@ -1736,13 +1736,13 @@ const loadHardwareData = async () => {
   hardwareLoading.value = true
   try {
     const [serversData, breakersData, sensorsData] = await Promise.all([
-      fetch('http://localhost:8080/api/v1/servers', {
+      fetch(`http://${window.location.hostname}:2999/api/v1/servers`, {
         headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
       }).then(res => res.json()),
-      fetch('http://localhost:8080/api/v1/breakers', {
+      fetch(`http://${window.location.hostname}:2999/api/v1/breakers`, {
         headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
       }).then(res => res.json()),
-      fetch('http://localhost:8080/api/v1/sensors', {
+      fetch(`http://${window.location.hostname}:2999/api/v1/sensors`, {
         headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
       }).then(res => res.json())
     ])
@@ -1828,7 +1828,7 @@ const loadHardwareData = async () => {
 const loadAlarmHistory = async (page = 1, limit = 20) => {
   historyLoading.value = true
   try {
-    const response = await fetch(`http://localhost:8080/api/v1/alarms/history?page=${page}&limit=${limit}`, {
+    const response = await fetch(`http://${window.location.hostname}:2999/api/v1/alarms/history?page=${page}&limit=${limit}`, {
       headers: {
         'Authorization': `Bearer ${localStorage.getItem('token')}`
       }
@@ -1865,19 +1865,19 @@ const loadAlarmStats = async () => {
     // 并行获取多个统计数据
     const [statsResponse, rulesResponse, historyResponse] = await Promise.all([
       // 获取告警统计
-      fetch('http://localhost:8080/api/v1/alarms/statistics', {
+      fetch(`http://${window.location.hostname}:2999/api/v1/alarms/statistics`, {
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('token')}`
         }
       }),
       // 获取告警规则数量
-      fetch('http://localhost:8080/api/v1/alarms/rules', {
+      fetch(`http://${window.location.hostname}:2999/api/v1/alarms/rules`, {
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('token')}`
         }
       }),
       // 获取本月告警历史统计
-      fetch(`http://localhost:8080/api/v1/alarms/history?limit=100`, {
+      fetch(`http://${window.location.hostname}:2999/api/v1/alarms/history?limit=100`, {
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('token')}`
         }
