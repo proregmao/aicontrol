@@ -1,0 +1,409 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>智能告警模块统计数据修复报告</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            line-height: 1.6;
+            margin: 0;
+            padding: 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 15px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+            overflow: hidden;
+        }
+        .header {
+            background: linear-gradient(135deg, #4CAF50 0%, #45a049 100%);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+        .header h1 {
+            margin: 0;
+            font-size: 2.5em;
+            font-weight: 300;
+        }
+        .header p {
+            margin: 10px 0 0 0;
+            font-size: 1.2em;
+            opacity: 0.9;
+        }
+        .content {
+            padding: 40px;
+        }
+        .section {
+            margin-bottom: 40px;
+            padding: 25px;
+            border-radius: 10px;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.08);
+        }
+        .success {
+            background: linear-gradient(135deg, #d4edda 0%, #c3e6cb 100%);
+            border-left: 5px solid #28a745;
+        }
+        .problem {
+            background: linear-gradient(135deg, #f8d7da 0%, #f5c6cb 100%);
+            border-left: 5px solid #dc3545;
+        }
+        .solution {
+            background: linear-gradient(135deg, #d1ecf1 0%, #bee5eb 100%);
+            border-left: 5px solid #17a2b8;
+        }
+        .technical {
+            background: linear-gradient(135deg, #e2e3e5 0%, #d6d8db 100%);
+            border-left: 5px solid #6c757d;
+        }
+        h2 {
+            color: #333;
+            margin-top: 0;
+            font-size: 1.8em;
+            display: flex;
+            align-items: center;
+        }
+        h3 {
+            color: #555;
+            font-size: 1.3em;
+            margin-top: 25px;
+        }
+        .icon {
+            font-size: 1.5em;
+            margin-right: 10px;
+        }
+        .code-block {
+            background: #f8f9fa;
+            border: 1px solid #e9ecef;
+            border-radius: 5px;
+            padding: 15px;
+            margin: 15px 0;
+            font-family: 'Courier New', monospace;
+            font-size: 0.9em;
+            overflow-x: auto;
+        }
+        .highlight {
+            background: #fff3cd;
+            padding: 2px 5px;
+            border-radius: 3px;
+            font-weight: bold;
+        }
+        .comparison-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 20px 0;
+        }
+        .comparison-table th,
+        .comparison-table td {
+            border: 1px solid #ddd;
+            padding: 12px;
+            text-align: left;
+        }
+        .comparison-table th {
+            background: #f8f9fa;
+            font-weight: bold;
+        }
+        .status-ok {
+            color: #28a745;
+            font-weight: bold;
+        }
+        .status-error {
+            color: #dc3545;
+            font-weight: bold;
+        }
+        .before-after {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+            margin: 20px 0;
+        }
+        .before, .after {
+            padding: 15px;
+            border-radius: 8px;
+        }
+        .before {
+            background: #f8d7da;
+            border-left: 4px solid #dc3545;
+        }
+        .after {
+            background: #d4edda;
+            border-left: 4px solid #28a745;
+        }
+        .stats-demo {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 15px;
+            margin: 20px 0;
+        }
+        .stat-card {
+            background: white;
+            border: 1px solid #e8e8e8;
+            border-radius: 8px;
+            padding: 15px;
+            text-align: center;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+        .stat-card.success {
+            border-left: 4px solid #52c41a;
+        }
+        .stat-card.info {
+            border-left: 4px solid #1890ff;
+        }
+        .stat-card.warning {
+            border-left: 4px solid #faad14;
+        }
+        .stat-icon {
+            font-size: 24px;
+            margin-bottom: 8px;
+        }
+        .stat-title {
+            font-size: 12px;
+            color: #8c8c8c;
+            margin-bottom: 5px;
+        }
+        .stat-value {
+            font-size: 20px;
+            font-weight: bold;
+            margin-bottom: 5px;
+        }
+        .stat-subtitle {
+            font-size: 11px;
+            color: #999;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🎉 智能告警模块统计数据修复报告</h1>
+            <p>成功将硬编码模拟数据替换为动态真实数据</p>
+            <p>修复时间: 2025年9月21日 21:50</p>
+        </div>
+
+        <div class="content">
+            <!-- 问题概述 -->
+            <div class="section problem">
+                <h2><span class="icon">❌</span>问题概述</h2>
+                <p>智能告警模块的统计卡片显示的是硬编码的模拟数据，需要修复为真实的动态数据：</p>
+                <ol>
+                    <li><strong>活跃告警</strong> - 硬编码为 "0"，无法反映实际告警状态</li>
+                    <li><strong>告警规则</strong> - 硬编码为 "12条"，与实际规则数量不符</li>
+                    <li><strong>通知方式</strong> - 硬编码为 "已配置"，无法反映实际配置状态</li>
+                    <li><strong>历史统计</strong> - 硬编码为 "本月3次"，与实际统计数据不符</li>
+                </ol>
+            </div>
+
+            <!-- 修复前后对比 -->
+            <div class="section technical">
+                <h2><span class="icon">📊</span>修复前后对比</h2>
+                
+                <h3>修复前 - 硬编码模拟数据</h3>
+                <div class="stats-demo">
+                    <div class="stat-card success">
+                        <div class="stat-icon">🔔</div>
+                        <div class="stat-title">活跃告警</div>
+                        <div class="stat-value" style="color: #52c41a;">0</div>
+                        <div class="stat-subtitle">当前无告警 | 系统正常</div>
+                    </div>
+                    <div class="stat-card info">
+                        <div class="stat-icon">📋</div>
+                        <div class="stat-title">告警规则</div>
+                        <div class="stat-value" style="color: #1890ff;">12条</div>
+                        <div class="stat-subtitle">温度/电气/设备异常规则</div>
+                    </div>
+                    <div class="stat-card success">
+                        <div class="stat-icon">📧</div>
+                        <div class="stat-title">通知方式</div>
+                        <div class="stat-value" style="color: #52c41a;">已配置</div>
+                        <div class="stat-subtitle">界面提示 + 邮件通知</div>
+                    </div>
+                    <div class="stat-card info">
+                        <div class="stat-icon">📊</div>
+                        <div class="stat-title">历史统计</div>
+                        <div class="stat-value" style="color: #1890ff;">本月3次</div>
+                        <div class="stat-subtitle">处理率100% | 平均5分钟</div>
+                    </div>
+                </div>
+
+                <h3>修复后 - 动态真实数据</h3>
+                <div class="stats-demo">
+                    <div class="stat-card warning">
+                        <div class="stat-icon">🔔</div>
+                        <div class="stat-title">活跃告警</div>
+                        <div class="stat-value" style="color: #faad14;">12</div>
+                        <div class="stat-subtitle">12个活跃告警</div>
+                    </div>
+                    <div class="stat-card info">
+                        <div class="stat-icon">📋</div>
+                        <div class="stat-title">告警规则</div>
+                        <div class="stat-value" style="color: #1890ff;">3条</div>
+                        <div class="stat-subtitle">温度/电气/设备异常规则</div>
+                    </div>
+                    <div class="stat-card success">
+                        <div class="stat-icon">📧</div>
+                        <div class="stat-title">通知方式</div>
+                        <div class="stat-value" style="color: #52c41a;">已配置</div>
+                        <div class="stat-subtitle">钉钉</div>
+                    </div>
+                    <div class="stat-card info">
+                        <div class="stat-icon">📊</div>
+                        <div class="stat-title">历史统计</div>
+                        <div class="stat-value" style="color: #1890ff;">本月5次</div>
+                        <div class="stat-subtitle">处理率100% | 平均5分钟</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 修复方案 -->
+            <div class="section solution">
+                <h2><span class="icon">🔧</span>修复方案</h2>
+                
+                <h3>1. 响应式数据结构设计</h3>
+                <div class="code-block">
+// 告警统计数据
+const alarmStats = ref({
+  activeAlarms: 0,           // 活跃告警数量
+  totalRules: 0,             // 告警规则总数
+  notificationStatus: '未配置', // 通知方式状态
+  notificationMethods: [],   // 通知方式列表
+  monthlyStats: {
+    count: 0,                // 本月告警次数
+    processRate: 0,          // 处理率
+    avgProcessTime: 0        // 平均处理时间（分钟）
+  }
+})
+                </div>
+
+                <h3>2. 多API数据聚合</h3>
+                <div class="code-block">
+const loadAlarmStats = async () => {
+  // 并行获取多个统计数据
+  const [statsResponse, rulesResponse, historyResponse] = await Promise.all([
+    fetch('/api/v1/alarms/statistics'),    // 告警统计
+    fetch('/api/v1/alarms/rules'),         // 告警规则
+    fetch('/api/v1/alarms/history')        // 告警历史
+  ])
+  
+  // 处理活跃告警数量
+  alarmStats.value.activeAlarms = statsData.data.active_alarms || 0
+  
+  // 处理告警规则数量
+  alarmStats.value.totalRules = rulesData.data?.length || 0
+  
+  // 计算本月统计和处理率
+  // ...
+}
+                </div>
+
+                <h3>3. 动态状态显示</h3>
+                <div class="code-block">
+&lt;!-- 活跃告警卡片 - 根据数量动态变色 --&gt;
+&lt;el-card class="status-card" :class="alarmStats.activeAlarms > 0 ? 'warning' : 'success'"&gt;
+  &lt;div class="status-value" :style="{ color: alarmStats.activeAlarms > 0 ? '#faad14' : '#52c41a' }"&gt;
+    {{ alarmStats.activeAlarms }}
+  &lt;/div&gt;
+  &lt;div class="status-subtitle"&gt;
+    {{ alarmStats.activeAlarms > 0 ? `${alarmStats.activeAlarms}个活跃告警` : '当前无告警 | 系统正常' }}
+  &lt;/div&gt;
+&lt;/el-card&gt;
+                </div>
+
+                <h3>4. 智能数据计算</h3>
+                <div class="code-block">
+// 计算本月统计
+const currentMonth = new Date().getMonth()
+const monthlyAlarms = historyList.filter(alarm => {
+  const alarmDate = new Date(alarm.time)
+  return alarmDate.getMonth() === currentMonth
+})
+
+// 计算处理率
+const processedAlarms = monthlyAlarms.filter(alarm => alarm.status === '已处理')
+const processRate = monthlyAlarms.length > 0 ? 
+  Math.round((processedAlarms.length / monthlyAlarms.length) * 100) : 100
+
+// 计算平均处理时间
+const avgProcessTime = calculateAverageProcessTime(processedAlarms)
+                </div>
+            </div>
+
+            <!-- 修复结果 -->
+            <div class="section success">
+                <h2><span class="icon">✅</span>修复结果</h2>
+                
+                <table class="comparison-table">
+                    <thead>
+                        <tr>
+                            <th>统计项</th>
+                            <th>修复前</th>
+                            <th>修复后</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td><strong>活跃告警</strong></td>
+                            <td class="status-error">硬编码 "0"</td>
+                            <td class="status-ok">API实时数据，支持动态变色</td>
+                        </tr>
+                        <tr>
+                            <td><strong>告警规则</strong></td>
+                            <td class="status-error">硬编码 "12条"</td>
+                            <td class="status-ok">实际规则数量统计</td>
+                        </tr>
+                        <tr>
+                            <td><strong>通知方式</strong></td>
+                            <td class="status-error">硬编码 "已配置"</td>
+                            <td class="status-ok">基于规则配置的动态状态</td>
+                        </tr>
+                        <tr>
+                            <td><strong>历史统计</strong></td>
+                            <td class="status-error">硬编码 "本月3次"</td>
+                            <td class="status-ok">实际历史数据计算</td>
+                        </tr>
+                        <tr>
+                            <td><strong>状态指示</strong></td>
+                            <td class="status-error">静态颜色</td>
+                            <td class="status-ok">根据数据动态变色</td>
+                        </tr>
+                        <tr>
+                            <td><strong>加载状态</strong></td>
+                            <td class="status-error">无加载提示</td>
+                            <td class="status-ok">显示加载状态</td>
+                        </tr>
+                    </tbody>
+                </table>
+
+                <h3>验证要点</h3>
+                <ul>
+                    <li>✅ <strong>数据准确性</strong>: 所有统计数据来自真实API</li>
+                    <li>✅ <strong>实时更新</strong>: 页面刷新时自动获取最新数据</li>
+                    <li>✅ <strong>智能状态</strong>: 根据数据自动调整颜色和文案</li>
+                    <li>✅ <strong>多源聚合</strong>: 整合多个API的数据进行统计</li>
+                    <li>✅ <strong>用户体验</strong>: 加载状态提示和错误处理</li>
+                </ul>
+            </div>
+
+            <!-- 总结 -->
+            <div class="section success">
+                <h2><span class="icon">🎯</span>总结</h2>
+                <p><strong>智能告警模块统计数据问题已完全修复！</strong></p>
+                
+                <div class="highlight">
+                    <p>✅ <strong>真实数据展示</strong> - 所有统计卡片显示真实的系统数据</p>
+                    <p>✅ <strong>智能状态指示</strong> - 根据数据自动调整颜色和状态</p>
+                    <p>✅ <strong>多维度统计</strong> - 整合告警、规则、历史等多个维度</p>
+                    <p>✅ <strong>实时数据更新</strong> - 支持动态加载最新统计信息</p>
+                </div>
+                
+                <p><strong>用户现在可以看到准确的告警统计信息，包括实时的活跃告警数量、规则配置状态和历史处理统计！</strong></p>
+            </div>
+        </div>
+    </div>
+</body>
+</html>

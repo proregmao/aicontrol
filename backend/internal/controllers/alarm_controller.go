@@ -1173,3 +1173,109 @@ func (c *AlarmController) SendDingTalkMessage(ctx *gin.Context) {
 		},
 	})
 }
+
+// GetAlarmHistory 获取告警历史
+// @Summary 获取告警历史
+// @Description 获取告警历史记录列表
+// @Tags alarms
+// @Accept json
+// @Produce json
+// @Param page query int false "页码" default(1)
+// @Param limit query int false "每页数量" default(20)
+// @Param level query string false "告警等级" Enums(严重,警告,信息)
+// @Param type query string false "告警类型"
+// @Param status query string false "处理状态" Enums(active,已处理,acknowledged)
+// @Param start_time query string false "开始时间"
+// @Param end_time query string false "结束时间"
+// @Success 200 {object} models.APIResponse{data=gin.H}
+// @Failure 400 {object} models.APIResponse
+// @Failure 500 {object} models.APIResponse
+// @Router /api/v1/alarms/history [get]
+func (c *AlarmController) GetAlarmHistory(ctx *gin.Context) {
+	pageStr := ctx.DefaultQuery("page", "1")
+	limitStr := ctx.DefaultQuery("limit", "20")
+	level := ctx.Query("level")
+	alarmType := ctx.Query("type")
+	status := ctx.Query("status")
+	startTime := ctx.Query("start_time")
+	endTime := ctx.Query("end_time")
+
+	page, _ := strconv.Atoi(pageStr)
+	limit, _ := strconv.Atoi(limitStr)
+	offset := (page - 1) * limit
+
+	// 构建查询
+	query := c.db.Model(&models.AlarmLog{})
+
+	// 添加过滤条件
+	if level != "" {
+		query = query.Where("level = ?", level)
+	}
+	if alarmType != "" {
+		query = query.Where("type = ?", alarmType)
+	}
+	if status != "" {
+		query = query.Where("status = ?", status)
+	}
+	if startTime != "" {
+		query = query.Where("created_at >= ?", startTime)
+	}
+	if endTime != "" {
+		query = query.Where("created_at <= ?", endTime)
+	}
+
+	// 获取总数
+	var total int64
+	query.Count(&total)
+
+	// 获取数据
+	var alarmLogs []models.AlarmLog
+	if err := query.Order("created_at DESC").Offset(offset).Limit(limit).Find(&alarmLogs).Error; err != nil {
+		ctx.JSON(http.StatusInternalServerError, models.APIResponse{
+			Code:    http.StatusInternalServerError,
+			Message: "获取告警历史失败",
+			Data:    nil,
+		})
+		return
+	}
+
+	// 转换数据格式，计算处理时间
+	var historyData []gin.H
+	for _, log := range alarmLogs {
+		// 计算处理时间
+		var processTime string
+		if log.Status == "已处理" && !log.UpdatedAt.IsZero() && !log.CreatedAt.IsZero() {
+			duration := log.UpdatedAt.Sub(log.CreatedAt)
+			if duration.Minutes() < 1 {
+				processTime = fmt.Sprintf("%.0f秒", duration.Seconds())
+			} else {
+				processTime = fmt.Sprintf("%.0f分钟", duration.Minutes())
+			}
+		} else {
+			processTime = "-"
+		}
+
+		historyData = append(historyData, gin.H{
+			"id":          log.ID,
+			"time":        log.CreatedAt.Format("2006-01-02 15:04:05"),
+			"type":        log.Type,
+			"content":     log.Message,
+			"level":       log.Level,
+			"status":      log.Status,
+			"processTime": processTime,
+			"source":      log.Source,
+			"count":       log.Count,
+		})
+	}
+
+	ctx.JSON(http.StatusOK, models.APIResponse{
+		Code:    http.StatusOK,
+		Message: "获取告警历史成功",
+		Data: gin.H{
+			"list":  historyData,
+			"total": total,
+			"page":  page,
+			"limit": limit,
+		},
+	})
+}

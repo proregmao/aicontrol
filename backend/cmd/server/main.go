@@ -467,6 +467,7 @@ func setupRouter() *gin.Engine {
 		alarmGroup.PUT("/rules/:id", middleware.AuthMiddleware(), middleware.RequireOperator(), alarmController.UpdateAlarmRule)
 		alarmGroup.DELETE("/rules/:id", middleware.AuthMiddleware(), middleware.RequireOperator(), alarmController.DeleteAlarmRule)
 		alarmGroup.GET("/statistics", middleware.AuthMiddleware(), alarmController.GetAlarmStatistics)
+		alarmGroup.GET("/history", middleware.AuthMiddleware(), alarmController.GetAlarmHistory)
 		alarmGroup.POST("/:id/acknowledge", middleware.AuthMiddleware(), middleware.RequireOperator(), alarmController.AcknowledgeAlarm)
 		alarmGroup.POST("/:id/resolve", middleware.AuthMiddleware(), middleware.RequireOperator(), alarmController.ResolveAlarm)
 

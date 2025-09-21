@@ -7,18 +7,22 @@
     </div>
 
     <!-- 统计卡片区域 -->
-    <div class="stats-section">
+    <div class="stats-section" v-loading="statsLoading" element-loading-text="加载统计数据...">
       <el-row :gutter="20">
         <el-col :span="6">
-          <el-card class="status-card success">
+          <el-card class="status-card" :class="alarmStats.activeAlarms > 0 ? 'warning' : 'success'">
             <div class="status-item">
               <div class="status-icon">
-                <span style="color: #52c41a">🔔</span>
+                <span :style="{ color: alarmStats.activeAlarms > 0 ? '#faad14' : '#52c41a' }">🔔</span>
               </div>
               <div class="status-info">
                 <h3>活跃告警</h3>
-                <div class="status-value" style="color: #52c41a">0</div>
-                <div class="status-subtitle">当前无告警 | 系统正常</div>
+                <div class="status-value" :style="{ color: alarmStats.activeAlarms > 0 ? '#faad14' : '#52c41a' }">
+                  {{ alarmStats.activeAlarms }}
+                </div>
+                <div class="status-subtitle">
+                  {{ alarmStats.activeAlarms > 0 ? `${alarmStats.activeAlarms}个活跃告警` : '当前无告警 | 系统正常' }}
+                </div>
               </div>
             </div>
           </el-card>
@@ -31,22 +35,26 @@
               </div>
               <div class="status-info">
                 <h3>告警规则</h3>
-                <div class="status-value" style="color: #1890ff">12条</div>
+                <div class="status-value" style="color: #1890ff">{{ alarmStats.totalRules }}条</div>
                 <div class="status-subtitle">温度/电气/设备异常规则</div>
               </div>
             </div>
           </el-card>
         </el-col>
         <el-col :span="6">
-          <el-card class="status-card success">
+          <el-card class="status-card" :class="alarmStats.notificationStatus === '已配置' ? 'success' : 'warning'">
             <div class="status-item">
               <div class="status-icon">
-                <span style="color: #52c41a">📧</span>
+                <span :style="{ color: alarmStats.notificationStatus === '已配置' ? '#52c41a' : '#faad14' }">📧</span>
               </div>
               <div class="status-info">
                 <h3>通知方式</h3>
-                <div class="status-value" style="color: #52c41a">已配置</div>
-                <div class="status-subtitle">界面提示 + 邮件通知</div>
+                <div class="status-value" :style="{ color: alarmStats.notificationStatus === '已配置' ? '#52c41a' : '#faad14' }">
+                  {{ alarmStats.notificationStatus }}
+                </div>
+                <div class="status-subtitle">
+                  {{ alarmStats.notificationMethods.length > 0 ? alarmStats.notificationMethods.join(' + ') : '请配置通知方式' }}
+                </div>
               </div>
             </div>
           </el-card>
@@ -59,8 +67,10 @@
               </div>
               <div class="status-info">
                 <h3>历史统计</h3>
-                <div class="status-value" style="color: #1890ff">本月3次</div>
-                <div class="status-subtitle">处理率100% | 平均5分钟</div>
+                <div class="status-value" style="color: #1890ff">本月{{ alarmStats.monthlyStats.count }}次</div>
+                <div class="status-subtitle">
+                  处理率{{ alarmStats.monthlyStats.processRate }}% | 平均{{ alarmStats.monthlyStats.avgProcessTime }}分钟
+                </div>
               </div>
             </div>
           </el-card>
@@ -143,6 +153,8 @@
           border
           :header-cell-style="{ textAlign: 'center', backgroundColor: '#f5f7fa' }"
           :cell-style="{ textAlign: 'center' }"
+          v-loading="historyLoading"
+          element-loading-text="加载告警历史数据..."
         >
           <el-table-column prop="time" label="时间" width="160" />
           <el-table-column prop="type" label="告警类型" width="120" />
@@ -770,32 +782,27 @@ const refreshAlarmRules = async () => {
 }
 
 // 告警历史数据
-const alarmHistory = ref([
-  {
-    time: '2025-09-14 15:30:00',
-    type: '温度异常',
-    content: '探头3温度达到52°C',
-    level: '警告',
-    status: '已处理',
-    processTime: '5分钟'
-  },
-  {
-    time: '2025-09-13 09:15:00',
-    type: '设备异常',
-    content: '断路器#2通信中断',
-    level: '警告',
-    status: '已处理',
-    processTime: '2分钟'
-  },
-  {
-    time: '2025-09-12 14:20:00',
-    type: '电气异常',
-    content: '电压波动超出正常范围',
-    level: '严重',
-    status: '已处理',
-    processTime: '8分钟'
+const alarmHistory = ref([])
+const historyLoading = ref(false)
+const historyPagination = ref({
+  page: 1,
+  limit: 20,
+  total: 0
+})
+
+// 告警统计数据
+const alarmStats = ref({
+  activeAlarms: 0,           // 活跃告警数量
+  totalRules: 0,             // 告警规则总数
+  notificationStatus: '未配置', // 通知方式状态
+  notificationMethods: [],   // 通知方式列表
+  monthlyStats: {
+    count: 0,                // 本月告警次数
+    processRate: 0,          // 处理率
+    avgProcessTime: 0        // 平均处理时间（分钟）
   }
-])
+})
+const statsLoading = ref(false)
 
 // 响应式数据
 const showAddRuleDialog = ref(false)
@@ -1817,6 +1824,156 @@ const loadHardwareData = async () => {
   }
 }
 
+// 加载告警历史数据
+const loadAlarmHistory = async (page = 1, limit = 20) => {
+  historyLoading.value = true
+  try {
+    const response = await fetch(`http://localhost:8080/api/v1/alarms/history?page=${page}&limit=${limit}`, {
+      headers: {
+        'Authorization': `Bearer ${localStorage.getItem('token')}`
+      }
+    })
+
+    if (response.ok) {
+      const data = await response.json()
+      if (data.code === 200) {
+        alarmHistory.value = data.data.list || []
+        historyPagination.value = {
+          page: data.data.page || 1,
+          limit: data.data.limit || 20,
+          total: data.data.total || 0
+        }
+        console.log('✅ 告警历史数据加载完成:', alarmHistory.value.length, '条记录')
+      } else {
+        throw new Error(data.message || '获取告警历史失败')
+      }
+    } else {
+      throw new Error('网络请求失败')
+    }
+  } catch (error) {
+    console.error('❌ 告警历史数据加载失败:', error)
+    ElMessage.error('告警历史数据加载失败: ' + error.message)
+  } finally {
+    historyLoading.value = false
+  }
+}
+
+// 加载告警统计数据
+const loadAlarmStats = async () => {
+  statsLoading.value = true
+  try {
+    // 并行获取多个统计数据
+    const [statsResponse, rulesResponse, historyResponse] = await Promise.all([
+      // 获取告警统计
+      fetch('http://localhost:8080/api/v1/alarms/statistics', {
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('token')}`
+        }
+      }),
+      // 获取告警规则数量
+      fetch('http://localhost:8080/api/v1/alarms/rules', {
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('token')}`
+        }
+      }),
+      // 获取本月告警历史统计
+      fetch(`http://localhost:8080/api/v1/alarms/history?limit=100`, {
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('token')}`
+        }
+      })
+    ])
+
+    // 处理告警统计数据
+    if (statsResponse.ok) {
+      const statsData = await statsResponse.json()
+      if (statsData.code === 200) {
+        const data = statsData.data
+        // 使用实际的API字段名
+        alarmStats.value.activeAlarms = data.active_alarms || 0
+      }
+    }
+
+    // 处理告警规则数量
+    if (rulesResponse.ok) {
+      const rulesData = await rulesResponse.json()
+      if (rulesData.code === 200) {
+        alarmStats.value.totalRules = rulesData.data?.length || 0
+      }
+    }
+
+    // 处理历史统计数据
+    if (historyResponse.ok) {
+      const historyData = await historyResponse.json()
+      if (historyData.code === 200) {
+        const historyList = historyData.data.list || []
+
+        // 计算本月统计
+        const currentMonth = new Date().getMonth()
+        const currentYear = new Date().getFullYear()
+
+        const monthlyAlarms = historyList.filter(alarm => {
+          const alarmDate = new Date(alarm.time)
+          return alarmDate.getMonth() === currentMonth && alarmDate.getFullYear() === currentYear
+        })
+
+        const processedAlarms = monthlyAlarms.filter(alarm => alarm.status === '已处理')
+        const processRate = monthlyAlarms.length > 0 ? Math.round((processedAlarms.length / monthlyAlarms.length) * 100) : 100
+
+        // 计算平均处理时间
+        let totalProcessTime = 0
+        let processTimeCount = 0
+        processedAlarms.forEach(alarm => {
+          if (alarm.processTime && alarm.processTime.includes('分钟')) {
+            const minutes = parseInt(alarm.processTime.replace('分钟', ''))
+            if (!isNaN(minutes)) {
+              totalProcessTime += minutes
+              processTimeCount++
+            }
+          }
+        })
+
+        const avgProcessTime = processTimeCount > 0 ? Math.round(totalProcessTime / processTimeCount) : 5
+
+        alarmStats.value.monthlyStats = {
+          count: monthlyAlarms.length,
+          processRate: processRate,
+          avgProcessTime: avgProcessTime
+        }
+      }
+    }
+
+    // 设置通知方式状态（基于告警规则中的通知方式）
+    if (alarmRules.value.length > 0) {
+      const notificationMethods = new Set()
+      alarmRules.value.forEach(rule => {
+        // 使用正确的字段名 notifyMethod（前端转换后的字段名）
+        if (rule.notifyMethod) {
+          rule.notifyMethod.split(' + ').forEach(method => {
+            notificationMethods.add(method.trim())
+          })
+        }
+      })
+
+      alarmStats.value.notificationMethods = Array.from(notificationMethods)
+      alarmStats.value.notificationStatus = notificationMethods.size > 0 ? '已配置' : '未配置'
+
+      console.log('📧 通知方式统计:', {
+        methods: Array.from(notificationMethods),
+        status: alarmStats.value.notificationStatus,
+        rulesCount: alarmRules.value.length
+      })
+    }
+
+    console.log('✅ 告警统计数据加载完成:', alarmStats.value)
+  } catch (error) {
+    console.error('❌ 告警统计数据加载失败:', error)
+    ElMessage.error('告警统计数据加载失败: ' + error.message)
+  } finally {
+    statsLoading.value = false
+  }
+}
+
 // 根据告警类型设置默认硬件类型和设备
 const setDefaultHardwareByAlarmType = () => {
   const alarmType = newRuleForm.value.type
@@ -2184,6 +2341,12 @@ onMounted(async () => {
   // 从后端API加载告警规则
   await loadAlarmRulesFromAPI()
 
+  // 加载告警历史数据
+  await loadAlarmHistory()
+
+  // 加载告警统计数据
+  await loadAlarmStats()
+
   console.log('✅ 组件初始化完成，当前告警规则:', alarmRules.value)
 })
 </script>
@@ -2226,6 +2389,10 @@ onMounted(async () => {
 
 .status-card.info {
   border-left: 4px solid #1890ff;
+}
+
+.status-card.warning {
+  border-left: 4px solid #faad14;
 }
 
 .status-item {
