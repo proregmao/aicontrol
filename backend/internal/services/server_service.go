@@ -8,6 +8,7 @@ import (
 	"smart-device-management/internal/models"
 	"smart-device-management/internal/repositories"
 	"smart-device-management/pkg/logger"
+	sshpkg "smart-device-management/pkg/ssh"
 	"strconv"
 	"strings"
 	"time"
@@ -543,32 +544,164 @@ func (s *ServerService) getHardwareInfoViaSSH(req models.ServerHardwareDetectReq
 	return hardwareInfo, nil
 }
 
+// ExecuteSSHCommand 执行SSH命令
+func (s *ServerService) ExecuteSSHCommand(server *models.Server, command string) (*sshpkg.CommandResult, error) {
+	s.logger.Info("执行SSH命令", "server_id", server.ID, "command", command)
+
+	// 创建SSH连接
+	conn, err := s.createSSHConnection(server.IPAddress, server.Port, server.Username, server.Password, server.PrivateKey)
+	if err != nil {
+		s.logger.Error("创建SSH连接失败", "server_id", server.ID, "error", err)
+		return nil, fmt.Errorf("创建SSH连接失败: %w", err)
+	}
+	defer conn.Close()
+
+	// 创建SSH会话
+	session, err := conn.NewSession()
+	if err != nil {
+		s.logger.Error("创建SSH会话失败", "server_id", server.ID, "error", err)
+		return nil, fmt.Errorf("创建SSH会话失败: %w", err)
+	}
+	defer session.Close()
+
+	// 执行命令
+	start := time.Now()
+	output, err := session.CombinedOutput(command)
+	duration := time.Since(start).Milliseconds()
+
+	result := &sshpkg.CommandResult{
+		Command:  command,
+		Output:   string(output),
+		Duration: duration,
+	}
+
+	if err != nil {
+		result.Error = err.Error()
+		result.ExitCode = 1
+		s.logger.Warn("SSH命令执行失败", "server_id", server.ID, "command", command, "error", err)
+	} else {
+		result.ExitCode = 0
+		s.logger.Info("SSH命令执行成功", "server_id", server.ID, "command", command, "duration", duration)
+	}
+
+	return result, nil
+}
+
 // getCPUInfoViaSSH 通过SSH获取CPU信息
 func (s *ServerService) getCPUInfoViaSSH(req models.ServerHardwareDetectRequest) (models.CPUInfo, error) {
-	// 基于1Panel算法实现CPU信息获取
-	// 执行命令: cat /proc/cpuinfo | grep "model name" | head -1
-	// 执行命令: nproc 获取核心数
+	// 创建SSH连接
+	conn, err := s.createSSHConnection(req.IPAddress, req.Port, req.Username, req.Password, req.PrivateKey)
+	if err != nil {
+		return models.CPUInfo{}, fmt.Errorf("创建SSH连接失败: %w", err)
+	}
+	defer conn.Close()
 
-	// 这里应该实现真实的SSH连接和命令执行
-	// 目前返回模拟数据，后续可以集成真实的SSH客户端
+	// 获取CPU型号
+	modelSession, err := conn.NewSession()
+	if err != nil {
+		return models.CPUInfo{}, fmt.Errorf("创建SSH会话失败: %w", err)
+	}
+	defer modelSession.Close()
+
+	modelOutput, err := modelSession.CombinedOutput("cat /proc/cpuinfo | grep 'model name' | head -1 | cut -d':' -f2 | xargs")
+	model := "Unknown CPU"
+	if err == nil && len(modelOutput) > 0 {
+		model = strings.TrimSpace(string(modelOutput))
+	}
+
+	// 获取CPU核心数
+	coresSession, err := conn.NewSession()
+	if err != nil {
+		return models.CPUInfo{}, fmt.Errorf("创建SSH会话失败: %w", err)
+	}
+	defer coresSession.Close()
+
+	coresOutput, err := coresSession.CombinedOutput("nproc")
+	cores := 1
+	if err == nil && len(coresOutput) > 0 {
+		if parsedCores, parseErr := strconv.Atoi(strings.TrimSpace(string(coresOutput))); parseErr == nil {
+			cores = parsedCores
+		}
+	}
+
+	// 获取CPU使用率
+	usageSession, err := conn.NewSession()
+	if err != nil {
+		return models.CPUInfo{}, fmt.Errorf("创建SSH会话失败: %w", err)
+	}
+	defer usageSession.Close()
+
+	usageOutput, err := usageSession.CombinedOutput("top -bn1 | grep 'Cpu(s)' | awk '{print $2}' | cut -d'%' -f1")
+	usage := 0.0
+	if err == nil && len(usageOutput) > 0 {
+		if parsedUsage, parseErr := strconv.ParseFloat(strings.TrimSpace(string(usageOutput)), 64); parseErr == nil {
+			usage = parsedUsage
+		}
+	}
 
 	return models.CPUInfo{
-		Model: "Intel(R) Celeron(R) N5105 @ 2.00GHz",
-		Cores: 4,
-		Usage: 25.5,
+		Model: model,
+		Cores: cores,
+		Usage: usage,
 	}, nil
 }
 
 // getMemoryInfoViaSSH 通过SSH获取内存信息
 func (s *ServerService) getMemoryInfoViaSSH(req models.ServerHardwareDetectRequest) (models.MemoryInfo, error) {
-	// 基于1Panel算法实现内存信息获取
-	// 执行命令: cat /proc/meminfo
+	// 创建SSH连接
+	conn, err := s.createSSHConnection(req.IPAddress, req.Port, req.Username, req.Password, req.PrivateKey)
+	if err != nil {
+		return models.MemoryInfo{}, fmt.Errorf("创建SSH连接失败: %w", err)
+	}
+	defer conn.Close()
 
-	// 模拟真实的内存信息 (16GB)
-	totalMemory := uint64(16216148 * 1024) // 16216148 kB 转换为字节
-	usedMemory := uint64(8000000 * 1024)   // 约8GB已使用
-	availableMemory := totalMemory - usedMemory
-	usage := float64(usedMemory) / float64(totalMemory) * 100
+	// 获取内存信息
+	session, err := conn.NewSession()
+	if err != nil {
+		return models.MemoryInfo{}, fmt.Errorf("创建SSH会话失败: %w", err)
+	}
+	defer session.Close()
+
+	// 执行命令获取内存信息
+	output, err := session.CombinedOutput("cat /proc/meminfo | grep -E '^(MemTotal|MemFree|MemAvailable|Buffers|Cached):'")
+	if err != nil {
+		return models.MemoryInfo{}, fmt.Errorf("获取内存信息失败: %w", err)
+	}
+
+	// 解析内存信息
+	lines := strings.Split(string(output), "\n")
+	memInfo := make(map[string]uint64)
+
+	for _, line := range lines {
+		if strings.TrimSpace(line) == "" {
+			continue
+		}
+		parts := strings.Fields(line)
+		if len(parts) >= 2 {
+			key := strings.TrimSuffix(parts[0], ":")
+			if value, parseErr := strconv.ParseUint(parts[1], 10, 64); parseErr == nil {
+				memInfo[key] = value * 1024 // 转换为字节
+			}
+		}
+	}
+
+	// 计算内存使用情况
+	totalMemory := memInfo["MemTotal"]
+	freeMemory := memInfo["MemFree"]
+	buffers := memInfo["Buffers"]
+	cached := memInfo["Cached"]
+	availableMemory := memInfo["MemAvailable"]
+
+	// 如果没有MemAvailable，则计算可用内存
+	if availableMemory == 0 {
+		availableMemory = freeMemory + buffers + cached
+	}
+
+	usedMemory := totalMemory - availableMemory
+	usage := 0.0
+	if totalMemory > 0 {
+		usage = float64(usedMemory) / float64(totalMemory) * 100
+	}
 
 	return models.MemoryInfo{
 		Total:     totalMemory,
@@ -620,32 +753,88 @@ func (s *ServerService) getDiskInfoViaSSH(req models.ServerHardwareDetectRequest
 
 // getNetworkInfoViaSSH 通过SSH获取网络信息
 func (s *ServerService) getNetworkInfoViaSSH(req models.ServerHardwareDetectRequest) ([]models.NetworkInfo, error) {
-	// 基于1Panel算法实现网络信息获取
-	// 执行命令: ip addr show
+	// 创建SSH连接
+	conn, err := s.createSSHConnection(req.IPAddress, req.Port, req.Username, req.Password, req.PrivateKey)
+	if err != nil {
+		return nil, fmt.Errorf("创建SSH连接失败: %w", err)
+	}
+	defer conn.Close()
 
-	// 模拟真实的网络接口信息
-	networks := []models.NetworkInfo{
-		{
-			Name:   "enp2s0",
-			IP:     "192.168.222.100",
-			MAC:    "00:e2:69:55:8b:85",
-			Status: "up",
-			Speed:  "1000 Mbps",
-		},
-		{
-			Name:   "bridge0",
-			IP:     req.IPAddress, // 使用连接的IP地址
-			MAC:    "e2:c4:5f:fc:67:35",
-			Status: "up",
-			Speed:  "1000 Mbps",
-		},
-		{
-			Name:   "lo",
-			IP:     "127.0.0.1",
-			MAC:    "00:00:00:00:00:00",
-			Status: "up",
+	// 获取网络接口列表
+	session, err := conn.NewSession()
+	if err != nil {
+		return nil, fmt.Errorf("创建SSH会话失败: %w", err)
+	}
+	defer session.Close()
+
+	// 获取所有网络接口
+	output, err := session.CombinedOutput("ip -o link show | awk -F': ' '{print $2}' | grep -v '^lo$'")
+	if err != nil {
+		return nil, fmt.Errorf("获取网络接口列表失败: %w", err)
+	}
+
+	interfaces := strings.Split(strings.TrimSpace(string(output)), "\n")
+	var networks []models.NetworkInfo
+
+	// 添加回环接口
+	networks = append(networks, models.NetworkInfo{
+		Name:   "lo",
+		IP:     "127.0.0.1",
+		MAC:    "00:00:00:00:00:00",
+		Status: "up",
+		Speed:  "Unknown",
+	})
+
+	// 处理每个网络接口
+	for _, iface := range interfaces {
+		iface = strings.TrimSpace(iface)
+		if iface == "" {
+			continue
+		}
+
+		networkInfo := models.NetworkInfo{
+			Name:   iface,
+			IP:     "",
+			MAC:    "",
+			Status: "down",
 			Speed:  "Unknown",
-		},
+		}
+
+		// 获取IP地址
+		if ipSession, sessionErr := conn.NewSession(); sessionErr == nil {
+			if ipOutput, ipErr := ipSession.CombinedOutput(fmt.Sprintf("ip addr show %s | grep 'inet ' | awk '{print $2}' | cut -d'/' -f1 | head -1", iface)); ipErr == nil {
+				networkInfo.IP = strings.TrimSpace(string(ipOutput))
+			}
+			ipSession.Close()
+		}
+
+		// 获取MAC地址
+		if macSession, sessionErr := conn.NewSession(); sessionErr == nil {
+			if macOutput, macErr := macSession.CombinedOutput(fmt.Sprintf("cat /sys/class/net/%s/address 2>/dev/null", iface)); macErr == nil {
+				networkInfo.MAC = strings.TrimSpace(string(macOutput))
+			}
+			macSession.Close()
+		}
+
+		// 获取接口状态
+		if statusSession, sessionErr := conn.NewSession(); sessionErr == nil {
+			if statusOutput, statusErr := statusSession.CombinedOutput(fmt.Sprintf("cat /sys/class/net/%s/operstate 2>/dev/null", iface)); statusErr == nil {
+				networkInfo.Status = strings.TrimSpace(string(statusOutput))
+			}
+			statusSession.Close()
+		}
+
+		// 获取接口速度
+		if speedSession, sessionErr := conn.NewSession(); sessionErr == nil {
+			if speedOutput, speedErr := speedSession.CombinedOutput(fmt.Sprintf("cat /sys/class/net/%s/speed 2>/dev/null", iface)); speedErr == nil {
+				if speed := strings.TrimSpace(string(speedOutput)); speed != "" {
+					networkInfo.Speed = speed + " Mbps"
+				}
+			}
+			speedSession.Close()
+		}
+
+		networks = append(networks, networkInfo)
 	}
 
 	return networks, nil

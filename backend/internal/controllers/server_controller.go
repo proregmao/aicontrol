@@ -1,6 +1,7 @@
 package controllers
 
 import (
+	"fmt"
 	"net/http"
 	"smart-device-management/internal/models"
 	"smart-device-management/internal/services"
@@ -227,22 +228,56 @@ func (c *ServerController) ExecuteCommand(ctx *gin.Context) {
 		return
 	}
 
-	// 临时实现：返回命令执行信息
+	// 获取服务器信息
+	server, err := c.serverService.GetServerByID(idStr)
+	if err != nil {
+		ctx.JSON(http.StatusNotFound, models.APIResponse{
+			Code:    http.StatusNotFound,
+			Message: "服务器不存在",
+			Error:   err.Error(),
+		})
+		return
+	}
+
+	// 执行真实的SSH命令
+	command, ok := req["command"].(string)
+	if !ok {
+		ctx.JSON(http.StatusBadRequest, models.APIResponse{
+			Code:    http.StatusBadRequest,
+			Message: "命令参数错误",
+			Error:   "command字段必须是字符串",
+		})
+		return
+	}
+
+	// 通过服务层执行SSH命令
+	result, err := c.serverService.ExecuteSSHCommand(server, command)
+	if err != nil {
+		ctx.JSON(http.StatusInternalServerError, models.APIResponse{
+			Code:    http.StatusInternalServerError,
+			Message: "命令执行失败",
+			Error:   err.Error(),
+		})
+		return
+	}
+
+	// 返回真实执行结果
 	execution := gin.H{
-		"execution_id":       "exec_123456",
-		"server_id":          id,
-		"command":            req["command"],
-		"parameters":         req["parameters"],
-		"status":             "running",
-		"start_time":         "2025-09-15T10:30:00Z",
-		"estimated_duration": 60,
-		"output":             "",
-		"error_output":       "",
+		"execution_id": fmt.Sprintf("exec_%d_%d", server.ID, time.Now().Unix()),
+		"server_id":    id,
+		"command":      command,
+		"status":       "completed",
+		"start_time":   time.Now().Format(time.RFC3339),
+		"end_time":     time.Now().Format(time.RFC3339),
+		"duration":     result.Duration,
+		"exit_code":    result.ExitCode,
+		"output":       result.Output,
+		"error_output": result.Error,
 	}
 
 	ctx.JSON(http.StatusOK, models.APIResponse{
 		Code:    http.StatusOK,
-		Message: "命令执行已启动",
+		Message: "命令执行完成",
 		Data:    execution,
 	})
 }

@@ -572,13 +572,34 @@ const restartServer = async (server: any) => {
 
     ElMessage.info(`正在重启服务器 ${server.server}...`)
 
-    // 这里应该调用后端API执行重启命令
-    // await fetch(`http://localhost:8080/api/v1/servers/${server.id}/restart`, {...})
+    // 调用后端API执行重启命令
+    const response = await fetch(`http://${window.location.hostname}:2999/api/v1/servers/${server.id}/execute`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${localStorage.getItem('token')}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        command: 'sudo reboot'
+      })
+    })
 
-    // 模拟重启过程
-    setTimeout(() => {
+    const result = await response.json()
+
+    if (result.code === 200) {
       ElMessage.success(`服务器 ${server.server} 重启命令已发送`)
-    }, 2000)
+      console.log('重启命令执行结果:', result.data)
+
+      // 更新服务器状态
+      server.status = '重启中'
+
+      // 3秒后重新加载服务器列表
+      setTimeout(() => {
+        loadServers()
+      }, 3000)
+    } else {
+      throw new Error(result.message || '重启命令执行失败')
+    }
 
   } catch (error: any) {
     if (error !== 'cancel') {
@@ -608,14 +629,35 @@ const shutdownServer = async (server: any) => {
 
     ElMessage.info(`正在关闭服务器 ${server.server}...`)
 
-    // 这里应该调用后端API执行关机命令
-    // await fetch(`http://localhost:8080/api/v1/servers/${server.id}/shutdown`, {...})
+    // 调用后端API执行关机命令
+    const response = await fetch(`http://${window.location.hostname}:2999/api/v1/servers/${server.id}/execute`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${localStorage.getItem('token')}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        command: 'sudo shutdown -h now'
+      })
+    })
 
-    // 模拟关机过程
-    setTimeout(() => {
+    const result = await response.json()
+
+    if (result.code === 200) {
       ElMessage.success(`服务器 ${server.server} 关机命令已发送`)
       ElMessage.info('如果服务器绑定了智能断路器，将自动断开电源')
-    }, 2000)
+      console.log('关机命令执行结果:', result.data)
+
+      // 更新服务器状态
+      server.status = '关机中'
+
+      // 5秒后重新加载服务器列表
+      setTimeout(() => {
+        loadServers()
+      }, 5000)
+    } else {
+      throw new Error(result.message || '关机命令执行失败')
+    }
 
   } catch (error: any) {
     if (error !== 'cancel') {

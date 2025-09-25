@@ -547,18 +547,33 @@ const saveServer = async () => {
 // 测试连接
 const testConnection = async (server: any) => {
   ElMessage.info(`正在测试连接到 ${server.name}...`)
-  
-  // 模拟连接测试
-  setTimeout(() => {
-    const success = Math.random() > 0.3
-    if (success) {
+
+  try {
+    const response = await fetch(`http://${window.location.hostname}:2999/api/v1/servers/${server.id}/test`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${localStorage.getItem('token')}`,
+        'Content-Type': 'application/json'
+      }
+    })
+
+    const result = await response.json()
+
+    if (result.code === 200 && result.data === true) {
       ElMessage.success(`连接到 ${server.name} 成功`)
       server.connected = true
+      server.status = 'online'
     } else {
-      ElMessage.error(`连接到 ${server.name} 失败`)
+      ElMessage.error(`连接到 ${server.name} 失败: ${result.message || '连接测试失败'}`)
       server.connected = false
+      server.status = 'offline'
     }
-  }, 2000)
+  } catch (error: any) {
+    console.error('连接测试失败:', error)
+    ElMessage.error(`连接到 ${server.name} 失败: ${error.message || error}`)
+    server.connected = false
+    server.status = 'offline'
+  }
 }
 
 // 多选处理
