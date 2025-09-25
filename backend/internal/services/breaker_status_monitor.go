@@ -24,10 +24,13 @@ type BreakerStatusMonitor struct {
 	stopChan     chan bool
 	isRunning    bool
 	mutex        sync.RWMutex
-	
+
 	// 监控配置
 	interval     time.Duration // 监控间隔
 	maxRetries   int          // 最大重试次数
+
+	// 数据采集器
+	dataCollector *BreakerDataCollector
 }
 
 // NewBreakerStatusMonitor 创建断路器状态监控服务
@@ -441,4 +444,18 @@ func (m *BreakerStatusMonitor) updateBreakerStatusFromDatabase(breaker *models.B
 	} else {
 		m.logger.Debug("已更新断路器最后检查时间", "breaker_id", breaker.ID, "status", latestBreaker.Status)
 	}
+}
+
+// SetDataCollector 设置数据采集器
+func (m *BreakerStatusMonitor) SetDataCollector(collector *BreakerDataCollector) {
+	m.mutex.Lock()
+	defer m.mutex.Unlock()
+	m.dataCollector = collector
+}
+
+// GetDataCollector 获取数据采集器
+func (m *BreakerStatusMonitor) GetDataCollector() *BreakerDataCollector {
+	m.mutex.RLock()
+	defer m.mutex.RUnlock()
+	return m.dataCollector
 }

@@ -21,7 +21,7 @@ export default defineConfig(({ mode }) => {
       },
     },
     server: {
-      port: parseInt(env.VITE_PORT || env.FRONTEND_PORT || '3005'),
+      port: parseInt(env.VITE_PORT || env.FRONTEND_PORT || '3000'),
       host: env.VITE_HOST || env.FRONTEND_HOST || '0.0.0.0',
       strictPort: true, // 强制使用指定端口，如果被占用则报错
       proxy: {

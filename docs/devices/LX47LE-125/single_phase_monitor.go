@@ -40,9 +40,9 @@ type SinglePhaseBreaker struct {
 	// 温度参数 (°C) - 减去40得到实际温度
 	TempN            int16   // 30007: N线温度
 	
-	// 单相电压电流 (只读A相，因为是单相设备)
-	VoltageA         uint16  // 30008: A相电压 (V)
-	CurrentA         float32 // 30009: A相电流 (0.01A)
+	// 单相电压电流 (只读A相，因为是单相设备) - 修正映射
+	VoltageA         uint16  // 30009: A相电压 (V) ✅ 修正
+	CurrentA         float32 // 30010: A相电流 (0.01A) ✅ 修正
 	
 	// 功率参数
 	PowerFactorA     float32 // 30011: A相功率因数 (0.01)

@@ -20,6 +20,7 @@ type BreakerService struct {
 	statusMonitorService *StatusMonitorService
 	breakerStatusMonitor *BreakerStatusMonitor
 	logger               *logger.Logger
+	db                   *gorm.DB
 }
 
 // NewBreakerService 创建断路器服务
@@ -29,6 +30,7 @@ func NewBreakerService(breakerRepo repositories.BreakerRepository, serverRepo re
 		serverRepo:    serverRepo,
 		modbusService: NewModbusService(logger, db),
 		logger:        logger,
+		db:            db,
 	}
 
 	// 创建状态监控服务
@@ -84,7 +86,78 @@ func (s *BreakerService) GetBreakers() ([]models.BreakerListResponse, error) {
 	return responses, nil
 }
 
-// GetBreakerRealTimeData 获取断路器实时数据（安全模式，不执行可能导致跳闸的操作）
+// GetLatestRealtimeData 获取断路器最新实时数据
+func (s *BreakerService) GetLatestRealtimeData(id uint) (*models.BreakerRealtimeData, error) {
+	s.logger.Info("获取断路器最新实时数据", "breaker_id", id)
+
+	// 如果数据采集服务可用，优先从采集服务获取
+	if s.breakerStatusMonitor != nil {
+		if collector := s.breakerStatusMonitor.GetDataCollector(); collector != nil {
+			if data, err := collector.GetLatestData(id); err == nil {
+				s.logger.Info("从数据采集服务获取最新数据", "breaker_id", id, "age", time.Since(data.UpdatedAt))
+				// 转换为正确的类型
+				return &models.BreakerRealtimeData{
+					ID:             data.ID,
+					BreakerID:      data.BreakerID,
+					Voltage:        data.Voltage,
+					Current:        data.Current,
+					Power:          data.Power,
+					PowerFactor:    data.PowerFactor,
+					Frequency:      data.Frequency,
+					LeakageCurrent: data.LeakageCurrent,
+					Temperature:    data.Temperature,
+					Status:         data.Status,
+					IsLocked:       data.IsLocked,
+					IsLocalLocked:  data.IsLocalLocked,
+					DataSource:     data.DataSource,
+					IsValid:        data.IsValid,
+					ErrorMessage:   data.ErrorMessage,
+					CreatedAt:      data.CreatedAt,
+					UpdatedAt:      data.UpdatedAt,
+				}, nil
+			}
+		}
+	}
+
+	// 从数据库获取最新有效数据
+	var latestData models.BreakerRealtimeData
+	err := s.db.Where("breaker_id = ? AND is_valid = true", id).
+		Order("updated_at DESC").
+		First(&latestData).Error
+
+	if err != nil {
+		if err == gorm.ErrRecordNotFound {
+			// 如果没有实时数据，返回基于配置的默认数据
+			breaker, err := s.breakerRepo.GetByID(id)
+			if err != nil {
+				return nil, fmt.Errorf("断路器不存在: %w", err)
+			}
+			defaultData := s.getDefaultRealTimeData(breaker)
+			// 转换为正确的类型
+			return &models.BreakerRealtimeData{
+				BreakerID:      defaultData.BreakerID,
+				Voltage:        defaultData.Voltage,
+				Current:        defaultData.Current,
+				Power:          defaultData.Power,
+				PowerFactor:    defaultData.PowerFactor,
+				Frequency:      defaultData.Frequency,
+				LeakageCurrent: defaultData.LeakageCurrent,
+				Temperature:    defaultData.Temperature,
+				Status:         defaultData.Status,
+				IsLocked:       defaultData.IsLocked,
+				DataSource:     "default",
+				IsValid:        true,
+				UpdatedAt:      time.Now(),
+			}, nil
+		}
+		return nil, fmt.Errorf("查询最新实时数据失败: %w", err)
+	}
+
+	s.logger.Info("从数据库获取最新实时数据", "breaker_id", id, "age", time.Since(latestData.UpdatedAt))
+	return &latestData, nil
+}
+
+// GetBreakerRealTimeData 获取断路器实时数据（优先使用数据采集服务的真实数据）
 func (s *BreakerService) GetBreakerRealTimeData(id uint) (*models.BreakerRealTimeData, error) {
 	s.logger.Info("获取断路器实时数据", "breaker_id", id)
 
@@ -95,8 +168,35 @@ func (s *BreakerService) GetBreakerRealTimeData(id uint) (*models.BreakerRealTim
 		return nil, fmt.Errorf("获取断路器配置失败: %w", err)
 	}
 
-	// 安全模式：直接返回基于数据库状态的实时数据，避免MODBUS操作导致跳闸
-	s.logger.Info("使用安全模式获取实时数据，避免MODBUS操作导致断路器跳闸", "breaker_id", id)
+	// 优先从数据采集服务获取真实的MODBUS数据
+	if s.breakerStatusMonitor != nil {
+		if collector := s.breakerStatusMonitor.GetDataCollector(); collector != nil {
+			if realtimeData, err := collector.GetLatestData(id); err == nil && realtimeData != nil {
+				s.logger.Info("从数据采集服务获取到实时数据", "breaker_id", id, "voltage", realtimeData.Voltage, "current", realtimeData.Current)
+
+				// 转换为API响应格式
+				return &models.BreakerRealTimeData{
+					BreakerID:         realtimeData.BreakerID,
+					Voltage:           realtimeData.Voltage,
+					Current:           realtimeData.Current,
+					Power:             realtimeData.Power,
+					PowerFactor:       realtimeData.PowerFactor,
+					Frequency:         realtimeData.Frequency,
+					LeakageCurrent:    realtimeData.LeakageCurrent,
+					Temperature:       realtimeData.Temperature,
+					Status:            realtimeData.Status,
+					IsLocked:          realtimeData.IsLocked,
+					LastUpdate:        realtimeData.UpdatedAt,
+					RatedCurrent:      realtimeData.RatedCurrent,
+					AlarmCurrent:      realtimeData.AlarmCurrent,
+					OverTempThreshold: realtimeData.OverTempThreshold,
+				}, nil
+			}
+		}
+	}
+
+	// 如果数据采集服务不可用，回退到安全模式
+	s.logger.Info("数据采集服务不可用，使用安全模式获取实时数据", "breaker_id", id)
 	return s.getDefaultRealTimeData(breaker), nil
 }
 

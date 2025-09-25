@@ -48,9 +48,9 @@ func (t *ModbusProtocolTester) testInputRegisters() {
 		30005: "频率 (0.1Hz单位)",
 		30006: "漏电流 (mA)",
 		30007: "N线温度 (需减40)",
-		30008: "A相电压 (V)",
-		30009: "A相电流 (0.01A单位)",
-		30010: "B相电压 (V)",
+		30008: "A相温度 (需减40)", // ✅ 修正：30008是温度，不是电压
+		30009: "A相电压 (V)",      // ✅ 修正：30009是电压
+		30010: "A相电流 (0.01A单位)", // ✅ 修正：30010是电流
 		30011: "A相功率因数 (0.01单位)",
 		30012: "A相有功功率 (W)",
 		30013: "A相无功功率 (VAR)",
@@ -155,11 +155,14 @@ func (t *ModbusProtocolTester) parseRegisterValue(address uint16, value uint16) 
 	case 30007, 30016: // 温度
 		return fmt.Sprintf("%.1f °C", float64(value)-40)
 	
-	case 30008, 30010: // 电压
+	case 30009: // 电压 ✅ 修正：30009是电压
 		return fmt.Sprintf("%d V", value)
-	
-	case 30009: // 电流
+
+	case 30010: // 电流 ✅ 修正：30010是电流
 		return fmt.Sprintf("%.2f A", float64(value)/100.0)
+
+	case 30008: // 温度 ✅ 修正：30008是A相温度
+		return fmt.Sprintf("%.1f °C", float64(value)-40)
 	
 	case 30011: // 功率因数
 		return fmt.Sprintf("%.2f", float64(value)/100.0)

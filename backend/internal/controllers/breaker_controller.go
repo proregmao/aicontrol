@@ -6,6 +6,7 @@ import (
 	"smart-device-management/internal/models"
 	"smart-device-management/internal/services"
 	"strconv"
+	"time"
 
 	"github.com/gin-gonic/gin"
 )
@@ -128,6 +129,58 @@ func (c *BreakerController) GetBreaker(ctx *gin.Context) {
 		Code:    http.StatusOK,
 		Message: "获取断路器详情成功",
 		Data:    breaker,
+	})
+}
+
+// GetBreakerLatestData 获取断路器最新实时数据
+// @Summary 获取断路器最新实时数据
+// @Description 从数据库获取断路器最新的实时数据，优先显示有效数据
+// @Tags breakers
+// @Accept json
+// @Produce json
+// @Param id path int true "断路器ID"
+// @Success 200 {object} models.APIResponse{data=models.GetLatestValidDataResponse}
+// @Failure 400 {object} models.APIResponse
+// @Failure 404 {object} models.APIResponse
+// @Failure 500 {object} models.APIResponse
+// @Router /api/v1/breakers/{id}/latest-data [get]
+func (c *BreakerController) GetBreakerLatestData(ctx *gin.Context) {
+	idStr := ctx.Param("id")
+	id, err := strconv.ParseUint(idStr, 10, 32)
+	if err != nil {
+		ctx.JSON(http.StatusBadRequest, models.APIResponse{
+			Code:    http.StatusBadRequest,
+			Message: "无效的断路器ID",
+			Error:   err.Error(),
+		})
+		return
+	}
+
+	// 从数据采集服务获取最新数据
+	latestData, err := c.breakerService.GetLatestRealtimeData(uint(id))
+	if err != nil {
+		ctx.JSON(http.StatusNotFound, models.APIResponse{
+			Code:    http.StatusNotFound,
+			Message: "获取断路器最新数据失败",
+			Error:   err.Error(),
+		})
+		return
+	}
+
+	// 计算数据年龄
+	age := formatDataAge(latestData.UpdatedAt)
+
+	response := models.GetLatestValidDataResponse{
+		Success: true,
+		Data:    latestData,
+		Message: "获取最新数据成功",
+		Age:     age,
+	}
+
+	ctx.JSON(http.StatusOK, models.APIResponse{
+		Code:    http.StatusOK,
+		Message: "获取断路器最新数据成功",
+		Data:    response,
 	})
 }
 
@@ -595,4 +648,19 @@ func (c *BreakerController) ControlBreakerLock(ctx *gin.Context) {
 		Code:    http.StatusOK,
 		Message: fmt.Sprintf("断路器%s成功", action),
 	})
+}
+
+// formatDataAge 格式化数据年龄
+func formatDataAge(updateTime time.Time) string {
+	duration := time.Since(updateTime)
+
+	if duration < time.Minute {
+		return fmt.Sprintf("%.0f秒前", duration.Seconds())
+	} else if duration < time.Hour {
+		return fmt.Sprintf("%.0f分钟前", duration.Minutes())
+	} else if duration < 24*time.Hour {
+		return fmt.Sprintf("%.0f小时前", duration.Hours())
+	} else {
+		return fmt.Sprintf("%.0f天前", duration.Hours()/24)
+	}
 }

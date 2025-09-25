@@ -30,8 +30,8 @@ const (
 	REG_LEAKAGE_CURRENT  = 0x0005 // 30006: 漏电流
 	REG_TEMP_N           = 0x0006 // 30007: N线温度
 	REG_TEMP_A           = 0x0007 // 30008: A相温度
-	REG_VOLTAGE_A        = 0x0007 // 30008: A相电压
-	REG_CURRENT_A        = 0x0008 // 30009: A相电流
+	REG_VOLTAGE_A        = 0x0008 // 30009: A相电压 ✅ 修正：电压在30009
+	REG_CURRENT_A        = 0x0009 // 30010: A相电流 ✅ 修正：电流在30010
 	REG_POWER_FACTOR_A   = 0x000A // 30011: A相功率因数
 	REG_ACTIVE_POWER_A   = 0x000B // 30012: A相有功功率
 	REG_REACTIVE_POWER_A = 0x000C // 30013: A相无功功率

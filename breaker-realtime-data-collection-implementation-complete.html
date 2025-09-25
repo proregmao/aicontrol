@@ -1,0 +1,422 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>断路器实时数据采集系统实现完成</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            line-height: 1.6;
+            margin: 0;
+            padding: 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 15px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+            overflow: hidden;
+        }
+        .header {
+            background: linear-gradient(135deg, #4CAF50, #45a049);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+        .header h1 {
+            margin: 0;
+            font-size: 2.5em;
+            font-weight: 300;
+        }
+        .header p {
+            margin: 10px 0 0 0;
+            opacity: 0.9;
+            font-size: 1.1em;
+        }
+        .content {
+            padding: 40px;
+        }
+        .section {
+            margin-bottom: 40px;
+            padding: 25px;
+            border-radius: 10px;
+            border-left: 5px solid #4CAF50;
+            background: #f8f9fa;
+        }
+        .section h2 {
+            color: #333;
+            margin-top: 0;
+            font-size: 1.8em;
+            display: flex;
+            align-items: center;
+        }
+        .section h2::before {
+            content: "✅";
+            margin-right: 10px;
+            font-size: 1.2em;
+        }
+        .architecture-section h2::before {
+            content: "🏗️";
+        }
+        .config-section h2::before {
+            content: "⚙️";
+        }
+        .implementation-section h2::before {
+            content: "🔧";
+        }
+        .api-section h2::before {
+            content: "📡";
+        }
+        .architecture-section {
+            border-left-color: #2196F3;
+        }
+        .config-section {
+            border-left-color: #FF9800;
+        }
+        .implementation-section {
+            border-left-color: #9C27B0;
+        }
+        .api-section {
+            border-left-color: #00BCD4;
+        }
+        .code-block {
+            background: #2d3748;
+            color: #e2e8f0;
+            padding: 20px;
+            border-radius: 8px;
+            overflow-x: auto;
+            margin: 15px 0;
+            font-family: 'Courier New', monospace;
+            font-size: 14px;
+            line-height: 1.4;
+        }
+        .highlight {
+            background: #fff3cd;
+            padding: 15px;
+            border-radius: 8px;
+            border-left: 4px solid #ffc107;
+            margin: 15px 0;
+        }
+        .success-box {
+            background: #d4edda;
+            color: #155724;
+            padding: 15px;
+            border-radius: 8px;
+            border-left: 4px solid #28a745;
+            margin: 15px 0;
+        }
+        .flow-diagram {
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            border: 1px solid #e0e0e0;
+            margin: 20px 0;
+        }
+        .flow-step {
+            display: flex;
+            align-items: center;
+            margin: 15px 0;
+            padding: 10px;
+            background: #f8f9fa;
+            border-radius: 5px;
+        }
+        .flow-step .step-number {
+            background: #4CAF50;
+            color: white;
+            width: 30px;
+            height: 30px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-right: 15px;
+            font-weight: bold;
+        }
+        .config-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 20px 0;
+            background: white;
+            border-radius: 8px;
+            overflow: hidden;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        .config-table th,
+        .config-table td {
+            padding: 12px 15px;
+            text-align: left;
+            border-bottom: 1px solid #e0e0e0;
+        }
+        .config-table th {
+            background: #f8f9fa;
+            font-weight: 600;
+            color: #333;
+        }
+        .footer {
+            background: #f8f9fa;
+            padding: 30px;
+            text-align: center;
+            color: #666;
+            border-top: 1px solid #e0e0e0;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🚀 断路器实时数据采集系统实现完成</h1>
+            <p>基于RS485-ETH-M04网关的LX47LE-125智能断路器实时数据采集与存储系统</p>
+        </div>
+
+        <div class="content">
+            <div class="section">
+                <h2>实现总结</h2>
+                <div class="success-box">
+                    <strong>✅ 系统实现完成！</strong> 
+                    <br><br>
+                    已成功实现基于您需求的断路器实时数据采集系统，支持分时读取策略、优先级控制操作、数据库缓存和前端实时显示。
+                </div>
+                
+                <h3>🎯 核心特性</h3>
+                <ul>
+                    <li><strong>分时读取策略</strong>：参数读取 → 锁定状态 → 分合闸状态，避免寄存器冲突</li>
+                    <li><strong>优先级控制</strong>：控制操作（锁定/分合闸）具有最高优先级，会中断数据采集</li>
+                    <li><strong>连接管理</strong>：每次读取后关闭连接暂停1秒，确保设备稳定</li>
+                    <li><strong>数据缓存</strong>：优先从缓存获取数据，通信失败时显示上次有效数据</li>
+                    <li><strong>配置化管理</strong>：采集间隔、数据保留期等通过环境变量配置</li>
+                </ul>
+            </div>
+
+            <div class="section config-section">
+                <h2>配置参数</h2>
+                
+                <h3>📋 新增环境变量</h3>
+                <table class="config-table">
+                    <thead>
+                        <tr>
+                            <th>参数名</th>
+                            <th>默认值</th>
+                            <th>说明</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td>BREAKER_DATA_COLLECTION_INTERVAL</td>
+                            <td>5</td>
+                            <td>数据采集间隔（秒）</td>
+                        </tr>
+                        <tr>
+                            <td>BREAKER_DATA_RETENTION_DAYS</td>
+                            <td>7</td>
+                            <td>实时数据保留天数</td>
+                        </tr>
+                        <tr>
+                            <td>BREAKER_CONTROL_PAUSE_SECONDS</td>
+                            <td>1</td>
+                            <td>控制操作前连接暂停时间（秒）</td>
+                        </tr>
+                        <tr>
+                            <td>ENABLE_REAL_MODBUS</td>
+                            <td>true</td>
+                            <td>是否启用真实MODBUS数据读取</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <div class="section architecture-section">
+                <h2>系统架构</h2>
+                
+                <div class="flow-diagram">
+                    <h4>🔄 数据采集流程</h4>
+                    <div class="flow-step">
+                        <div class="step-number">1</div>
+                        <div><strong>参数读取周期</strong>：读取电压、电流、功率、频率、漏电流、温度等电气参数</div>
+                    </div>
+                    <div class="flow-step">
+                        <div class="step-number">2</div>
+                        <div><strong>关闭连接暂停1秒</strong>：确保设备连接稳定</div>
+                    </div>
+                    <div class="flow-step">
+                        <div class="step-number">3</div>
+                        <div><strong>锁定状态周期</strong>：读取远程锁定状态（40013寄存器）</div>
+                    </div>
+                    <div class="flow-step">
+                        <div class="step-number">4</div>
+                        <div><strong>关闭连接暂停1秒</strong>：避免寄存器冲突</div>
+                    </div>
+                    <div class="flow-step">
+                        <div class="step-number">5</div>
+                        <div><strong>分合闸状态周期</strong>：读取断路器开关状态（30001寄存器）</div>
+                    </div>
+                    <div class="flow-step">
+                        <div class="step-number">6</div>
+                        <div><strong>数据存储</strong>：保存到数据库并更新缓存</div>
+                    </div>
+                </div>
+
+                <div class="flow-diagram">
+                    <h4>⚡ 控制操作流程（高优先级）</h4>
+                    <div class="flow-step">
+                        <div class="step-number">1</div>
+                        <div><strong>暂停数据采集</strong>：避免与控制操作冲突</div>
+                    </div>
+                    <div class="flow-step">
+                        <div class="step-number">2</div>
+                        <div><strong>关闭连接暂停1秒</strong>：确保连接清洁</div>
+                    </div>
+                    <div class="flow-step">
+                        <div class="step-number">3</div>
+                        <div><strong>执行控制操作</strong>：合闸/分闸/锁定/解锁</div>
+                    </div>
+                    <div class="flow-step">
+                        <div class="step-number">4</div>
+                        <div><strong>恢复数据采集</strong>：继续正常采集周期</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="section implementation-section">
+                <h2>核心实现</h2>
+                
+                <h3>🗄️ 数据库表结构</h3>
+                <div class="code-block">
+-- 实时数据表
+CREATE TABLE breaker_realtime_data (
+    id SERIAL PRIMARY KEY,
+    breaker_id INTEGER NOT NULL,
+    voltage DECIMAL(8,2),           -- 电压(V)
+    current DECIMAL(8,3),           -- 电流(A)
+    power DECIMAL(10,3),            -- 有功功率(kW)
+    power_factor DECIMAL(5,3),      -- 功率因数
+    frequency DECIMAL(6,2),         -- 频率(Hz)
+    leakage_current DECIMAL(8,3),   -- 漏电流(mA)
+    temperature DECIMAL(6,2),       -- 温度(°C)
+    status VARCHAR(10),             -- 状态: on/off
+    is_locked BOOLEAN,              -- 是否锁定
+    is_local_locked BOOLEAN,        -- 是否本地锁定
+    data_source VARCHAR(20),        -- 数据来源: modbus/cache/default
+    is_valid BOOLEAN DEFAULT true,  -- 数据是否有效
+    error_message TEXT,             -- 错误信息
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- 采集状态表
+CREATE TABLE breaker_data_collection_status (
+    id SERIAL PRIMARY KEY,
+    breaker_id INTEGER NOT NULL UNIQUE,
+    current_cycle INTEGER,          -- 当前采集周期
+    last_collection_at TIMESTAMP,  -- 最后采集时间
+    next_collection_at TIMESTAMP,  -- 下次采集时间
+    is_collecting BOOLEAN,          -- 是否正在采集
+    collection_errors INTEGER,     -- 连续错误次数
+    total_collections BIGINT,      -- 总采集次数
+    successful_collections BIGINT, -- 成功采集次数
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- 控制操作记录表
+CREATE TABLE breaker_control_operations (
+    id SERIAL PRIMARY KEY,
+    breaker_id INTEGER NOT NULL,
+    operation VARCHAR(20),          -- close/open/lock/unlock
+    status VARCHAR(20),             -- pending/executing/completed/failed
+    priority INTEGER DEFAULT 1,    -- 优先级
+    requested_by VARCHAR(100),      -- 请求用户
+    started_at TIMESTAMP,
+    completed_at TIMESTAMP,
+    error_message TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+                </div>
+
+                <h3>🔧 核心服务组件</h3>
+                <ul>
+                    <li><strong>BreakerDataCollector</strong>：数据采集服务，实现分时读取和优先级控制</li>
+                    <li><strong>ModbusService</strong>：MODBUS通信服务，支持真实数据读取和安全模式</li>
+                    <li><strong>BreakerService</strong>：断路器业务服务，提供统一的数据访问接口</li>
+                </ul>
+            </div>
+
+            <div class="section api-section">
+                <h2>API接口</h2>
+                
+                <h3>📡 新增API端点</h3>
+                <div class="code-block">
+GET /api/v1/breakers/{id}/latest-data
+# 获取断路器最新实时数据
+# 优先从缓存获取，缓存无效时从数据库获取
+# 通信失败时显示上次有效数据
+
+POST /api/v1/breakers/{id}/control
+# 提交控制操作（高优先级）
+# 支持：close（合闸）、open（分闸）、lock（锁定）、unlock（解锁）
+
+GET /api/v1/breakers/{id}/collection-status
+# 获取数据采集状态
+# 显示当前采集周期、错误次数、成功率等信息
+                </div>
+
+                <h3>🔄 前端数据获取</h3>
+                <div class="code-block">
+// 前端现在从数据库获取实时数据，不再直接调用MODBUS
+const getLatestBreakerData = async (breakerId) => {
+    const response = await api.get(`/breakers/${breakerId}/latest-data`);
+    return response.data;
+};
+
+// 数据包含年龄信息，如"2分钟前"
+// 通信失败时显示上次有效数据而不是错误
+                </div>
+            </div>
+
+            <div class="section">
+                <h2>使用说明</h2>
+                
+                <h3>🚀 启动系统</h3>
+                <div class="code-block">
+# 1. 确保环境变量配置正确
+ENABLE_REAL_MODBUS=true
+BREAKER_DATA_COLLECTION_INTERVAL=5
+BREAKER_DATA_RETENTION_DAYS=7
+
+# 2. 启动后端服务
+cd backend && go run cmd/server/main.go
+
+# 3. 数据采集服务会自动启动
+# 4. 前端页面将显示实时数据
+                </div>
+
+                <h3>⚙️ 监控和调试</h3>
+                <ul>
+                    <li><strong>查看采集状态</strong>：通过API获取每个断路器的采集状态</li>
+                    <li><strong>检查日志</strong>：系统提供详细的采集和控制操作日志</li>
+                    <li><strong>数据验证</strong>：检查数据库中的实时数据记录</li>
+                    <li><strong>错误处理</strong>：通信失败时会显示具体错误信息</li>
+                </ul>
+
+                <div class="highlight">
+                    <strong>💡 重要提醒</strong>
+                    <br><br>
+                    1. <strong>寄存器相斥性</strong>：系统严格按照分时读取策略，避免同时读取冲突寄存器<br>
+                    2. <strong>控制操作优先级</strong>：锁定和分合闸操作具有最高优先级，会暂停数据采集<br>
+                    3. <strong>连接管理</strong>：每次操作后都会关闭连接并暂停1秒，确保设备稳定<br>
+                    4. <strong>数据可靠性</strong>：通信失败时显示上次有效数据，不会显示错误状态
+                </div>
+            </div>
+        </div>
+
+        <div class="footer">
+            <p>🎉 断路器实时数据采集系统实现完成 | 智能机房管理系统 | 2025-09-25</p>
+            <p>现在系统支持真实的MODBUS数据采集，前端将显示来自数据库的实时数据</p>
+        </div>
+    </div>
+</body>
+</html>

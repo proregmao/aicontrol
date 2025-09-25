@@ -4,6 +4,7 @@ import (
 	"encoding/binary"
 	"fmt"
 	"net"
+	"os"
 	"smart-device-management/internal/models"
 	"smart-device-management/pkg/logger"
 	"sync"
@@ -19,6 +20,9 @@ type ModbusService struct {
 	// 设备复位去重机制
 	resetMutex    sync.RWMutex
 	lastResetTime map[uint]time.Time // 记录每个断路器的最后复位时间
+	// 连接互斥锁，确保每个端口同时只有一个连接
+	portMutexes map[string]*sync.Mutex
+	portMutexLock sync.RWMutex
 }
 
 // NewModbusService 创建MODBUS服务
@@ -27,12 +31,45 @@ func NewModbusService(logger *logger.Logger, db *gorm.DB) *ModbusService {
 		logger:        logger,
 		db:            db,
 		lastResetTime: make(map[uint]time.Time),
+		portMutexes:   make(map[string]*sync.Mutex),
 	}
 }
 
-// ReadBreakerData 读取断路器数据（增强错误检测和复位机制）
+// getPortMutex 获取指定端口的互斥锁，确保每个端口同时只有一个连接
+func (s *ModbusService) getPortMutex(ipAddress string, port int) *sync.Mutex {
+	portKey := fmt.Sprintf("%s:%d", ipAddress, port)
+
+	s.portMutexLock.RLock()
+	mutex, exists := s.portMutexes[portKey]
+	s.portMutexLock.RUnlock()
+
+	if !exists {
+		s.portMutexLock.Lock()
+		// 双重检查，防止并发创建
+		if mutex, exists = s.portMutexes[portKey]; !exists {
+			mutex = &sync.Mutex{}
+			s.portMutexes[portKey] = mutex
+		}
+		s.portMutexLock.Unlock()
+	}
+
+	return mutex
+}
+
+// ReadBreakerData 读取断路器数据（支持真实MODBUS和安全模式）
 func (s *ModbusService) ReadBreakerData(breaker *models.Breaker) (*models.BreakerRealTimeData, error) {
 	s.logger.Info("读取断路器MODBUS数据", "breaker_id", breaker.ID, "ip", breaker.IPAddress, "port", breaker.Port)
+
+	// 检查是否启用真实MODBUS数据读取
+	enableRealModbus := os.Getenv("ENABLE_REAL_MODBUS")
+	if enableRealModbus != "true" {
+		s.logger.Info("使用安全模式获取实时数据，避免MODBUS操作导致断路器跳闸", "breaker_id", breaker.ID)
+		return s.getDefaultRealTimeData(breaker), nil
+	}
+
+	// 启用真实MODBUS数据读取
+	s.logger.Info("启用真实MODBUS数据读取", "breaker_id", breaker.ID)
+	return s.readRealModbusData(breaker)
 
 	// 先从数据库获取最新的断路器状态，确保状态是最新的
 	var latestBreaker models.Breaker
@@ -100,12 +137,12 @@ func (s *ModbusService) ReadBreakerData(breaker *models.Breaker) (*models.Breake
 		return nil, fmt.Errorf("读取过温阈值失败: %w", err)
 	}
 
-	// 读取电气参数（输入寄存器）- 失败时自动复位重试
-	voltage, err := s.readInputRegisterWithRetry(breaker, 30008)        // A相电压
+	// 读取电气参数（输入寄存器）- 失败时自动复位重试 ✅ 修正寄存器映射
+	voltage, err := s.readInputRegisterWithRetry(breaker, 30009)        // A相电压 ✅ 修正：30009
 	if err != nil {
 		return nil, fmt.Errorf("读取A相电压失败: %w", err)
 	}
-	current, err := s.readInputRegisterWithRetry(breaker, 30009)        // A相电流 (0.01A单位)
+	current, err := s.readInputRegisterWithRetry(breaker, 30010)        // A相电流 (0.01A单位) ✅ 修正：30010
 	if err != nil {
 		return nil, fmt.Errorf("读取A相电流失败: %w", err)
 	}
@@ -546,6 +583,11 @@ func (s *ModbusService) writeLockCoil(breaker *models.Breaker, address uint16, v
 
 // sendModbusWriteCoil 发送MODBUS TCP写入线圈指令 (基于LX47LE-125测试文档)
 func (s *ModbusService) sendModbusWriteCoil(ipAddress string, port int, address uint16, value uint16) error {
+	// 获取端口互斥锁，确保同一端口同时只有一个连接
+	portMutex := s.getPortMutex(ipAddress, port)
+	portMutex.Lock()
+	defer portMutex.Unlock()
+
 	// 添加操作间隔，避免网关连接数限制 (基于测试文档经验)
 	time.Sleep(100 * time.Millisecond)
 
@@ -631,6 +673,11 @@ func (s *ModbusService) sendModbusWriteCoil(ipAddress string, port int, address 
 
 // sendModbusReadInputRegister 发送MODBUS TCP读取输入寄存器指令 (基于LX47LE-125测试文档)
 func (s *ModbusService) sendModbusReadInputRegister(ipAddress string, port int, address uint16) (uint16, error) {
+	// 获取端口互斥锁，确保同一端口同时只有一个连接
+	portMutex := s.getPortMutex(ipAddress, port)
+	portMutex.Lock()
+	defer portMutex.Unlock()
+
 	// 建立TCP连接 (基于测试文档的超时设置)
 	conn, err := net.DialTimeout("tcp", fmt.Sprintf("%s:%d", ipAddress, port), 5*time.Second)
 	if err != nil {
@@ -701,6 +748,11 @@ func (s *ModbusService) sendModbusReadInputRegister(ipAddress string, port int, 
 
 // sendModbusReadHoldingRegister 发送MODBUS读取保持寄存器请求
 func (s *ModbusService) sendModbusReadHoldingRegister(ipAddress string, port int, address uint16) (uint16, error) {
+	// 获取端口互斥锁，确保同一端口同时只有一个连接
+	portMutex := s.getPortMutex(ipAddress, port)
+	portMutex.Lock()
+	defer portMutex.Unlock()
+
 	// 连接到设备 (超快速超时，避免阻塞前端)
 	conn, err := net.DialTimeout("tcp", fmt.Sprintf("%s:%d", ipAddress, port), 100*time.Millisecond)
 	if err != nil {
@@ -1004,6 +1056,11 @@ func (s *ModbusService) ensureCommunication(breaker *models.Breaker) error {
 
 // writeHoldingRegister 写入保持寄存器
 func (s *ModbusService) writeHoldingRegister(breaker *models.Breaker, address uint16, value uint16) error {
+	// 获取端口互斥锁，确保同一端口同时只有一个连接
+	portMutex := s.getPortMutex(breaker.IPAddress, breaker.Port)
+	portMutex.Lock()
+	defer portMutex.Unlock()
+
 	// 添加操作间隔，避免网关连接数限制 (基于测试文档经验)
 	time.Sleep(100 * time.Millisecond)
 
@@ -1094,4 +1151,178 @@ func (s *ModbusService) calculateCRC16(data []byte) uint16 {
 	}
 
 	return crc
+}
+
+// readRealModbusData 读取真实的MODBUS数据
+func (s *ModbusService) readRealModbusData(breaker *models.Breaker) (*models.BreakerRealTimeData, error) {
+	s.logger.Info("读取真实MODBUS数据", "breaker_id", breaker.ID)
+
+	// 先从数据库获取最新的断路器状态，确保状态是最新的
+	var latestBreaker models.Breaker
+	err := s.db.First(&latestBreaker, breaker.ID).Error
+	if err != nil {
+		s.logger.Error("获取断路器最新状态失败", "breaker_id", breaker.ID, "error", err)
+		return nil, fmt.Errorf("获取断路器最新状态失败: %w", err)
+	}
+
+	// 使用最新的断路器状态
+	breaker = &latestBreaker
+	s.logger.Info("使用最新断路器状态", "breaker_id", breaker.ID, "status", breaker.Status)
+
+	// 统一的错误检测和复位机制：在读取任何数据前先检测通信状态
+	if err := s.detectAndResetIfNeeded(breaker); err != nil {
+		s.logger.Warn("通信检测失败，但继续尝试读取", "breaker_id", breaker.ID, "error", err)
+	}
+
+	// 读取断路器状态寄存器 (30001)
+	statusValue, err := s.ReadInputRegisterWithRetry(breaker, 30001)
+	if err != nil {
+		return nil, fmt.Errorf("读取断路器状态失败: %w", err)
+	}
+
+	// 解析断路器状态
+	isOn, isLocalLocked := s.parseBreakerStatus(statusValue)
+	var status string
+	if isOn {
+		status = "on"
+	} else {
+		status = "off"
+	}
+
+	s.logger.Debug("解析断路器状态",
+		"breaker_id", breaker.ID,
+		"raw_value", fmt.Sprintf("0x%04X", statusValue),
+		"is_on", isOn,
+		"is_local_locked", isLocalLocked,
+		"status", status)
+
+	// 读取远程锁定状态
+	isLocked, err := s.checkBreakerLockStatus(breaker)
+	if err != nil {
+		s.logger.Warn("读取远程锁定状态失败，使用数据库状态", "breaker_id", breaker.ID, "error", err)
+		isLocked = breaker.IsLocked
+	}
+
+	// 读取设备配置参数（保持寄存器）
+	ratedCurrent, err := s.readHoldingRegisterWithRetry(breaker, 40005)
+	if err != nil {
+		return nil, fmt.Errorf("读取过流阈值失败: %w", err)
+	}
+	alarmCurrent, err := s.readHoldingRegisterWithRetry(breaker, 40006)
+	if err != nil {
+		return nil, fmt.Errorf("读取漏电流阈值失败: %w", err)
+	}
+	overTempThreshold, err := s.readHoldingRegisterWithRetry(breaker, 40007)
+	if err != nil {
+		return nil, fmt.Errorf("读取过温阈值失败: %w", err)
+	}
+
+	// 读取电气参数（输入寄存器）✅ 修正寄存器映射
+	voltage, err := s.readInputRegisterWithRetry(breaker, 30009)        // ✅ 修正：30009
+	if err != nil {
+		return nil, fmt.Errorf("读取A相电压失败: %w", err)
+	}
+	current, err := s.readInputRegisterWithRetry(breaker, 30010)        // ✅ 修正：30010
+	if err != nil {
+		return nil, fmt.Errorf("读取A相电流失败: %w", err)
+	}
+	powerFactor, err := s.readInputRegisterWithRetry(breaker, 30011)
+	if err != nil {
+		return nil, fmt.Errorf("读取功率因数失败: %w", err)
+	}
+	activePower, err := s.readInputRegisterWithRetry(breaker, 30012)
+	if err != nil {
+		return nil, fmt.Errorf("读取有功功率失败: %w", err)
+	}
+	frequency, err := s.readInputRegisterWithRetry(breaker, 30005)
+	if err != nil {
+		return nil, fmt.Errorf("读取频率失败: %w", err)
+	}
+	leakageCurrent, err := s.readInputRegisterWithRetry(breaker, 30006)
+	if err != nil {
+		return nil, fmt.Errorf("读取漏电流失败: %w", err)
+	}
+	temperature, err := s.readInputRegisterWithRetry(breaker, 30007)
+	if err != nil {
+		return nil, fmt.Errorf("读取温度失败: %w", err)
+	}
+
+	// 转换数据格式
+	realVoltage := float64(voltage)
+	realCurrent := float64(current) / 100.0
+	realPowerFactor := float64(powerFactor) / 100.0
+	realActivePower := float64(activePower) / 1000.0
+	realFrequency := float64(frequency) / 10.0
+	realLeakageCurrent := float64(leakageCurrent)
+	realTemperature := float64(temperature) - 40
+
+	// 转换设备配置参数
+	realRatedCurrent := float64(ratedCurrent) / 100.0
+	realAlarmCurrent := float64(alarmCurrent)
+	realOverTempThreshold := float64(overTempThreshold)
+
+	s.logger.Info("成功读取真实MODBUS数据",
+		"breaker_id", breaker.ID,
+		"status", status,
+		"voltage", realVoltage,
+		"current", realCurrent,
+		"power", realActivePower)
+
+	return &models.BreakerRealTimeData{
+		BreakerID:      breaker.ID,
+		Voltage:        realVoltage,
+		Current:        realCurrent,
+		Power:          realActivePower,
+		PowerFactor:    realPowerFactor,
+		Frequency:      realFrequency,
+		LeakageCurrent: realLeakageCurrent,
+		Temperature:    realTemperature,
+		Status:         status,
+		IsLocked:       isLocked,
+		LastUpdate:     time.Now(),
+		// 添加设备配置参数
+		RatedCurrent:      realRatedCurrent,
+		AlarmCurrent:      realAlarmCurrent,
+		OverTempThreshold: realOverTempThreshold,
+	}, nil
+}
+
+// getDefaultRealTimeData 获取默认实时数据（安全模式）
+func (s *ModbusService) getDefaultRealTimeData(breaker *models.Breaker) *models.BreakerRealTimeData {
+	voltage := 220.0
+	if breaker.RatedVoltage != nil {
+		voltage = *breaker.RatedVoltage
+	}
+
+	// 设置默认的设备配置参数
+	ratedCurrent := 63.0
+	if breaker.RatedCurrent != nil {
+		ratedCurrent = *breaker.RatedCurrent
+	}
+
+	// 使用数据库中的实际状态，而不是"unknown"
+	status := string(breaker.Status)
+	if status == "" {
+		status = "off" // 如果数据库状态为空，默认为分闸
+	}
+
+	s.logger.Info("生成默认实时数据", "breaker_id", breaker.ID, "db_status", breaker.Status, "final_status", status, "is_locked", breaker.IsLocked)
+
+	return &models.BreakerRealTimeData{
+		BreakerID:      breaker.ID,
+		Voltage:        voltage,        // 固定电压值
+		Current:        0,              // 固定电流值：0A
+		Power:          0,              // 固定功率值：0kW
+		PowerFactor:    0,              // 固定功率因数：0
+		Frequency:      50.0,           // 固定频率：50Hz
+		LeakageCurrent: 0,              // 固定漏电流：0mA
+		Temperature:    25.0,           // 固定温度：25°C
+		Status:         status,         // 使用数据库状态
+		IsLocked:       breaker.IsLocked,
+		LastUpdate:     time.Now(),
+		// 添加设备配置参数
+		RatedCurrent:      ratedCurrent,
+		AlarmCurrent:      30.0,  // 默认告警电流30mA
+		OverTempThreshold: 80.0,  // 默认过温阈值80°C
+	}
 }

@@ -25,7 +25,7 @@
                 {{ getStatusText(breaker.status) }}
               </div>
               <div class="status-subtitle">
-                {{ breaker.rated_voltage || 220 }}V | {{ formatCurrent(breaker.current) }}A | {{ formatPower(breaker.power) }}kW
+                {{ breaker.rated_voltage || 220 }}V | {{ formatCurrent(breaker.current) }}A | {{ formatPowerW(breaker.power) }}W
               </div>
             </div>
           </div>
@@ -110,7 +110,7 @@
                 <span
                   :style="{ color: '#52c41a', fontWeight: 'bold' }"
                 >
-                  {{ formatPower(breaker.power) }}
+                  {{ formatPowerW(breaker.power) }}W
                 </span>
               </td>
               <td>
@@ -124,14 +124,14 @@
                 <span
                   :style="{ color: '#52c41a', fontWeight: 'bold' }"
                 >
-                  {{ formatFrequency(breaker.frequency) }}
+                  {{ formatFrequency(breaker.frequency) }}Hz
                 </span>
               </td>
               <td>
                 <span
                   :style="{ color: getLeakageColor(breaker.leakage_current), fontWeight: 'bold' }"
                 >
-                  {{ formatLeakage(breaker.leakage_current) }}
+                  {{ formatLeakageMA(breaker.leakage_current) }}mA
                 </span>
               </td>
               <td>
@@ -568,11 +568,35 @@ const manualRefresh = async () => {
 // 读取断路器实时数据（从数据库读取，避免MODBUS操作导致跳闸）
 const readBreakerRealTimeData = async (breaker: any) => {
   try {
-    // 直接从数据库读取断路器状态，不调用可能导致跳闸的实时数据API
-    const response = await api.get(`/breakers/${breaker.id}`)
-    console.log(`断路器 ${breaker.breaker_name} 数据库状态API响应:`, response) // 调试日志
+    // 首先尝试获取真实的MODBUS实时数据
+    console.log(`尝试获取断路器 ${breaker.breaker_name} 的实时MODBUS数据...`)
+    const realtimeResponse = await api.get(`/breakers/${breaker.id}/latest-data`)
 
-    // 检查API响应数据结构
+    if (realtimeResponse && realtimeResponse.data && realtimeResponse.data.code === 200 && realtimeResponse.data.data && realtimeResponse.data.data.data) {
+      const realtimeData = realtimeResponse.data.data.data
+      console.log(`成功获取断路器 ${breaker.breaker_name} 实时数据:`, realtimeData)
+
+      // 返回真实的MODBUS数据
+      return {
+        voltage: realtimeData.voltage || 0,
+        current: realtimeData.current || 0,
+        power: realtimeData.power || 0,
+        power_factor: realtimeData.power_factor || 0,
+        frequency: realtimeData.frequency || 50.0,
+        leakage_current: realtimeData.leakage_current || 0,
+        temperature: realtimeData.temperature || 25,
+        status: realtimeData.status || 'unknown',
+        is_locked: realtimeData.is_locked || false,
+        device_rated_current: realtimeData.rated_current || breaker.rated_current || 125,
+        device_alarm_current: realtimeData.alarm_current || 30,
+        device_over_temp_threshold: realtimeData.over_temp_threshold || 80
+      }
+    }
+
+    // 如果实时数据获取失败，回退到数据库状态
+    console.log(`实时数据获取失败，回退到数据库状态...`)
+    const response = await api.get(`/breakers/${breaker.id}`)
+
     if (response && response.data && response.data.code === 200 && response.data.data) {
       const dbData = response.data.data
       console.log(`成功获取断路器 ${breaker.breaker_name} 数据库状态:`, dbData)
@@ -597,7 +621,7 @@ const readBreakerRealTimeData = async (breaker: any) => {
       return await simulateBreakerRealTimeData(breaker)
     }
   } catch (error) {
-    console.error('读取数据库状态失败，使用模拟数据:', error)
+    console.error('读取实时数据失败，使用模拟数据:', error)
     return await simulateBreakerRealTimeData(breaker)
   }
 }
@@ -867,10 +891,12 @@ const updateRefreshInterval = async () => {
 // 格式化方法
 const formatVoltage = (voltage?: number) => voltage?.toFixed(1) || '0.0'
 const formatCurrent = (current?: number) => current?.toFixed(1) || '0.0'
-const formatPower = (power?: number) => power?.toFixed(2) || '0.00'
+const formatPower = (power?: number) => power?.toFixed(2) || '0.00' // 保留原函数用于kW显示
+const formatPowerW = (power?: number) => power?.toFixed(0) || '0' // 新增：W显示，不需要小数
 const formatPowerFactor = (factor?: number) => factor?.toFixed(2) || '0.00'
 const formatFrequency = (freq?: number) => freq?.toFixed(1) || '50.0'
-const formatLeakage = (leakage?: number) => leakage?.toFixed(1) || '0.0'
+const formatLeakage = (leakage?: number) => leakage?.toFixed(1) || '0.0' // 保留原函数用于A显示
+const formatLeakageMA = (leakage?: number) => (leakage ? (leakage * 1000).toFixed(1) : '0.0') // 新增：A转mA显示
 const formatTemperature = (temp?: number) => temp?.toFixed(1) || '25.0'
 
 const formatLastOperation = (lastUpdate?: string) => {

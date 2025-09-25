@@ -60,6 +60,12 @@ func main() {
 		logrus.Warn("启动断路器状态监控失败: ", err)
 	}
 
+	// 🚫 禁用旧的数据采集服务，避免与三周期轮询系统冲突
+	// 注释：系统现在使用 breaker_data_collector_collection.go 的三周期轮询系统
+	// if err := startBreakerDataCollector(); err != nil {
+	//	logrus.Warn("启动断路器数据采集服务失败: ", err)
+	// }
+
 	// 启动AI策略监控服务
 	if err := startAIStrategyMonitor(); err != nil {
 		logrus.Warn("启动AI策略监控失败: ", err)
@@ -135,6 +141,35 @@ func startBreakerStatusMonitor() error {
 	globalBreakerStatusMonitor = statusMonitor
 
 	logrus.Info("断路器状态监控服务已启动")
+	return nil
+}
+
+// startBreakerDataCollector 启动断路器数据采集服务
+func startBreakerDataCollector() error {
+	db := database.GetDB()
+	appLogger := logger.GetLogger()
+
+	// 创建服务依赖
+	breakerRepo := repositories.NewBreakerRepository(db)
+	serverRepo := repositories.NewServerRepository(db)
+	breakerService := services.NewBreakerService(breakerRepo, serverRepo, appLogger, db)
+	modbusService := services.NewModbusService(appLogger, db)
+	modbusScheduler := services.NewModbusScheduler(appLogger, modbusService)
+
+	// 创建断路器数据采集服务
+	dataCollector := services.NewBreakerDataCollector(db, appLogger, breakerRepo, breakerService, modbusService, modbusScheduler)
+
+	logrus.Info("启动断路器数据采集服务")
+
+	// 启动数据采集服务
+	go func() {
+		logrus.Info("断路器数据采集服务已启动")
+		ctx := context.Background()
+		if err := dataCollector.Start(ctx); err != nil {
+			logrus.WithError(err).Error("断路器数据采集服务启动失败")
+		}
+	}()
+
 	return nil
 }
 
@@ -441,6 +476,7 @@ func setupRouter() *gin.Engine {
 		breakerGroup.PUT("/:id", middleware.AuthMiddleware(), middleware.RequireOperator(), breakerController.UpdateBreaker)
 		breakerGroup.DELETE("/:id", middleware.AuthMiddleware(), middleware.RequireOperator(), breakerController.DeleteBreaker)
 		breakerGroup.GET("/:id/realtime", middleware.AuthMiddleware(), breakerController.GetBreakerRealTimeData)
+		breakerGroup.GET("/:id/latest-data", middleware.AuthMiddleware(), breakerController.GetBreakerLatestData)
 		breakerGroup.POST("/:id/control", middleware.AuthMiddleware(), middleware.RequireOperator(), breakerController.ControlBreaker)
 		breakerGroup.GET("/:id/control/:control_id", middleware.AuthMiddleware(), breakerController.GetControlStatus)
 		breakerGroup.POST("/:id/lock", middleware.AuthMiddleware(), middleware.RequireOperator(), breakerController.ControlBreakerLock)
@@ -580,6 +616,9 @@ func autoMigrate() error {
 		&models.Breaker{},
 		&models.BreakerServerBinding{},
 		&models.BreakerControl{},
+		&models.BreakerRealtimeData{},
+		&models.BreakerDataCollectionStatus{},
+		&models.BreakerControlOperation{},
 		&models.AIStrategy{},
 		&models.AIStrategyExecution{},
 		&models.ActionTemplate{},

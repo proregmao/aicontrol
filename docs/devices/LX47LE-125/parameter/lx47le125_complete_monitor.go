@@ -49,10 +49,10 @@ const (
 	REG_TEMP_B           = 0x000F // 30016: B相温度
 	REG_TEMP_C           = 0x0018 // 30025: C相温度
 	
-	// A相电压电流 (30008-30010)
-	REG_VOLTAGE_A        = 0x0007 // 30008: A相电压 (V)
-	REG_CURRENT_A        = 0x0008 // 30009: A相电流 (0.01A)
-	REG_CURRENT_A_EXT    = 0x0009 // 30010: A相电流扩展
+	// A相电压电流 (30009-30010) ✅ 修正映射
+	REG_VOLTAGE_A        = 0x0008 // 30009: A相电压 (V) ✅ 修正
+	REG_CURRENT_A        = 0x0009 // 30010: A相电流 (0.01A) ✅ 修正
+	REG_CURRENT_A_EXT    = 0x000A // 30011: A相电流扩展 ✅ 修正
 	
 	// A相功率 (30011-30013)
 	REG_POWER_FACTOR_A   = 0x000A // 30011: A相功率因数 (0.01)
@@ -453,7 +453,7 @@ func (mc *ModbusClient) ReadCompleteDeviceInfo() (*CompleteDeviceInfo, error) {
 		fmt.Printf("❌ 失败: %v\n", err)
 	}
 
-	// 5. 读取温度 (30007, 30008, 30016, 30025)
+	// 5. 读取温度 (30007, 30008, 30016, 30025) ✅ 温度寄存器正确
 	fmt.Print("   读取温度... ")
 	tempCount := 0
 	tempAddrs := []struct{addr uint16; name string; ptr *int16}{
@@ -471,7 +471,7 @@ func (mc *ModbusClient) ReadCompleteDeviceInfo() (*CompleteDeviceInfo, error) {
 	}
 	fmt.Printf("✅ 成功读取 %d/4 个温度\n", tempCount)
 
-	// 6. 读取三相电压 (30008, 30017, 30026)
+	// 6. 读取三相电压 (30009, 30017, 30026) ✅ 修正A相电压地址
 	fmt.Print("   读取三相电压... ")
 	voltageCount := 0
 	voltageAddrs := []struct{addr uint16; name string; ptr *uint16}{
@@ -490,7 +490,7 @@ func (mc *ModbusClient) ReadCompleteDeviceInfo() (*CompleteDeviceInfo, error) {
 	}
 	fmt.Printf("✅ 成功读取 %d/3 个电压 [%s]\n", voltageCount, strings.Join(voltageValues, ", "))
 
-	// 7. 读取三相电流 (30009, 30018, 30027)
+	// 7. 读取三相电流 (30010, 30018, 30027) ✅ 修正A相电流地址
 	fmt.Print("   读取三相电流... ")
 	currentCount := 0
 	currentAddrs := []struct{addr uint16; name string; ptr *float32}{

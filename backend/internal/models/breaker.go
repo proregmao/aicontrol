@@ -62,10 +62,10 @@ type BreakerRealTimeData struct {
 	BreakerID      uint      `json:"breaker_id"`      // 断路器ID
 	Voltage        float64   `json:"voltage"`         // 电压 (V)
 	Current        float64   `json:"current"`         // 电流 (A)
-	Power          float64   `json:"power"`           // 有功功率 (kW)
+	Power          float64   `json:"power"`           // 有功功率 (W) - 修正单位
 	PowerFactor    float64   `json:"power_factor"`    // 功率因数
 	Frequency      float64   `json:"frequency"`       // 频率 (Hz)
-	LeakageCurrent float64   `json:"leakage_current"` // 漏电流 (mA)
+	LeakageCurrent float64   `json:"leakage_current"` // 漏电流 (A) - 修正单位
 	Temperature    float64   `json:"temperature"`     // 温度 (°C)
 	Status         string    `json:"status"`          // 断路器状态 (on/off/unknown)
 	IsLocked       bool      `json:"is_locked"`       // 是否锁定
@@ -254,10 +254,10 @@ type BreakerRealTimeRecord struct {
 	BreakerID      uint           `json:"breaker_id" gorm:"not null;index"`
 	Voltage        float64        `json:"voltage"`         // 电压 (V)
 	Current        float64        `json:"current"`         // 电流 (A)
-	Power          float64        `json:"power"`           // 有功功率 (kW)
+	Power          float64        `json:"power"`           // 有功功率 (W) - 修正单位
 	PowerFactor    float64        `json:"power_factor"`    // 功率因数
 	Frequency      float64        `json:"frequency"`       // 频率 (Hz)
-	LeakageCurrent float64        `json:"leakage_current"` // 漏电流 (mA)
+	LeakageCurrent float64        `json:"leakage_current"` // 漏电流 (A) - 修正单位
 	Temperature    float64        `json:"temperature"`     // 温度 (°C)
 	Status         string         `json:"status" gorm:"size:20;not null"` // 断路器状态
 	IsLocked       bool           `json:"is_locked" gorm:"default:false"`  // 是否锁定
