@@ -1015,18 +1015,19 @@ onUnmounted(() => {
 
 .status-cards {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-  gap: 20px;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 16px;
   margin-bottom: 24px;
 }
 
 .status-card {
   background: white;
   border-radius: 12px;
-  padding: 20px;
+  padding: 16px;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
   border-left: 4px solid #52c41a;
   transition: all 0.3s ease;
+  min-width: 0; /* 允许卡片收缩 */
 }
 
 .status-card:hover {
@@ -1052,31 +1053,43 @@ onUnmounted(() => {
 }
 
 .status-icon {
-  width: 60px;
-  height: 60px;
+  width: 48px;
+  height: 48px;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 32px;
-  margin-right: 16px;
+  font-size: 24px;
+  margin-right: 12px;
+  flex-shrink: 0; /* 防止图标被压缩 */
+}
+
+.status-info {
+  flex: 1;
+  min-width: 0; /* 允许文字区域收缩 */
 }
 
 .status-info h3 {
-  margin: 0 0 8px 0;
-  font-size: 16px;
+  margin: 0 0 6px 0;
+  font-size: 14px;
   font-weight: 600;
   color: #303133;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .status-value {
-  font-size: 20px;
+  font-size: 18px;
   font-weight: 700;
-  margin-bottom: 4px;
+  margin-bottom: 3px;
 }
 
 .status-subtitle {
-  font-size: 14px;
+  font-size: 12px;
   color: #909399;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 /* 功能卡片样式 */
