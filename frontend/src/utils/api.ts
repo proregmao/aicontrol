@@ -44,11 +44,15 @@ class ApiService {
       // 构建完整URL
       const url = useProxy ? endpoint : `${API_BASE_URL}${endpoint}`
       
+      // 获取认证token
+      const token = localStorage.getItem('token')
+
       // 构建请求配置
       const fetchConfig: RequestInit = {
         method,
         headers: {
           'Content-Type': 'application/json',
+          ...(token && { 'Authorization': `Bearer ${token}` }),
           ...headers
         }
       }

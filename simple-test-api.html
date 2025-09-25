@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>简单API测试</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .result { background: #f8f9fa; padding: 15px; margin: 10px 0; border-radius: 5px; }
+        .button { background: #007bff; color: white; border: none; padding: 10px 20px; border-radius: 4px; cursor: pointer; margin: 5px; }
+        .success { color: #28a745; }
+        .error { color: #dc3545; }
+    </style>
+</head>
+<body>
+    <h1>🌡️ 简单API测试</h1>
+    
+    <button class="button" onclick="testAPI()">测试传感器通道API</button>
+    <button class="button" onclick="testViteProxy()">测试Vite代理</button>
+    
+    <div id="result" class="result">点击按钮开始测试...</div>
+
+    <script>
+        async function testAPI() {
+            const resultDiv = document.getElementById('result');
+            resultDiv.innerHTML = '正在测试API...';
+
+            try {
+                // 直接调用后端API
+                const response = await fetch('http://localhost:2999/api/v1/sensors/channels', {
+                    headers: {
+                        'Authorization': 'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX2lkIjoxLCJ1c2VybmFtZSI6ImFkbWluIiwicm9sZSI6ImFkbWluIiwiaXNzIjoi5pm66IO96K6-5aSH566h55CG57O757ufIiwic3ViIjoiYWRtaW4iLCJhdWQiOlsi5pm66IO96K6-5aSH566h55CG57O757ufIl0sImV4cCI6MTc1ODg0OTEwNiwibmJmIjoxNzU4NzYyNzA2LCJpYXQiOjE3NTg3NjI3MDd9.BfLp2ReKOl-ld324CfYWqzVb61G8jIdISoKpIZjtEPY',
+                        'Content-Type': 'application/json'
+                    }
+                });
+
+                const data = await response.json();
+                
+                if (data.code === 20000 && data.data && data.data.channels) {
+                    const channels = data.data.channels;
+                    let html = '<div class="success">✅ API调用成功！</div>';
+                    html += '<h3>传感器通道信息：</h3>';
+                    
+                    channels.forEach((channel, index) => {
+                        html += `<div>通道${channel.channel_number}: <strong>${channel.channel_name}</strong> (${channel.real_time_temp})</div>`;
+                    });
+                    
+                    html += '<h3>原始响应：</h3>';
+                    html += `<pre>${JSON.stringify(data, null, 2)}</pre>`;
+                    
+                    resultDiv.innerHTML = html;
+                } else {
+                    resultDiv.innerHTML = `<div class="error">❌ API响应格式错误</div><pre>${JSON.stringify(data, null, 2)}</pre>`;
+                }
+            } catch (error) {
+                resultDiv.innerHTML = `<div class="error">❌ API调用失败: ${error.message}</div>`;
+            }
+        }
+
+        async function testViteProxy() {
+            const resultDiv = document.getElementById('result');
+            resultDiv.innerHTML = '正在测试Vite代理...';
+
+            try {
+                // 通过Vite代理调用
+                const response = await fetch('/api/v1/sensors/channels', {
+                    headers: {
+                        'Authorization': 'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX2lkIjoxLCJ1c2VybmFtZSI6ImFkbWluIiwicm9sZSI6ImFkbWluIiwiaXNzIjoi5pm66IO96K6-5aSH566h55CG57O757ufIiwic3ViIjoiYWRtaW4iLCJhdWQiOlsi5pm66IO96K6-5aSH566h55CG57O757ufIl0sImV4cCI6MTc1ODg0OTEwNiwibmJmIjoxNzU4NzYyNzA2LCJpYXQiOjE3NTg3NjI3MDd9.BfLp2ReKOl-ld324CfYWqzVb61G8jIdISoKpIZjtEPY',
+                        'Content-Type': 'application/json'
+                    }
+                });
+
+                const data = await response.json();
+                
+                if (data.code === 20000 && data.data && data.data.channels) {
+                    const channels = data.data.channels;
+                    let html = '<div class="success">✅ Vite代理调用成功！</div>';
+                    html += '<h3>传感器通道信息：</h3>';
+                    
+                    channels.forEach((channel, index) => {
+                        html += `<div>通道${channel.channel_number}: <strong>${channel.channel_name}</strong> (${channel.real_time_temp})</div>`;
+                    });
+                    
+                    resultDiv.innerHTML = html;
+                } else {
+                    resultDiv.innerHTML = `<div class="error">❌ 代理响应格式错误</div><pre>${JSON.stringify(data, null, 2)}</pre>`;
+                }
+            } catch (error) {
+                resultDiv.innerHTML = `<div class="error">❌ 代理调用失败: ${error.message}</div>`;
+            }
+        }
+    </script>
+</body>
+</html>

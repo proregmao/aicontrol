@@ -1,0 +1,274 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>温度API调试页面</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            max-width: 1000px;
+            margin: 0 auto;
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        .section {
+            margin-bottom: 30px;
+            padding: 15px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+        }
+        .section h3 {
+            margin-top: 0;
+            color: #333;
+        }
+        .result {
+            background: #f8f9fa;
+            border: 1px solid #dee2e6;
+            border-radius: 4px;
+            padding: 15px;
+            margin-top: 10px;
+            font-family: monospace;
+            font-size: 12px;
+            white-space: pre-wrap;
+            max-height: 300px;
+            overflow-y: auto;
+        }
+        .button {
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin-right: 10px;
+        }
+        .button:hover {
+            background: #0056b3;
+        }
+        .success {
+            color: #28a745;
+        }
+        .error {
+            color: #dc3545;
+        }
+        .warning {
+            color: #ffc107;
+        }
+        .probe-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin-top: 15px;
+        }
+        .probe-card {
+            background: #f8f9fa;
+            border: 1px solid #e9ecef;
+            border-radius: 8px;
+            padding: 15px;
+            text-align: center;
+        }
+        .probe-name {
+            font-size: 16px;
+            font-weight: bold;
+            color: #495057;
+            margin-bottom: 10px;
+        }
+        .probe-temp {
+            font-size: 20px;
+            color: #28a745;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🌡️ 温度API调试页面</h1>
+        <p>用于调试温度传感器API调用和数据显示问题</p>
+
+        <div class="section">
+            <h3>1. 登录测试</h3>
+            <button class="button" onclick="testLogin()">测试登录</button>
+            <div id="login-result" class="result" style="display: none;"></div>
+        </div>
+
+        <div class="section">
+            <h3>2. 传感器通道API测试</h3>
+            <button class="button" onclick="testSensorChannels()">获取传感器通道</button>
+            <div id="channels-result" class="result" style="display: none;"></div>
+            <div id="channels-display" class="probe-grid" style="display: none;"></div>
+        </div>
+
+        <div class="section">
+            <h3>3. 实时温度API测试</h3>
+            <button class="button" onclick="testRealtimeData()">获取实时温度</button>
+            <div id="realtime-result" class="result" style="display: none;"></div>
+        </div>
+
+        <div class="section">
+            <h3>4. 前端应用测试</h3>
+            <button class="button" onclick="testFrontendAPI()">测试前端API调用</button>
+            <div id="frontend-result" class="result" style="display: none;"></div>
+        </div>
+    </div>
+
+    <script>
+        let authToken = '';
+
+        // 测试登录
+        async function testLogin() {
+            const resultDiv = document.getElementById('login-result');
+            resultDiv.style.display = 'block';
+            resultDiv.textContent = '正在登录...';
+
+            try {
+                const response = await fetch('http://localhost:2999/api/v1/auth/login', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        username: 'admin',
+                        password: 'admin123'
+                    })
+                });
+
+                const data = await response.json();
+                resultDiv.textContent = JSON.stringify(data, null, 2);
+
+                if (data.code === 20000 && data.data && data.data.token) {
+                    authToken = data.data.token;
+                    resultDiv.innerHTML = `<span class="success">✅ 登录成功！</span>\n${JSON.stringify(data, null, 2)}`;
+                } else {
+                    resultDiv.innerHTML = `<span class="error">❌ 登录失败</span>\n${JSON.stringify(data, null, 2)}`;
+                }
+            } catch (error) {
+                resultDiv.innerHTML = `<span class="error">❌ 登录异常: ${error.message}</span>`;
+            }
+        }
+
+        // 测试传感器通道API
+        async function testSensorChannels() {
+            const resultDiv = document.getElementById('channels-result');
+            const displayDiv = document.getElementById('channels-display');
+            
+            resultDiv.style.display = 'block';
+            resultDiv.textContent = '正在获取传感器通道...';
+
+            if (!authToken) {
+                resultDiv.innerHTML = '<span class="warning">⚠️ 请先登录获取token</span>';
+                return;
+            }
+
+            try {
+                const response = await fetch('http://localhost:2999/api/v1/sensors/channels', {
+                    headers: {
+                        'Authorization': `Bearer ${authToken}`,
+                        'Content-Type': 'application/json'
+                    }
+                });
+
+                const data = await response.json();
+                resultDiv.textContent = JSON.stringify(data, null, 2);
+
+                if (data.code === 20000 && data.data && data.data.channels) {
+                    const channels = data.data.channels;
+                    resultDiv.innerHTML = `<span class="success">✅ 获取成功！共${channels.length}个通道</span>\n${JSON.stringify(data, null, 2)}`;
+                    
+                    // 显示通道信息
+                    displayChannels(channels);
+                } else {
+                    resultDiv.innerHTML = `<span class="error">❌ 获取失败</span>\n${JSON.stringify(data, null, 2)}`;
+                }
+            } catch (error) {
+                resultDiv.innerHTML = `<span class="error">❌ 请求异常: ${error.message}</span>`;
+            }
+        }
+
+        // 显示通道信息
+        function displayChannels(channels) {
+            const displayDiv = document.getElementById('channels-display');
+            displayDiv.style.display = 'grid';
+            displayDiv.innerHTML = '';
+
+            channels.forEach((channel, index) => {
+                const card = document.createElement('div');
+                card.className = 'probe-card';
+                card.innerHTML = `
+                    <div class="probe-name">通道${channel.channel_number}: ${channel.channel_name}</div>
+                    <div class="probe-temp">${channel.real_time_temp || '暂无数据'}</div>
+                    <div style="font-size: 12px; color: #6c757d; margin-top: 5px;">
+                        设备: ${channel.device_address}:${channel.port}
+                    </div>
+                `;
+                displayDiv.appendChild(card);
+            });
+        }
+
+        // 测试实时温度API
+        async function testRealtimeData() {
+            const resultDiv = document.getElementById('realtime-result');
+            resultDiv.style.display = 'block';
+            resultDiv.textContent = '正在获取实时温度数据...';
+
+            if (!authToken) {
+                resultDiv.innerHTML = '<span class="warning">⚠️ 请先登录获取token</span>';
+                return;
+            }
+
+            try {
+                const response = await fetch('http://localhost:2999/api/v1/temperature/realtime', {
+                    headers: {
+                        'Authorization': `Bearer ${authToken}`,
+                        'Content-Type': 'application/json'
+                    }
+                });
+
+                const data = await response.json();
+                resultDiv.textContent = JSON.stringify(data, null, 2);
+
+                if (data.code === 20000) {
+                    resultDiv.innerHTML = `<span class="success">✅ 获取成功！</span>\n${JSON.stringify(data, null, 2)}`;
+                } else {
+                    resultDiv.innerHTML = `<span class="error">❌ 获取失败</span>\n${JSON.stringify(data, null, 2)}`;
+                }
+            } catch (error) {
+                resultDiv.innerHTML = `<span class="error">❌ 请求异常: ${error.message}</span>`;
+            }
+        }
+
+        // 测试前端API调用
+        async function testFrontendAPI() {
+            const resultDiv = document.getElementById('frontend-result');
+            resultDiv.style.display = 'block';
+            resultDiv.textContent = '正在测试前端API调用...';
+
+            try {
+                // 模拟前端API调用
+                const response = await fetch('/api/v1/sensors/channels', {
+                    headers: {
+                        'Authorization': `Bearer ${authToken}`,
+                        'Content-Type': 'application/json'
+                    }
+                });
+
+                const data = await response.json();
+                resultDiv.innerHTML = `<span class="success">✅ 前端代理调用成功！</span>\n${JSON.stringify(data, null, 2)}`;
+            } catch (error) {
+                resultDiv.innerHTML = `<span class="error">❌ 前端代理调用失败: ${error.message}</span>`;
+            }
+        }
+
+        // 页面加载时自动登录
+        window.addEventListener('DOMContentLoaded', () => {
+            console.log('页面加载完成，开始自动登录...');
+            testLogin();
+        });
+    </script>
+</body>
+</html>

@@ -221,6 +221,60 @@ type BoundServerInfo struct {
 	IsActive   bool   `json:"is_active"`
 }
 
+// BreakerModbusLog Modbus操作日志
+type BreakerModbusLog struct {
+	ID          uint           `json:"id" gorm:"primaryKey"`
+	BreakerID   uint           `json:"breaker_id" gorm:"not null;index"`
+	IPAddress   string         `json:"ip_address" gorm:"size:45;not null"`
+	Port        int            `json:"port" gorm:"not null"`
+	Operation   string         `json:"operation" gorm:"size:50;not null"`
+	Address     *int           `json:"address"`
+	RequestHex  string         `json:"request_hex" gorm:"type:text"`
+	ResponseHex string         `json:"response_hex" gorm:"type:text"`
+	Success     bool           `json:"success" gorm:"default:false"`
+	ErrorMsg    string         `json:"error_msg" gorm:"type:text"`
+	Latency     int64          `json:"latency"` // 延迟时间（微秒）
+	Value       *int           `json:"value"`
+	CreatedAt   time.Time      `json:"created_at"`
+	UpdatedAt   time.Time      `json:"updated_at"`
+	DeletedAt   gorm.DeletedAt `json:"-" gorm:"index"`
+
+	// 关联
+	Breaker *Breaker `json:"breaker,omitempty" gorm:"foreignKey:BreakerID"`
+}
+
+// TableName 指定表名
+func (BreakerModbusLog) TableName() string {
+	return "breaker_modbus_logs"
+}
+
+// BreakerRealTimeRecord 断路器实时数据记录
+type BreakerRealTimeRecord struct {
+	ID             uint           `json:"id" gorm:"primaryKey"`
+	BreakerID      uint           `json:"breaker_id" gorm:"not null;index"`
+	Voltage        float64        `json:"voltage"`         // 电压 (V)
+	Current        float64        `json:"current"`         // 电流 (A)
+	Power          float64        `json:"power"`           // 有功功率 (kW)
+	PowerFactor    float64        `json:"power_factor"`    // 功率因数
+	Frequency      float64        `json:"frequency"`       // 频率 (Hz)
+	LeakageCurrent float64        `json:"leakage_current"` // 漏电流 (mA)
+	Temperature    float64        `json:"temperature"`     // 温度 (°C)
+	Status         string         `json:"status" gorm:"size:20;not null"` // 断路器状态
+	IsLocked       bool           `json:"is_locked" gorm:"default:false"`  // 是否锁定
+	TripReason     string         `json:"trip_reason" gorm:"size:200"`     // 跳闸原因
+	CreatedAt      time.Time      `json:"created_at"`
+	UpdatedAt      time.Time      `json:"updated_at"`
+	DeletedAt      gorm.DeletedAt `json:"-" gorm:"index"`
+
+	// 关联
+	Breaker *Breaker `json:"breaker,omitempty" gorm:"foreignKey:BreakerID"`
+}
+
+// TableName 指定表名
+func (BreakerRealTimeRecord) TableName() string {
+	return "breaker_realtime_records"
+}
+
 // ToListResponse 转换为列表响应格式
 func (b *Breaker) ToListResponse() BreakerListResponse {
 	response := BreakerListResponse{

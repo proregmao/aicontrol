@@ -4,6 +4,7 @@
     <div class="page-header">
       <h1>🌡️ 温度监控 - 📊 实时监控</h1>
       <p>4路温度实时显示、历史趋势图表、告警阈值设置</p>
+
     </div>
 
     <!-- 统计卡片区域 -->
@@ -200,10 +201,11 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted } from 'vue'
+import { ref, onMounted, onUnmounted, nextTick } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import type { FormInstance, FormRules } from 'element-plus'
 import TemperatureChart from '@/components/charts/TemperatureChart.vue'
+import { apiService } from '@/utils/api'
 
 // 响应式数据
 const selectedTimeRange = ref('6h')
@@ -270,13 +272,16 @@ const probeList = [
   { key: '探头4', sensor: 'sensor4' }
 ]
 
-// 探头显示信息（与告警规则关联）
+// 探头显示信息（从数据库动态加载）
 const probeDisplayInfo = ref({
-  '探头1': { name: '探头1 (室温)', normalRange: '18-25°C', status: '正常' },
-  '探头2': { name: '探头2 (进风口)', normalRange: '18-25°C', status: '正常' },
-  '探头3': { name: '探头3 (出风口)', normalRange: '30-45°C', status: '正常' },
-  '探头4': { name: '探头4 (网络设备)', normalRange: '22-40°C', status: '正常' }
+  '探头1': { name: '探头1', normalRange: '18-25°C', status: '正常' },
+  '探头2': { name: '探头2', normalRange: '18-25°C', status: '正常' },
+  '探头3': { name: '探头3', normalRange: '30-45°C', status: '正常' },
+  '探头4': { name: '探头4', normalRange: '22-40°C', status: '正常' }
 })
+
+// 传感器通道映射（从数据库加载）
+const sensorChannelMapping = ref({})
 
 // 动态判断探头状态
 const getProbeStatus = (probeKey: string) => {
@@ -503,21 +508,29 @@ const loadAlarmRules = async () => {
       if (result.code === 200 && result.data) {
         alarmThresholds.value = result.data
 
-        // 更新探头显示信息
+        // 更新探头显示信息（但不覆盖从数据库加载的传感器名称）
         result.data.forEach(rule => {
           if (probeDisplayInfo.value[rule.probe]) {
             probeDisplayInfo.value[rule.probe].normalRange = rule.normalRange
             probeDisplayInfo.value[rule.probe].status = rule.status
 
-            // 根据探头名称更新显示名称
-            const locationMap = {
-              '室温监测': '(室温)',
-              '进风口': '(进风口)',
-              '出风口': '(出风口)',
-              '网络设备': '(网络设备)'
+            // 只有当名称还是默认值时才更新（不覆盖从数据库加载的真实名称）
+            const currentName = probeDisplayInfo.value[rule.probe].name
+            const isDefaultName = currentName === rule.probe || currentName.startsWith('探头')
+
+            if (isDefaultName) {
+              console.log(`⚠️ 探头 ${rule.probe} 使用默认名称，从告警规则更新`)
+              const locationMap = {
+                '室温监测': '(室温)',
+                '进风口': '(进风口)',
+                '出风口': '(出风口)',
+                '网络设备': '(网络设备)'
+              }
+              const suffix = locationMap[rule.location] || `(${rule.location})`
+              probeDisplayInfo.value[rule.probe].name = `${rule.probe} ${suffix}`
+            } else {
+              console.log(`✅ 探头 ${rule.probe} 保持数据库名称: ${currentName}`)
             }
-            const suffix = locationMap[rule.location] || `(${rule.location})`
-            probeDisplayInfo.value[rule.probe].name = `${rule.probe} ${suffix}`
           }
         })
       }
@@ -598,14 +611,90 @@ const updateSensorData = async () => {
   }
 }
 
+// 加载传感器通道信息
+const loadSensorChannels = async () => {
+  try {
+    const response = await apiService.get('/api/v1/sensors/channels', { useProxy: true })
+    console.log('API响应:', response)
+
+    // 检查API响应格式
+    let channels = []
+    if (response.code === 20000 && response.data && response.data.channels) {
+      // 后端API直接响应格式
+      channels = response.data.channels
+      console.log('✅ 使用直接API响应格式')
+    } else if (response.success && response.data && response.data.channels) {
+      // ApiService包装的响应格式
+      channels = response.data.channels
+      console.log('✅ 使用ApiService包装格式')
+    } else {
+      console.warn('⚠️ 未识别的响应格式:', response)
+    }
+
+    if (channels.length > 0) {
+      console.log('🔄 开始更新探头显示信息，共', channels.length, '个通道')
+
+      // 更新探头显示信息，使用数据库中的真实名称
+      channels.forEach((channel, index) => {
+        const probeKey = `探头${index + 1}`
+        console.log(`🔄 更新 ${probeKey}:`, channel.channel_name)
+
+        if (probeDisplayInfo.value[probeKey]) {
+          // 使用Vue的响应式更新方式
+          probeDisplayInfo.value[probeKey] = {
+            ...probeDisplayInfo.value[probeKey],
+            name: channel.channel_name || `探头${index + 1}`
+          }
+          console.log(`✅ ${probeKey} 更新完成:`, probeDisplayInfo.value[probeKey].name)
+        }
+
+        // 建立传感器通道映射
+        sensorChannelMapping.value[`sensor${index + 1}`] = {
+          id: channel.id,
+          name: channel.channel_name,
+          channel: channel.channel_number
+        }
+      })
+
+      console.log('✅ 所有探头显示信息更新完成:', probeDisplayInfo.value)
+
+      // 强制触发Vue响应式更新
+      nextTick(() => {
+        console.log('🔄 强制触发响应式更新')
+      })
+
+      console.log('传感器通道信息加载成功:', channels)
+    } else {
+      console.warn('未能获取传感器通道信息，响应格式:', response)
+    }
+  } catch (error) {
+    console.error('加载传感器通道信息失败:', error)
+    // 保持现有的探头显示信息，不重新设置为默认值
+    console.log('将使用现有的探头显示信息')
+  }
+}
+
+
+
 // 生命周期
 onMounted(async () => {
+  console.log('🚀 页面开始加载...')
+
   // 立即获取一次数据
   await updateSensorData()
+  console.log('✅ 传感器数据加载完成')
+
   // 加载告警规则
   await loadAlarmRules()
+  console.log('✅ 告警规则加载完成')
+
+  // 最后加载传感器通道信息（确保不被覆盖）
+  await loadSensorChannels()
+  console.log('✅ 传感器通道信息加载完成')
+
   // 然后每5秒更新一次
   updateTimer = setInterval(updateSensorData, 5000)
+  console.log('✅ 页面加载完成，开始定时更新')
 })
 
 onUnmounted(() => {
