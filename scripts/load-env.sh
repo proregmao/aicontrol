@@ -115,16 +115,16 @@ WS_URL=ws://localhost:8080/ws
 
 # 数据库配置 (使用PostgreSQL)
 DB_TYPE=postgres
-DB_HOST=192.168.110.21
-DB_PORT=5432
-DB_USER=postgres
-DB_PASSWORD=abcd1234
-DB_NAME=smart_device_management
-DB_SSLMODE=disable
-DB_TIMEZONE=Asia/Shanghai
+DB_HOST=\${DB_HOST:-192.168.110.21}
+DB_PORT=\${DB_PORT:-5432}
+DB_USER=\${DB_USER:-postgres}
+DB_PASSWORD=\${DB_PASSWORD:-abcd1234}
+DB_NAME=\${DB_NAME:-smart_device_management}
+DB_SSLMODE=\${DB_SSLMODE:-disable}
+DB_TIMEZONE=\${DB_TIMEZONE:-Asia/Shanghai}
 
 # JWT配置
-JWT_SECRET=your_super_secret_jwt_key_change_in_production
+JWT_SECRET=\${JWT_SECRET:-your_super_secret_jwt_key_change_in_production}
 JWT_EXPIRES_IN=24h
 
 # 应用配置

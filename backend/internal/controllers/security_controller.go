@@ -3,6 +3,7 @@ package controllers
 import (
 	"net/http"
 	"smart-device-management/internal/models"
+	"smart-device-management/internal/services"
 	"strconv"
 	"time"
 
@@ -10,11 +11,13 @@ import (
 )
 
 type SecurityController struct {
-	// securityService *services.SecurityService
+	userService services.UserService
 }
 
 func NewSecurityController() *SecurityController {
-	return &SecurityController{}
+	return &SecurityController{
+		userService: services.NewUserService(),
+	}
 }
 
 // GetUsers 获取用户列表
@@ -32,102 +35,40 @@ func NewSecurityController() *SecurityController {
 // @Failure 500 {object} models.APIResponse
 // @Router /api/v1/security/users [get]
 func (c *SecurityController) GetUsers(ctx *gin.Context) {
-	role := ctx.Query("role")
-	status := ctx.Query("status")
 	pageStr := ctx.DefaultQuery("page", "1")
 	limitStr := ctx.DefaultQuery("limit", "20")
 
 	page, _ := strconv.Atoi(pageStr)
 	limit, _ := strconv.Atoi(limitStr)
 
-	// 模拟用户数据
-	users := []gin.H{
-		{
-			"id":          1,
-			"username":    "admin",
-			"email":       "admin@example.com",
-			"full_name":   "系统管理员",
-			"role":        "admin",
-			"status":      "active",
-			"last_login":  time.Now().Add(-time.Hour * 2).Format(time.RFC3339),
-			"login_count": 156,
-			"created_at":  "2025-09-15T08:00:00Z",
-			"updated_at":  "2025-09-15T08:00:00Z",
-		},
-		{
-			"id":          2,
-			"username":    "operator1",
-			"email":       "operator1@example.com",
-			"full_name":   "操作员1",
-			"role":        "operator",
-			"status":      "active",
-			"last_login":  time.Now().Add(-time.Hour * 1).Format(time.RFC3339),
-			"login_count": 89,
-			"created_at":  "2025-09-15T08:00:00Z",
-			"updated_at":  "2025-09-15T08:00:00Z",
-		},
-		{
-			"id":          3,
-			"username":    "viewer1",
-			"email":       "viewer1@example.com",
-			"full_name":   "查看员1",
-			"role":        "viewer",
-			"status":      "active",
-			"last_login":  time.Now().Add(-time.Hour * 6).Format(time.RFC3339),
-			"login_count": 23,
-			"created_at":  "2025-09-15T08:00:00Z",
-			"updated_at":  "2025-09-15T08:00:00Z",
-		},
-		{
-			"id":          4,
-			"username":    "inactive_user",
-			"email":       "inactive@example.com",
-			"full_name":   "停用用户",
-			"role":        "viewer",
-			"status":      "inactive",
-			"last_login":  time.Now().Add(-time.Hour * 72).Format(time.RFC3339),
-			"login_count": 5,
-			"created_at":  "2025-09-15T08:00:00Z",
-			"updated_at":  "2025-09-15T08:00:00Z",
-		},
+	// 从数据库获取用户列表
+	filters := make(map[string]interface{})
+
+	// 处理搜索过滤
+	if search := ctx.Query("search"); search != "" {
+		filters["search"] = search
+	}
+	if role := ctx.Query("role"); role != "" {
+		filters["role"] = role
+	}
+	if status := ctx.Query("status"); status != "" {
+		filters["status"] = status
 	}
 
-	// 过滤数据
-	filteredUsers := []gin.H{}
-	for _, user := range users {
-		if role != "" && user["role"] != role {
-			continue
-		}
-		if status != "" && user["status"] != status {
-			continue
-		}
-		filteredUsers = append(filteredUsers, user)
-	}
-
-	// 分页处理
-	total := len(filteredUsers)
-	start := (page - 1) * limit
-	end := start + limit
-	if start > total {
-		filteredUsers = []gin.H{}
-	} else if end > total {
-		filteredUsers = filteredUsers[start:]
-	} else {
-		filteredUsers = filteredUsers[start:end]
+	userList, err := c.userService.GetUserList(page, limit, filters)
+	if err != nil {
+		ctx.JSON(http.StatusInternalServerError, models.APIResponse{
+			Code:    http.StatusInternalServerError,
+			Message: "获取用户列表失败",
+			Error:   err.Error(),
+		})
+		return
 	}
 
 	ctx.JSON(http.StatusOK, models.APIResponse{
 		Code:    http.StatusOK,
 		Message: "获取用户列表成功",
-		Data: gin.H{
-			"items": filteredUsers,
-			"pagination": gin.H{
-				"page":       page,
-				"limit":      limit,
-				"total":      total,
-				"total_page": (total + limit - 1) / limit,
-			},
-		},
+		Data:    userList,
 	})
 }
 
@@ -155,44 +96,15 @@ func (c *SecurityController) GetUser(ctx *gin.Context) {
 		return
 	}
 
-	// 模拟用户详情数据
-	user := gin.H{
-		"id":        id,
-		"username":  "admin",
-		"email":     "admin@example.com",
-		"full_name": "系统管理员",
-		"role":      "admin",
-		"status":    "active",
-		"permissions": []string{
-			"device:read", "device:write", "device:delete",
-			"user:read", "user:write", "user:delete",
-			"system:read", "system:write",
-		},
-		"profile": gin.H{
-			"phone":      "13800138000",
-			"department": "IT部门",
-			"position":   "系统管理员",
-			"avatar":     "/avatars/admin.jpg",
-		},
-		"security_settings": gin.H{
-			"two_factor_enabled":   false,
-			"password_expires_at":  time.Now().Add(time.Hour * 24 * 90).Format(time.RFC3339),
-			"login_attempts":       0,
-			"max_login_attempts":   5,
-			"account_locked_until": nil,
-		},
-		"login_history": []gin.H{
-			{
-				"login_time": time.Now().Add(-time.Hour * 2).Format(time.RFC3339),
-				"ip_address": "192.168.1.100",
-				"user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
-				"status":     "success",
-			},
-		},
-		"last_login":  time.Now().Add(-time.Hour * 2).Format(time.RFC3339),
-		"login_count": 156,
-		"created_at":  "2025-09-15T08:00:00Z",
-		"updated_at":  "2025-09-15T08:00:00Z",
+	// 从数据库获取用户详情
+	user, err := c.userService.GetUserByID(uint(id))
+	if err != nil {
+		ctx.JSON(http.StatusNotFound, models.APIResponse{
+			Code:    http.StatusNotFound,
+			Message: "用户不存在",
+			Error:   err.Error(),
+		})
+		return
 	}
 
 	ctx.JSON(http.StatusOK, models.APIResponse{
@@ -214,7 +126,7 @@ func (c *SecurityController) GetUser(ctx *gin.Context) {
 // @Failure 500 {object} models.APIResponse
 // @Router /api/v1/security/users [post]
 func (c *SecurityController) CreateUser(ctx *gin.Context) {
-	var req gin.H
+	var req models.CreateUserRequest
 	if err := ctx.ShouldBindJSON(&req); err != nil {
 		ctx.JSON(http.StatusBadRequest, models.APIResponse{
 			Code:    http.StatusBadRequest,
@@ -224,18 +136,15 @@ func (c *SecurityController) CreateUser(ctx *gin.Context) {
 		return
 	}
 
-	// 模拟创建用户
-	user := gin.H{
-		"id":          5,
-		"username":    req["username"],
-		"email":       req["email"],
-		"full_name":   req["full_name"],
-		"role":        req["role"],
-		"status":      "active",
-		"permissions": req["permissions"],
-		"profile":     req["profile"],
-		"created_at":  time.Now().Format(time.RFC3339),
-		"updated_at":  time.Now().Format(time.RFC3339),
+	// 创建用户
+	user, err := c.userService.CreateUser(&req)
+	if err != nil {
+		ctx.JSON(http.StatusInternalServerError, models.APIResponse{
+			Code:    http.StatusInternalServerError,
+			Message: "用户创建失败",
+			Error:   err.Error(),
+		})
+		return
 	}
 
 	ctx.JSON(http.StatusCreated, models.APIResponse{

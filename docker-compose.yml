@@ -1,5 +1,9 @@
 version: '3.8'
 
+# 使用环境变量文件
+# 复制 .env.docker 为 .env 或使用以下命令指定环境变量文件：
+# docker-compose --env-file .env.docker up
+
 services:
   # 前端服务
   frontend:
@@ -32,19 +36,19 @@ services:
     environment:
       - NODE_ENV=production
       - PORT=8080
-      - DB_TYPE=postgres
-      - DB_HOST=192.168.110.21
-      - DB_PORT=5432
-      - DB_USER=postgres
-      - DB_PASSWORD=abcd1234
-      - DB_NAME=smart_device_management
-      - DB_SSLMODE=disable
-      - DB_TIMEZONE=Asia/Shanghai
-      - REDIS_HOST=192.168.110.21
-      - REDIS_PORT=6379
-      - REDIS_PASSWORD=abcd1234
-      - JWT_SECRET=${JWT_SECRET:-your-super-secret-jwt-key}
-      - LOG_LEVEL=info
+      - DB_TYPE=${DB_TYPE:-postgres}
+      - DB_HOST=${DB_HOST:-192.168.110.21}
+      - DB_PORT=${DB_PORT:-5432}
+      - DB_USER=${DB_USER:-postgres}
+      - DB_PASSWORD=${DB_PASSWORD:-abcd1234}
+      - DB_NAME=${DB_NAME:-smart_device_management}
+      - DB_SSLMODE=${DB_SSLMODE:-disable}
+      - DB_TIMEZONE=${DB_TIMEZONE:-Asia/Shanghai}
+      - REDIS_HOST=${REDIS_HOST:-192.168.110.21}
+      - REDIS_PORT=${REDIS_PORT:-6379}
+      - REDIS_PASSWORD=${REDIS_PASSWORD:-abcd1234}
+      - JWT_SECRET=${JWT_SECRET:-your_super_secret_jwt_key_change_in_production}
+      - LOG_LEVEL=${LOG_LEVEL:-info}
     volumes:
       - backend_data:/app/data
       - backend_logs:/app/logs

@@ -1,0 +1,354 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>网络速度检测测试</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #333;
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        .form-group {
+            margin-bottom: 20px;
+        }
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+            color: #555;
+        }
+        input, select {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            font-size: 14px;
+        }
+        button {
+            background-color: #007bff;
+            color: white;
+            padding: 12px 30px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 16px;
+            margin-right: 10px;
+        }
+        button:hover {
+            background-color: #0056b3;
+        }
+        button:disabled {
+            background-color: #ccc;
+            cursor: not-allowed;
+        }
+        .result {
+            margin-top: 30px;
+            padding: 20px;
+            background-color: #f8f9fa;
+            border-radius: 5px;
+            border-left: 4px solid #007bff;
+        }
+        .error {
+            border-left-color: #dc3545;
+            background-color: #f8d7da;
+        }
+        .success {
+            border-left-color: #28a745;
+            background-color: #d4edda;
+        }
+        .loading {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #007bff;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin-right: 10px;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        pre {
+            background: #f4f4f4;
+            padding: 15px;
+            border-radius: 5px;
+            overflow-x: auto;
+            white-space: pre-wrap;
+        }
+        .network-info {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 20px;
+            margin-top: 20px;
+        }
+        .network-card {
+            background: white;
+            padding: 15px;
+            border-radius: 8px;
+            border: 1px solid #ddd;
+        }
+        .network-card h4 {
+            margin: 0 0 10px 0;
+            color: #333;
+        }
+        .network-detail {
+            display: flex;
+            justify-content: space-between;
+            margin: 5px 0;
+        }
+        .speed-highlight {
+            font-weight: bold;
+            color: #007bff;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🌐 网络速度检测测试</h1>
+        
+        <form id="testForm">
+            <div class="form-group">
+                <label for="ip">服务器IP地址:</label>
+                <input type="text" id="ip" value="192.168.110.177" required>
+            </div>
+            
+            <div class="form-group">
+                <label for="port">SSH端口:</label>
+                <input type="number" id="port" value="22" required>
+            </div>
+            
+            <div class="form-group">
+                <label for="username">用户名:</label>
+                <input type="text" id="username" value="root" required>
+            </div>
+            
+            <div class="form-group">
+                <label for="password">密码:</label>
+                <input type="password" id="password" value="123456" required>
+            </div>
+            
+            <button type="submit" id="testBtn">🔍 检测硬件信息</button>
+            <button type="button" id="clearBtn">🗑️ 清空结果</button>
+        </form>
+        
+        <div id="result" class="result" style="display: none;">
+            <h3>检测结果:</h3>
+            <div id="resultContent"></div>
+        </div>
+    </div>
+
+    <script>
+        const form = document.getElementById('testForm');
+        const testBtn = document.getElementById('testBtn');
+        const clearBtn = document.getElementById('clearBtn');
+        const result = document.getElementById('result');
+        const resultContent = document.getElementById('resultContent');
+
+        form.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const formData = {
+                ip_address: document.getElementById('ip').value,
+                port: parseInt(document.getElementById('port').value),
+                protocol: 'ssh',
+                username: document.getElementById('username').value,
+                password: document.getElementById('password').value,
+                private_key: ''
+            };
+
+            testBtn.disabled = true;
+            testBtn.innerHTML = '<span class="loading"></span>检测中...';
+            result.style.display = 'block';
+            result.className = 'result';
+            resultContent.innerHTML = '<p>正在检测硬件信息，请稍候...</p>';
+
+            try {
+                const response = await fetch('http://localhost:2999/api/v1/servers/detect-hardware', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${localStorage.getItem('token') || 'test-token'}`
+                    },
+                    body: JSON.stringify(formData)
+                });
+
+                const data = await response.json();
+                
+                if (data.code === 200) {
+                    result.className = 'result success';
+                    displayHardwareInfo(data.data);
+                } else {
+                    result.className = 'result error';
+                    resultContent.innerHTML = `
+                        <h4>❌ 检测失败</h4>
+                        <p><strong>错误信息:</strong> ${data.message}</p>
+                        <pre>${JSON.stringify(data, null, 2)}</pre>
+                    `;
+                }
+            } catch (error) {
+                result.className = 'result error';
+                resultContent.innerHTML = `
+                    <h4>❌ 请求失败</h4>
+                    <p><strong>错误信息:</strong> ${error.message}</p>
+                `;
+            } finally {
+                testBtn.disabled = false;
+                testBtn.innerHTML = '🔍 检测硬件信息';
+            }
+        });
+
+        clearBtn.addEventListener('click', () => {
+            result.style.display = 'none';
+            resultContent.innerHTML = '';
+        });
+
+        function displayHardwareInfo(data) {
+            let html = '<h4>✅ 硬件信息检测成功</h4>';
+            
+            // CPU信息
+            html += `
+                <div class="network-card">
+                    <h4>🖥️ CPU信息</h4>
+                    <div class="network-detail">
+                        <span>型号:</span>
+                        <span>${data.cpu.model}</span>
+                    </div>
+                    <div class="network-detail">
+                        <span>核心数:</span>
+                        <span>${data.cpu.cores}</span>
+                    </div>
+                    <div class="network-detail">
+                        <span>使用率:</span>
+                        <span>${data.cpu.usage}%</span>
+                    </div>
+                </div>
+            `;
+
+            // 内存信息
+            html += `
+                <div class="network-card">
+                    <h4>💾 内存信息</h4>
+                    <div class="network-detail">
+                        <span>总内存:</span>
+                        <span>${(data.memory.total / 1024 / 1024 / 1024).toFixed(2)} GB</span>
+                    </div>
+                    <div class="network-detail">
+                        <span>已用内存:</span>
+                        <span>${(data.memory.used / 1024 / 1024 / 1024).toFixed(2)} GB</span>
+                    </div>
+                    <div class="network-detail">
+                        <span>使用率:</span>
+                        <span>${data.memory.usage.toFixed(2)}%</span>
+                    </div>
+                </div>
+            `;
+
+            // 网络接口信息
+            if (data.network && data.network.length > 0) {
+                html += '<div class="network-info">';
+                data.network.forEach(iface => {
+                    html += `
+                        <div class="network-card">
+                            <h4>🌐 ${iface.name}</h4>
+                            <div class="network-detail">
+                                <span>IP地址:</span>
+                                <span>${iface.ip || 'N/A'}</span>
+                            </div>
+                            <div class="network-detail">
+                                <span>MAC地址:</span>
+                                <span>${iface.mac || 'N/A'}</span>
+                            </div>
+                            <div class="network-detail">
+                                <span>状态:</span>
+                                <span>${iface.status}</span>
+                            </div>
+                            <div class="network-detail">
+                                <span>速度:</span>
+                                <span class="speed-highlight">${iface.speed}</span>
+                            </div>
+                        </div>
+                    `;
+                });
+                html += '</div>';
+            }
+
+            // 系统信息
+            html += `
+                <div class="network-card">
+                    <h4>🖥️ 系统信息</h4>
+                    <div class="network-detail">
+                        <span>操作系统:</span>
+                        <span>${data.system.os}</span>
+                    </div>
+                    <div class="network-detail">
+                        <span>主机名:</span>
+                        <span>${data.system.hostname}</span>
+                    </div>
+                    <div class="network-detail">
+                        <span>内核版本:</span>
+                        <span>${data.system.kernel}</span>
+                    </div>
+                    <div class="network-detail">
+                        <span>架构:</span>
+                        <span>${data.system.arch}</span>
+                    </div>
+                </div>
+            `;
+
+            // 原始数据
+            html += `
+                <details style="margin-top: 20px;">
+                    <summary>📋 查看原始数据</summary>
+                    <pre>${JSON.stringify(data, null, 2)}</pre>
+                </details>
+            `;
+
+            resultContent.innerHTML = html;
+        }
+
+        // 页面加载时尝试获取token
+        window.addEventListener('load', () => {
+            if (!localStorage.getItem('token')) {
+                // 如果没有token，尝试登录获取
+                fetch('http://localhost:2999/api/v1/auth/login', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        username: 'admin',
+                        password: 'admin123'
+                    })
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.code === 200) {
+                        localStorage.setItem('token', data.data.token);
+                        console.log('自动登录成功');
+                    }
+                })
+                .catch(error => {
+                    console.log('自动登录失败:', error);
+                });
+            }
+        });
+    </script>
+</body>
+</html>

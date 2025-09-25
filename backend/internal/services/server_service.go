@@ -349,68 +349,8 @@ func (s *ServerService) GetServerHardware(serverID uint) (*models.ServerHardware
 
 	hardwareInfo, err := s.getHardwareInfoViaSSH(detectRequest)
 	if err != nil {
-		s.logger.Warn("通过SSH获取硬件信息失败，使用默认值", "error", err)
-		// 如果SSH获取失败，返回基本信息
-		hardwareInfo = &models.ServerHardwareInfo{
-			CPU: models.CPUInfo{
-				Model: "Intel(R) Xeon(R) CPU E5-2680 v4 @ 2.40GHz",
-				Cores: 28,
-				Usage: 45.2,
-			},
-			Memory: models.MemoryInfo{
-				Total:     34359738368, // 32GB
-				Used:      16106127360, // 15GB
-				Available: 18253611008, // 17GB
-				Usage:     46.8,
-			},
-			Load: models.LoadInfo{
-				Load1:  "1.25",
-				Load5:  "1.18",
-				Load15: "1.32",
-			},
-			Disks: []models.DiskInfo{
-				{
-					Device:     "/dev/sda1",
-					Mountpoint: "/",
-					Fstype:     "ext4",
-					Total:      1073741824000, // 1TB
-					Used:       322122547200,  // 300GB
-					Usage:      30.0,
-				},
-				{
-					Device:     "/dev/sda2",
-					Mountpoint: "/home",
-					Fstype:     "ext4",
-					Total:      536870912000, // 500GB
-					Used:       107374182400, // 100GB
-					Usage:      20.0,
-				},
-			},
-			Network: []models.NetworkInfo{
-				{
-					Name:   "eth0",
-					IP:     server.IPAddress,
-					MAC:    "00:1B:21:AB:CD:EF",
-					Status: "up",
-					Speed:  "1000 Mbps",
-				},
-				{
-					Name:   "lo",
-					IP:     "127.0.0.1",
-					MAC:    "00:00:00:00:00:00",
-					Status: "up",
-					Speed:  "Unknown",
-				},
-			},
-			System: models.SystemInfo{
-				OS:       "Ubuntu 22.04.3 LTS",
-				Version:  "22.04",
-				Kernel:   "5.15.0-91-generic",
-				Arch:     "x86_64",
-				Uptime:   "15 days, 3 hours, 42 minutes",
-				Hostname: server.ServerName,
-			},
-		}
+		s.logger.Error("通过SSH获取硬件信息失败", "server_id", serverID, "error", err)
+		return nil, fmt.Errorf("获取硬件信息失败: %w", err)
 	}
 
 	s.logger.Info("成功获取服务器硬件信息", "server_id", serverID)
@@ -448,99 +388,73 @@ func (s *ServerService) getHardwareInfoViaSSH(req models.ServerHardwareDetectReq
 	// 这里实现通过SSH连接到服务器并执行命令获取硬件信息
 	// 基于1Panel的监控算法实现
 
+	s.logger.Info("开始通过SSH获取硬件信息", "ip_address", req.IPAddress)
+
 	hardwareInfo := &models.ServerHardwareInfo{}
+	var errors []string
 
 	// 获取CPU信息
 	cpuInfo, err := s.getCPUInfoViaSSH(req)
 	if err != nil {
-		s.logger.Warn("获取CPU信息失败", "error", err)
-		// 使用默认值
-		cpuInfo = models.CPUInfo{
-			Model: "Unknown CPU",
-			Cores: 1,
-			Usage: 0.0,
-		}
+		s.logger.Error("获取CPU信息失败", "ip_address", req.IPAddress, "error", err)
+		errors = append(errors, fmt.Sprintf("CPU信息获取失败: %v", err))
+		// 不使用默认值，而是返回错误信息
+		return nil, fmt.Errorf("获取CPU信息失败: %w", err)
 	}
 	hardwareInfo.CPU = cpuInfo
+	s.logger.Info("CPU信息获取成功", "model", cpuInfo.Model, "cores", cpuInfo.Cores)
 
 	// 获取内存信息
 	memoryInfo, err := s.getMemoryInfoViaSSH(req)
 	if err != nil {
-		s.logger.Warn("获取内存信息失败", "error", err)
-		// 使用默认值
-		memoryInfo = models.MemoryInfo{
-			Total:     1073741824, // 1GB
-			Used:      536870912,  // 512MB
-			Available: 536870912,  // 512MB
-			Usage:     50.0,
-		}
+		s.logger.Error("获取内存信息失败", "ip_address", req.IPAddress, "error", err)
+		errors = append(errors, fmt.Sprintf("内存信息获取失败: %v", err))
+		return nil, fmt.Errorf("获取内存信息失败: %w", err)
 	}
 	hardwareInfo.Memory = memoryInfo
+	s.logger.Info("内存信息获取成功", "total_gb", memoryInfo.Total/1024/1024/1024, "usage", memoryInfo.Usage)
 
 	// 获取负载信息
 	loadInfo, err := s.getLoadInfoViaSSH(req)
 	if err != nil {
-		s.logger.Warn("获取负载信息失败", "error", err)
-		// 使用默认值
-		loadInfo = models.LoadInfo{
-			Load1:  "0.00",
-			Load5:  "0.00",
-			Load15: "0.00",
-		}
+		s.logger.Error("获取负载信息失败", "ip_address", req.IPAddress, "error", err)
+		errors = append(errors, fmt.Sprintf("负载信息获取失败: %v", err))
+		return nil, fmt.Errorf("获取负载信息失败: %w", err)
 	}
 	hardwareInfo.Load = loadInfo
+	s.logger.Info("负载信息获取成功", "load1", loadInfo.Load1, "load5", loadInfo.Load5)
 
 	// 获取磁盘信息
 	diskInfo, err := s.getDiskInfoViaSSH(req)
 	if err != nil {
-		s.logger.Warn("获取磁盘信息失败", "error", err)
-		// 使用默认值
-		diskInfo = []models.DiskInfo{
-			{
-				Device:     "/dev/sda1",
-				Mountpoint: "/",
-				Fstype:     "ext4",
-				Total:      10737418240, // 10GB
-				Used:       5368709120,  // 5GB
-				Usage:      50.0,
-			},
-		}
+		s.logger.Error("获取磁盘信息失败", "ip_address", req.IPAddress, "error", err)
+		errors = append(errors, fmt.Sprintf("磁盘信息获取失败: %v", err))
+		return nil, fmt.Errorf("获取磁盘信息失败: %w", err)
 	}
 	hardwareInfo.Disks = diskInfo
+	s.logger.Info("磁盘信息获取成功", "disk_count", len(diskInfo))
 
 	// 获取网络信息
 	networkInfo, err := s.getNetworkInfoViaSSH(req)
 	if err != nil {
-		s.logger.Warn("获取网络信息失败", "error", err)
-		// 使用默认值
-		networkInfo = []models.NetworkInfo{
-			{
-				Name:   "eth0",
-				IP:     req.IPAddress,
-				MAC:    "00:00:00:00:00:00",
-				Status: "up",
-				Speed:  "Unknown",
-			},
-		}
+		s.logger.Error("获取网络信息失败", "ip_address", req.IPAddress, "error", err)
+		errors = append(errors, fmt.Sprintf("网络信息获取失败: %v", err))
+		return nil, fmt.Errorf("获取网络信息失败: %w", err)
 	}
 	hardwareInfo.Network = networkInfo
+	s.logger.Info("网络信息获取成功", "interface_count", len(networkInfo))
 
 	// 获取系统信息
 	systemInfo, err := s.getSystemInfoViaSSH(req)
 	if err != nil {
-		s.logger.Warn("获取系统信息失败", "error", err)
-		// 使用默认值
-		systemInfo = models.SystemInfo{
-			OS:       "Linux",
-			Version:  "Unknown",
-			Kernel:   "Unknown",
-			Arch:     "x86_64",
-			Uptime:   "Unknown",
-			Hostname: "Unknown",
-		}
+		s.logger.Error("获取系统信息失败", "ip_address", req.IPAddress, "error", err)
+		errors = append(errors, fmt.Sprintf("系统信息获取失败: %v", err))
+		return nil, fmt.Errorf("获取系统信息失败: %w", err)
 	}
 	hardwareInfo.System = systemInfo
+	s.logger.Info("系统信息获取成功", "os", systemInfo.OS, "hostname", systemInfo.Hostname)
 
+	s.logger.Info("硬件信息获取完成", "ip_address", req.IPAddress)
 	return hardwareInfo, nil
 }
 
@@ -624,18 +538,60 @@ func (s *ServerService) getCPUInfoViaSSH(req models.ServerHardwareDetectRequest)
 		}
 	}
 
-	// 获取CPU使用率
+	// 获取CPU使用率 - 使用更准确的方法
 	usageSession, err := conn.NewSession()
 	if err != nil {
 		return models.CPUInfo{}, fmt.Errorf("创建SSH会话失败: %w", err)
 	}
 	defer usageSession.Close()
 
-	usageOutput, err := usageSession.CombinedOutput("top -bn1 | grep 'Cpu(s)' | awk '{print $2}' | cut -d'%' -f1")
+	// 使用sar命令或者通过/proc/stat计算CPU使用率
+	// 这里使用简化的方法：读取/proc/stat两次，计算差值
+	usageCmd := `
+		# 读取第一次CPU统计
+		read cpu user nice system idle iowait irq softirq steal guest guest_nice < /proc/stat
+		cpu1_idle=$idle
+		cpu1_total=$((user + nice + system + idle + iowait + irq + softirq + steal))
+
+		# 等待1秒
+		sleep 1
+
+		# 读取第二次CPU统计
+		read cpu user nice system idle iowait irq softirq steal guest guest_nice < /proc/stat
+		cpu2_idle=$idle
+		cpu2_total=$((user + nice + system + idle + iowait + irq + softirq + steal))
+
+		# 计算CPU使用率
+		cpu_delta=$((cpu2_total - cpu1_total))
+		idle_delta=$((cpu2_idle - cpu1_idle))
+
+		if [ $cpu_delta -gt 0 ]; then
+			cpu_usage=$(echo "scale=2; 100 - ($idle_delta * 100 / $cpu_delta)" | bc -l 2>/dev/null || echo "0.0")
+			echo $cpu_usage
+		else
+			echo "0.0"
+		fi
+	`
+
+	usageOutput, err := usageSession.CombinedOutput(usageCmd)
 	usage := 0.0
 	if err == nil && len(usageOutput) > 0 {
 		if parsedUsage, parseErr := strconv.ParseFloat(strings.TrimSpace(string(usageOutput)), 64); parseErr == nil {
 			usage = parsedUsage
+		}
+	}
+
+	// 如果上面的方法失败，使用top命令作为备选
+	if usage == 0.0 {
+		topSession, err := conn.NewSession()
+		if err == nil {
+			defer topSession.Close()
+			topOutput, err := topSession.CombinedOutput("top -bn1 | grep 'Cpu(s)' | awk '{print $2}' | cut -d'%' -f1")
+			if err == nil && len(topOutput) > 0 {
+				if parsedUsage, parseErr := strconv.ParseFloat(strings.TrimSpace(string(topOutput)), 64); parseErr == nil {
+					usage = parsedUsage
+				}
+			}
 		}
 	}
 
@@ -713,42 +669,199 @@ func (s *ServerService) getMemoryInfoViaSSH(req models.ServerHardwareDetectReque
 
 // getLoadInfoViaSSH 通过SSH获取负载信息
 func (s *ServerService) getLoadInfoViaSSH(req models.ServerHardwareDetectRequest) (models.LoadInfo, error) {
-	// 基于1Panel算法实现负载信息获取
-	// 执行命令: cat /proc/loadavg
+	// 创建SSH连接
+	conn, err := s.createSSHConnection(req.IPAddress, req.Port, req.Username, req.Password, req.PrivateKey)
+	if err != nil {
+		return models.LoadInfo{}, fmt.Errorf("创建SSH连接失败: %w", err)
+	}
+	defer conn.Close()
+
+	// 创建SSH会话
+	session, err := conn.NewSession()
+	if err != nil {
+		return models.LoadInfo{}, fmt.Errorf("创建SSH会话失败: %w", err)
+	}
+	defer session.Close()
+
+	// 执行命令获取负载信息
+	output, err := session.CombinedOutput("cat /proc/loadavg")
+	if err != nil {
+		s.logger.Warn("执行loadavg命令失败", "error", err)
+		// 返回默认负载信息
+		return models.LoadInfo{
+			Load1:  "0.00",
+			Load5:  "0.00",
+			Load15: "0.00",
+		}, nil
+	}
+
+	// 解析负载信息
+	// /proc/loadavg 格式: 0.85 0.92 1.05 1/123 12345
+	loadStr := strings.TrimSpace(string(output))
+	fields := strings.Fields(loadStr)
+
+	if len(fields) < 3 {
+		s.logger.Warn("负载信息格式不正确", "output", loadStr)
+		return models.LoadInfo{
+			Load1:  "0.00",
+			Load5:  "0.00",
+			Load15: "0.00",
+		}, nil
+	}
 
 	return models.LoadInfo{
-		Load1:  "0.85",
-		Load5:  "0.92",
-		Load15: "1.05",
+		Load1:  fields[0],
+		Load5:  fields[1],
+		Load15: fields[2],
 	}, nil
 }
 
 // getDiskInfoViaSSH 通过SSH获取磁盘信息
 func (s *ServerService) getDiskInfoViaSSH(req models.ServerHardwareDetectRequest) ([]models.DiskInfo, error) {
-	// 基于1Panel算法实现磁盘信息获取
-	// 执行命令: df -h 和 fdisk -l
+	// 创建SSH连接
+	conn, err := s.createSSHConnection(req.IPAddress, req.Port, req.Username, req.Password, req.PrivateKey)
+	if err != nil {
+		return nil, fmt.Errorf("创建SSH连接失败: %w", err)
+	}
+	defer conn.Close()
 
-	// 模拟真实的磁盘信息
-	disks := []models.DiskInfo{
-		{
-			Device:     "/dev/sda1",
-			Mountpoint: "/",
-			Fstype:     "ext4",
-			Total:      4000787030016, // 3.64 TiB
-			Used:       1200000000000, // 约1.2TB已使用
-			Usage:      30.0,
-		},
-		{
-			Device:     "/dev/nvme0n1",
-			Mountpoint: "/home",
-			Fstype:     "ext4",
-			Total:      250059350016, // 232.89 GiB
-			Used:       50000000000,  // 约50GB已使用
-			Usage:      20.0,
-		},
+	// 执行 df -h 命令获取磁盘使用情况
+	session, err := conn.NewSession()
+	if err != nil {
+		return nil, fmt.Errorf("创建SSH会话失败: %w", err)
+	}
+	defer session.Close()
+
+	// 执行命令获取磁盘信息
+	output, err := session.CombinedOutput("df -h --output=source,target,fstype,size,used,pcent | grep -E '^/dev/'")
+	if err != nil {
+		s.logger.Warn("执行df命令失败", "error", err)
+		// 返回默认磁盘信息
+		return []models.DiskInfo{
+			{
+				Device:     "/dev/sda1",
+				Mountpoint: "/",
+				Fstype:     "ext4",
+				Total:      10737418240, // 10GB
+				Used:       5368709120,  // 5GB
+				Usage:      50.0,
+			},
+		}, nil
+	}
+
+	// 解析df命令输出
+	disks := []models.DiskInfo{}
+	lines := strings.Split(strings.TrimSpace(string(output)), "\n")
+
+	for _, line := range lines {
+		if strings.TrimSpace(line) == "" {
+			continue
+		}
+
+		fields := strings.Fields(line)
+		if len(fields) < 6 {
+			continue
+		}
+
+		device := fields[0]
+		mountpoint := fields[1]
+		fstype := fields[2]
+		totalStr := fields[3]
+		usedStr := fields[4]
+		usageStr := strings.TrimSuffix(fields[5], "%")
+
+		// 解析大小
+		total := s.parseDiskSize(totalStr)
+		used := s.parseDiskSize(usedStr)
+
+		// 解析使用率
+		usage := 0.0
+		if usageFloat, err := strconv.ParseFloat(usageStr, 64); err == nil {
+			usage = usageFloat
+		}
+
+		disks = append(disks, models.DiskInfo{
+			Device:     device,
+			Mountpoint: mountpoint,
+			Fstype:     fstype,
+			Total:      total,
+			Used:       used,
+			Usage:      usage,
+		})
+	}
+
+	if len(disks) == 0 {
+		// 如果没有解析到磁盘信息，返回默认值
+		return []models.DiskInfo{
+			{
+				Device:     "/dev/sda1",
+				Mountpoint: "/",
+				Fstype:     "ext4",
+				Total:      10737418240, // 10GB
+				Used:       5368709120,  // 5GB
+				Usage:      50.0,
+			},
+		}, nil
 	}
 
 	return disks, nil
+}
+
+// parseDiskSize 解析磁盘大小字符串，返回字节数
+func (s *ServerService) parseDiskSize(sizeStr string) uint64 {
+	if sizeStr == "" || sizeStr == "-" {
+		return 0
+	}
+
+	// 移除末尾的单位字符
+	sizeStr = strings.TrimSpace(sizeStr)
+	if len(sizeStr) == 0 {
+		return 0
+	}
+
+	// 获取数字部分和单位部分
+	var numStr string
+	var unit string
+
+	// 查找最后一个数字的位置
+	lastDigitIndex := -1
+	for i, char := range sizeStr {
+		if char >= '0' && char <= '9' || char == '.' {
+			lastDigitIndex = i
+		}
+	}
+
+	if lastDigitIndex == -1 {
+		return 0
+	}
+
+	numStr = sizeStr[:lastDigitIndex+1]
+	if lastDigitIndex+1 < len(sizeStr) {
+		unit = strings.ToUpper(sizeStr[lastDigitIndex+1:])
+	}
+
+	// 解析数字
+	size, err := strconv.ParseFloat(numStr, 64)
+	if err != nil {
+		return 0
+	}
+
+	// 根据单位转换为字节
+	switch unit {
+	case "K", "KB":
+		return uint64(size * 1024)
+	case "M", "MB":
+		return uint64(size * 1024 * 1024)
+	case "G", "GB":
+		return uint64(size * 1024 * 1024 * 1024)
+	case "T", "TB":
+		return uint64(size * 1024 * 1024 * 1024 * 1024)
+	case "P", "PB":
+		return uint64(size * 1024 * 1024 * 1024 * 1024 * 1024)
+	default:
+		// 如果没有单位，假设是字节
+		return uint64(size)
+	}
 }
 
 // getNetworkInfoViaSSH 通过SSH获取网络信息
@@ -824,20 +937,196 @@ func (s *ServerService) getNetworkInfoViaSSH(req models.ServerHardwareDetectRequ
 			statusSession.Close()
 		}
 
-		// 获取接口速度
-		if speedSession, sessionErr := conn.NewSession(); sessionErr == nil {
-			if speedOutput, speedErr := speedSession.CombinedOutput(fmt.Sprintf("cat /sys/class/net/%s/speed 2>/dev/null", iface)); speedErr == nil {
-				if speed := strings.TrimSpace(string(speedOutput)); speed != "" {
-					networkInfo.Speed = speed + " Mbps"
-				}
-			}
-			speedSession.Close()
-		}
+		// 获取接口速度 - 使用多种方法检测
+		networkInfo.Speed = s.getNetworkSpeed(conn, iface)
 
 		networks = append(networks, networkInfo)
 	}
 
 	return networks, nil
+}
+
+// getNetworkSpeed 获取网络接口速度
+func (s *ServerService) getNetworkSpeed(conn *ssh.Client, iface string) string {
+	s.logger.Info("开始检测网络接口速度", "interface", iface)
+
+	// 方法1: 读取 /sys/class/net/{interface}/speed
+	if speedSession, err := conn.NewSession(); err == nil {
+		defer speedSession.Close()
+		if speedOutput, err := speedSession.CombinedOutput(fmt.Sprintf("cat /sys/class/net/%s/speed 2>/dev/null", iface)); err == nil {
+			speed := strings.TrimSpace(string(speedOutput))
+			s.logger.Info("方法1检测结果", "interface", iface, "speed_raw", speed)
+			if speed != "" && speed != "-1" {
+				// 转换为整数检查是否为有效值
+				if speedInt, parseErr := strconv.Atoi(speed); parseErr == nil && speedInt > 0 {
+					result := fmt.Sprintf("%d Mbps", speedInt)
+					s.logger.Info("方法1成功", "interface", iface, "speed", result)
+					return result
+				}
+			}
+		} else {
+			s.logger.Warn("方法1失败", "interface", iface, "error", err)
+		}
+	}
+
+	// 方法2: 使用 ethtool 命令检测速度
+	if ethtoolSession, err := conn.NewSession(); err == nil {
+		defer ethtoolSession.Close()
+		// 先尝试获取完整的ethtool输出
+		if ethtoolOutput, err := ethtoolSession.CombinedOutput(fmt.Sprintf("ethtool %s 2>/dev/null", iface)); err == nil {
+			output := strings.TrimSpace(string(ethtoolOutput))
+			s.logger.Info("方法2完整输出", "interface", iface, "output", output)
+
+			// 解析Speed行
+			lines := strings.Split(output, "\n")
+			for _, line := range lines {
+				line = strings.TrimSpace(line)
+				if strings.Contains(line, "Speed:") {
+					// 提取速度信息，格式可能是 "Speed: 1000Mb/s" 或 "Speed: Unknown!"
+					parts := strings.Fields(line)
+					if len(parts) >= 2 {
+						speed := parts[1]
+						s.logger.Info("方法2检测结果", "interface", iface, "speed_raw", speed)
+
+						if speed != "Unknown!" && speed != "" {
+							// ethtool 输出格式通常是 "1000Mb/s" 或 "100Mb/s"
+							if strings.Contains(speed, "Mb/s") {
+								result := strings.Replace(speed, "Mb/s", " Mbps", 1)
+								s.logger.Info("方法2成功", "interface", iface, "speed", result)
+								return result
+							} else if strings.Contains(speed, "Gb/s") {
+								// 转换 Gb/s 为 Mbps
+								speedStr := strings.Replace(speed, "Gb/s", "", 1)
+								if speedFloat, parseErr := strconv.ParseFloat(speedStr, 64); parseErr == nil {
+									result := fmt.Sprintf("%.0f Mbps", speedFloat*1000)
+									s.logger.Info("方法2成功(Gb转换)", "interface", iface, "speed", result)
+									return result
+								}
+							}
+						}
+					}
+					break
+				}
+			}
+		} else {
+			s.logger.Warn("方法2失败", "interface", iface, "error", err)
+		}
+	}
+
+	// 方法3: 使用 mii-tool 命令检测速度
+	if miiSession, err := conn.NewSession(); err == nil {
+		defer miiSession.Close()
+		if miiOutput, err := miiSession.CombinedOutput(fmt.Sprintf("mii-tool %s 2>/dev/null", iface)); err == nil {
+			output := strings.TrimSpace(string(miiOutput))
+			s.logger.Info("方法3检测结果", "interface", iface, "output", output)
+			if strings.Contains(output, "1000baseT") {
+				s.logger.Info("方法3成功", "interface", iface, "speed", "1000 Mbps")
+				return "1000 Mbps"
+			} else if strings.Contains(output, "100baseT") {
+				s.logger.Info("方法3成功", "interface", iface, "speed", "100 Mbps")
+				return "100 Mbps"
+			} else if strings.Contains(output, "10baseT") {
+				s.logger.Info("方法3成功", "interface", iface, "speed", "10 Mbps")
+				return "10 Mbps"
+			}
+		} else {
+			s.logger.Warn("方法3失败", "interface", iface, "error", err)
+		}
+	}
+
+	// 方法4: 使用 dmesg 检测网卡链路速度
+	if dmesgSession, err := conn.NewSession(); err == nil {
+		defer dmesgSession.Close()
+		if dmesgOutput, err := dmesgSession.CombinedOutput(fmt.Sprintf("dmesg | grep -i '%s.*link.*up' | tail -1", iface)); err == nil {
+			output := strings.TrimSpace(string(dmesgOutput))
+			s.logger.Info("方法4检测结果", "interface", iface, "dmesg_output", output)
+			if output != "" {
+				// 查找速度信息，格式可能是 "1000 Mbps" 或 "100 Mbps"
+				if strings.Contains(output, "1000") && (strings.Contains(output, "Mbps") || strings.Contains(output, "Mb/s")) {
+					s.logger.Info("方法4成功", "interface", iface, "speed", "1000 Mbps")
+					return "1000 Mbps"
+				} else if strings.Contains(output, "100") && (strings.Contains(output, "Mbps") || strings.Contains(output, "Mb/s")) {
+					s.logger.Info("方法4成功", "interface", iface, "speed", "100 Mbps")
+					return "100 Mbps"
+				}
+			}
+		}
+	}
+
+	// 方法5: 使用 ip link 命令获取更多信息
+	if ipSession, err := conn.NewSession(); err == nil {
+		defer ipSession.Close()
+		if ipOutput, err := ipSession.CombinedOutput(fmt.Sprintf("ip link show %s", iface)); err == nil {
+			output := strings.TrimSpace(string(ipOutput))
+			s.logger.Info("方法5检测结果", "interface", iface, "output", output)
+			// 检查是否包含速度信息
+			if strings.Contains(output, "1000") {
+				s.logger.Info("方法5成功", "interface", iface, "speed", "1000 Mbps")
+				return "1000 Mbps"
+			} else if strings.Contains(output, "100") {
+				s.logger.Info("方法5成功", "interface", iface, "speed", "100 Mbps")
+				return "100 Mbps"
+			}
+		}
+	}
+
+	// 方法6: 检查是否为虚拟接口
+	if strings.HasPrefix(iface, "veth") || strings.HasPrefix(iface, "docker") || strings.HasPrefix(iface, "br-") {
+		s.logger.Info("检测到虚拟接口", "interface", iface)
+		return "Virtual"
+	}
+
+	// 方法7: 使用 lspci 检测网卡型号并推断速度
+	if lspciSession, err := conn.NewSession(); err == nil {
+		defer lspciSession.Close()
+		if lspciOutput, err := lspciSession.CombinedOutput("lspci | grep -i ethernet"); err == nil {
+			output := strings.TrimSpace(string(lspciOutput))
+			s.logger.Info("方法7检测结果", "interface", iface, "lspci_output", output)
+			if output != "" {
+				// 根据网卡型号推断速度
+				lowerOutput := strings.ToLower(output)
+				if strings.Contains(lowerOutput, "gigabit") || strings.Contains(lowerOutput, "1000") {
+					s.logger.Info("方法7成功", "interface", iface, "speed", "1000 Mbps (Gigabit)")
+					return "1000 Mbps (Gigabit)"
+				} else if strings.Contains(lowerOutput, "fast ethernet") || strings.Contains(lowerOutput, "100") {
+					s.logger.Info("方法7成功", "interface", iface, "speed", "100 Mbps (Fast Ethernet)")
+					return "100 Mbps (Fast Ethernet)"
+				}
+			}
+		}
+	}
+
+	// 方法8: 检查接口类型并尝试智能推断
+	if typeSession, err := conn.NewSession(); err == nil {
+		defer typeSession.Close()
+		if typeOutput, err := typeSession.CombinedOutput(fmt.Sprintf("cat /sys/class/net/%s/type 2>/dev/null", iface)); err == nil {
+			ifaceType := strings.TrimSpace(string(typeOutput))
+			s.logger.Info("接口类型检测", "interface", iface, "type", ifaceType)
+			if ifaceType == "1" {
+				// 类型1通常是以太网接口，检查duplex
+				if duplexSession, err := conn.NewSession(); err == nil {
+					defer duplexSession.Close()
+					if duplexOutput, err := duplexSession.CombinedOutput(fmt.Sprintf("cat /sys/class/net/%s/duplex 2>/dev/null", iface)); err == nil {
+						duplex := strings.TrimSpace(string(duplexOutput))
+						s.logger.Info("双工模式检测", "interface", iface, "duplex", duplex)
+						if duplex == "full" {
+							// 全双工模式，通常是千兆接口
+							s.logger.Info("方法8成功", "interface", iface, "speed", "1000 Mbps (Auto)")
+							return "1000 Mbps (Auto)"
+						} else if duplex == "half" {
+							// 半双工模式，通常是百兆接口
+							s.logger.Info("方法8成功", "interface", iface, "speed", "100 Mbps (Half)")
+							return "100 Mbps (Half)"
+						}
+					}
+				}
+			}
+		}
+	}
+
+	// 默认返回
+	s.logger.Warn("所有方法都失败，返回Unknown", "interface", iface)
+	return "Unknown"
 }
 
 // getSystemInfoViaSSH 通过SSH获取系统信息

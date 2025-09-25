@@ -139,23 +139,23 @@ APP_PORT=${BACKEND_PORT}
 APP_HOST=0.0.0.0
 
 # 数据库配置
-DB_TYPE=postgres
-DB_HOST=192.168.110.21
-DB_PORT=5432
-DB_USER=postgres
-DB_PASSWORD=abcd1234
-DB_NAME=smart_device_management
-DB_SSLMODE=disable
-DB_TIMEZONE=Asia/Shanghai
+DB_TYPE=\${DB_TYPE:-postgres}
+DB_HOST=\${DB_HOST:-192.168.110.21}
+DB_PORT=\${DB_PORT:-5432}
+DB_USER=\${DB_USER:-postgres}
+DB_PASSWORD=\${DB_PASSWORD:-abcd1234}
+DB_NAME=\${DB_NAME:-smart_device_management}
+DB_SSLMODE=\${DB_SSLMODE:-disable}
+DB_TIMEZONE=\${DB_TIMEZONE:-Asia/Shanghai}
 
 # Redis配置
-REDIS_HOST=192.168.110.21
-REDIS_PORT=6379
-REDIS_PASSWORD=abcd1234
-REDIS_DB=0
+REDIS_HOST=\${REDIS_HOST:-192.168.110.21}
+REDIS_PORT=\${REDIS_PORT:-6379}
+REDIS_PASSWORD=\${REDIS_PASSWORD:-abcd1234}
+REDIS_DB=\${REDIS_DB:-0}
 
 # JWT配置
-JWT_SECRET=your_super_secret_jwt_key_here_for_production
+JWT_SECRET=\${JWT_SECRET:-your_super_secret_jwt_key_change_in_production}
 JWT_EXPIRES_IN=24h
 JWT_REFRESH_EXPIRES_IN=168h
 
