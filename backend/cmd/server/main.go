@@ -55,16 +55,16 @@ func main() {
 	// 初始化WebSocket Hub
 	websocket.InitWebSocketHub()
 
-	// 启动断路器状态监控服务
-	if err := startBreakerStatusMonitor(); err != nil {
-		logrus.Warn("启动断路器状态监控失败: ", err)
+	// 🔄 启动统一MODBUS服务（替换所有旧的MODBUS相关服务）
+	if err := startUnifiedModbusService(); err != nil {
+		logrus.Fatal("启动统一MODBUS服务失败: ", err)
 	}
 
-	// 🚫 禁用旧的数据采集服务，避免与三周期轮询系统冲突
-	// 注释：系统现在使用 breaker_data_collector_collection.go 的三周期轮询系统
-	// if err := startBreakerDataCollector(); err != nil {
-	//	logrus.Warn("启动断路器数据采集服务失败: ", err)
-	// }
+	// 🚫 已禁用旧的多个MODBUS服务，现在使用统一MODBUS服务
+	// - BreakerStatusMonitor (断路器状态监控服务)
+	// - BreakerDataCollector (断路器数据采集服务)
+	// - StatusMonitorService (状态监控服务)
+	// 所有MODBUS通信现在通过UnifiedModbusService统一管理
 
 	// 启动AI策略监控服务
 	if err := startAIStrategyMonitor(); err != nil {
@@ -115,12 +115,44 @@ func main() {
 	logrus.Info("服务器已关闭")
 }
 
-// 全局变量保存监控服务引用
-var globalBreakerStatusMonitor *services.BreakerStatusMonitor
+// 全局变量保存服务引用
+var globalServiceManager *services.ServiceManager
 var globalAIStrategyMonitor *services.AIStrategyMonitor
 var globalAlarmEngine *alarm.AlarmEngine
 
-// startBreakerStatusMonitor 启动断路器状态监控服务
+// 🚫 已废弃的旧服务引用（保留用于兼容性）
+var globalBreakerStatusMonitor *services.BreakerStatusMonitor
+
+// startUnifiedModbusService 启动统一MODBUS服务
+func startUnifiedModbusService() error {
+	db := database.GetDB()
+
+	// 创建仓库
+	breakerRepo := repositories.NewBreakerRepository(db)
+
+	// 创建服务管理器（使用logrus.StandardLogger()）
+	serviceManager := services.NewServiceManager(db, logrus.StandardLogger(), breakerRepo)
+
+	// 启动服务管理器
+	if err := serviceManager.Start(); err != nil {
+		return fmt.Errorf("启动服务管理器失败: %w", err)
+	}
+
+	// 保存全局引用
+	globalServiceManager = serviceManager
+
+	logrus.Info("✅ 统一MODBUS服务已启动")
+	logrus.Info("📋 服务功能:")
+	logrus.Info("  - 统一MODBUS通信管理（避免TCP连接冲突）")
+	logrus.Info("  - 高优先级控制操作（分合闸、锁定解锁）")
+	logrus.Info("  - 循环数据采集（参数、锁定状态、开关状态）")
+	logrus.Info("  - 500ms间隔的有序采集")
+	logrus.Info("  - 替换了4个旧服务：BreakerDataCollector、BreakerStatusMonitor、StatusMonitorService、ModbusService")
+
+	return nil
+}
+
+// startBreakerStatusMonitor 启动断路器状态监控服务（已废弃）
 func startBreakerStatusMonitor() error {
 	db := database.GetDB()
 	appLogger := logger.GetLogger()
@@ -467,6 +499,15 @@ func setupRouter() *gin.Engine {
 
 	// 断路器管理路由
 	breakerService := services.NewBreakerService(repositories.NewBreakerRepository(database.GetDB()), repositories.NewServerRepository(database.GetDB()), logger.GetLogger(), database.GetDB())
+
+	// 设置统一服务管理器到断路器服务
+	if globalServiceManager != nil {
+		breakerService.SetServiceManager(globalServiceManager)
+		logrus.Info("已将统一服务管理器设置到断路器服务")
+	} else {
+		logrus.Warn("统一服务管理器未初始化，断路器服务将使用旧的MODBUS服务")
+	}
+
 	breakerController := controllers.NewBreakerController(breakerService)
 	breakerGroup := apiV1.Group("/breakers")
 	{

@@ -257,7 +257,7 @@ func (s *ModbusScheduler) performStatusCheck(op *ModbusOperation) *ModbusResult 
 	}
 	
 	// 解析状态
-	isOn, isLocked := s.modbusService.parseBreakerStatus(statusValue)
+	isOn, isLocked := s.modbusService.parseBreakerStatus(statusValue, op.Breaker)
 	status := "off"
 	if isOn {
 		status = "on"

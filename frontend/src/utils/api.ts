@@ -4,7 +4,7 @@
  */
 
 // API基础配置
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3003'
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:2999'
 
 // API响应接口
 interface ApiResponse<T = any> {
@@ -133,6 +133,9 @@ class ApiService {
 
 // 创建API服务实例
 export const apiService = new ApiService()
+
+// 默认导出API服务实例
+export default apiService
 
 // 导出类型
 export type { ApiResponse, RequestConfig }

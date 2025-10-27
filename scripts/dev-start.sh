@@ -128,11 +128,11 @@ check_and_kill_port() {
 
 # 获取配置的端口
 get_backend_port() {
-    echo "${BACKEND_PORT:-8080}"
+    echo "${BACKEND_PORT:-2999}"
 }
 
 get_frontend_port() {
-    echo "${FRONTEND_PORT:-3005}"
+    echo "${FRONTEND_PORT:-3000}"
 }
 
 # 启动后端服务

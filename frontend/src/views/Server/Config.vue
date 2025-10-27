@@ -151,28 +151,7 @@
           />
         </el-form-item>
 
-        <el-form-item label="绑定断路器">
-          <el-select
-            v-model="serverForm.breakerId"
-            placeholder="选择绑定的智能断路器（可选）"
-            clearable
-            filterable
-            :loading="breakersLoading"
-          >
-            <el-option
-              v-for="breaker in breakers"
-              :key="breaker.id"
-              :label="`${breaker.breaker_name} (${breaker.location})`"
-              :value="breaker.id"
-            >
-              <span style="float: left">{{ breaker.breaker_name }}</span>
-              <span style="float: right; color: #8492a6; font-size: 13px">{{ breaker.location }}</span>
-            </el-option>
-          </el-select>
-          <div style="color: #909399; font-size: 12px; margin-top: 4px;">
-            绑定后，服务器关机时将自动断开对应的断路器
-          </div>
-        </el-form-item>
+
 
         <el-form-item label="描述">
           <el-input
@@ -207,6 +186,7 @@ import { ref, reactive, onMounted, computed } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import type { FormInstance, FormRules } from 'element-plus'
 import { Plus, Delete } from '@element-plus/icons-vue'
+import api from '@/utils/api'
 
 // 响应式数据
 const dialogVisible = ref(false)
@@ -222,9 +202,7 @@ const serverConfigs = ref([])
 // 多选相关
 const selectedServers = ref([])
 
-// 断路器相关
-const breakers = ref([])
-const breakersLoading = ref(false)
+
 
 // 硬件检测相关
 const canDetectHardware = computed(() => {
@@ -242,15 +220,8 @@ const loadServers = async (isAutoRefresh = false) => {
       loading.value = true
     }
 
-    const response = await fetch(`http://${window.location.hostname}:2999/api/v1/servers`, {
-      method: 'GET',
-      headers: {
-        'Authorization': `Bearer ${localStorage.getItem('token')}`,
-        'Content-Type': 'application/json'
-      }
-    })
-
-    const result = await response.json()
+    // 使用统一的API服务，避免直接访问后端端口
+    const result = await api.get('/servers')
 
     if (result.code === 200) {
       // 检查 result.data 是否为 null 或不是数组
@@ -340,7 +311,6 @@ const serverForm = reactive({
   password: '',
   privateKey: '',
   testInterval: 300, // 默认5分钟
-  breakerId: null, // 绑定的断路器ID
   description: ''
 })
 
@@ -426,16 +396,8 @@ const detectHardware = async () => {
 
     console.log('开始检测硬件信息:', detectRequest)
 
-    const response = await fetch(`http://${window.location.hostname}:2999/api/v1/servers/detect-hardware`, {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${localStorage.getItem('token')}`,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify(detectRequest)
-    })
-
-    const result = await response.json()
+    // 使用统一的API服务，避免直接访问后端端口
+    const result = await api.post('/servers/detect-hardware', detectRequest)
     console.log('硬件检测结果:', result)
 
     if (result.code === 200) {
@@ -549,15 +511,8 @@ const testConnection = async (server: any) => {
   ElMessage.info(`正在测试连接到 ${server.name}...`)
 
   try {
-    const response = await fetch(`http://${window.location.hostname}:2999/api/v1/servers/${server.id}/test`, {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${localStorage.getItem('token')}`,
-        'Content-Type': 'application/json'
-      }
-    })
-
-    const result = await response.json()
+    // 使用统一的API服务，避免直接访问后端端口
+    const result = await api.post(`/servers/${server.id}/test`)
 
     if (result.code === 200 && result.data === true) {
       ElMessage.success(`连接到 ${server.name} 成功`)
@@ -600,15 +555,9 @@ const batchDeleteServers = async () => {
       }
     )
 
-    // 批量删除API调用
+    // 批量删除API调用 - 使用统一的API服务
     const deletePromises = selectedServers.value.map((server: any) =>
-      fetch(`http://${window.location.hostname}:2999/api/v1/servers/${server.id}`, {
-        method: 'DELETE',
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}`,
-          'Content-Type': 'application/json'
-        }
-      })
+      api.delete(`/servers/${server.id}`)
     )
 
     await Promise.all(deletePromises)
@@ -638,16 +587,8 @@ const deleteServer = async (server: any) => {
       }
     )
 
-    // 调用后端API删除服务器
-    const response = await fetch(`http://${window.location.hostname}:2999/api/v1/servers/${server.id}`, {
-      method: 'DELETE',
-      headers: {
-        'Authorization': `Bearer ${localStorage.getItem('token')}`,
-        'Content-Type': 'application/json'
-      }
-    })
-
-    const result = await response.json()
+    // 调用后端API删除服务器 - 使用统一的API服务
+    const result = await api.delete(`/servers/${server.id}`)
 
     if (result.code === 200) {
       ElMessage.success('服务器删除成功')
@@ -685,129 +626,11 @@ const formatLastTestTime = (lastTestAt: string | null) => {
   return date.toLocaleDateString() + ' ' + date.toLocaleTimeString()
 }
 
-// 加载断路器列表（增量更新版本）
-const loadBreakers = async (isAutoRefresh = false) => {
-  if (!isAutoRefresh) {
-    breakersLoading.value = true
-  }
 
-  try {
-    const response = await fetch(`http://${window.location.hostname}:2999/api/v1/breakers`, {
-      method: 'GET',
-      headers: {
-        'Authorization': `Bearer ${localStorage.getItem('token')}`,
-        'Content-Type': 'application/json'
-      }
-    })
 
-    const result = await response.json()
-    if (result.code === 200) {
-      const newBreakers = result.data || []
-
-      // 如果是首次加载或列表为空，直接设置
-      if (breakers.value.length === 0) {
-        breakers.value = newBreakers
-        if (!isAutoRefresh) {
-          console.log('初始化断路器列表完成:', breakers.value.length, '个断路器')
-        }
-      } else {
-        // 增量更新：只更新变化的断路器
-        newBreakers.forEach((newBreaker: any) => {
-          const existingIndex = breakers.value.findIndex(b => b.id === newBreaker.id)
-          if (existingIndex >= 0) {
-            // 检查是否有变化
-            const currentBreaker = breakers.value[existingIndex]
-            if (currentBreaker.breaker_name !== newBreaker.breaker_name ||
-                currentBreaker.location !== newBreaker.location ||
-                currentBreaker.status !== newBreaker.status) {
-              // 使用Object.assign保持响应式
-              Object.assign(breakers.value[existingIndex], newBreaker)
-            }
-          } else {
-            // 新增断路器
-            breakers.value.push(newBreaker)
-          }
-        })
-
-        // 移除已删除的断路器
-        breakers.value = breakers.value.filter(breaker =>
-          newBreakers.some((newBreaker: any) => newBreaker.id === breaker.id)
-        )
-
-        if (!isAutoRefresh) {
-          console.log('增量更新断路器列表完成:', breakers.value.length, '个断路器')
-        }
-      }
-    } else {
-      if (!isAutoRefresh) {
-        console.warn('获取断路器列表失败，使用模拟数据')
-      }
-
-      // 只在首次加载时使用模拟数据
-      if (breakers.value.length === 0) {
-        breakers.value = [
-          {
-            id: 1,
-            breaker_name: '主配电断路器01',
-            location: '配电柜A'
-          },
-          {
-            id: 2,
-            breaker_name: '主配电断路器02',
-            location: '配电柜A'
-          },
-          {
-            id: 3,
-            breaker_name: '空调专线断路器01',
-            location: '配电柜B'
-          },
-          {
-            id: 4,
-            breaker_name: '服务器专线断路器01',
-            location: '配电柜C'
-          }
-        ]
-      }
-    }
-  } catch (error: any) {
-    console.error('加载断路器列表失败:', error)
-
-    // 只在首次加载时使用模拟数据
-    if (breakers.value.length === 0) {
-      breakers.value = [
-        {
-          id: 1,
-          breaker_name: '主配电断路器01',
-          location: '配电柜A'
-        },
-        {
-          id: 2,
-          breaker_name: '主配电断路器02',
-          location: '配电柜A'
-        },
-        {
-          id: 3,
-          breaker_name: '空调专线断路器01',
-          location: '配电柜B'
-        },
-        {
-          id: 4,
-          breaker_name: '服务器专线断路器01',
-          location: '配电柜C'
-        }
-      ]
-    }
-  } finally {
-    if (!isAutoRefresh) {
-      breakersLoading.value = false
-    }
-  }
-}
-
-// 页面加载时获取服务器列表和断路器列表
+// 页面加载时获取服务器列表
 onMounted(() => {
   loadServers()
-  loadBreakers()
 })
 </script>
 

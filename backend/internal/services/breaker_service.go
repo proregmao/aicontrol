@@ -21,6 +21,7 @@ type BreakerService struct {
 	breakerStatusMonitor *BreakerStatusMonitor
 	logger               *logger.Logger
 	db                   *gorm.DB
+	serviceManager       *ServiceManager // 新增：统一服务管理器引用
 }
 
 // NewBreakerService 创建断路器服务
@@ -49,6 +50,16 @@ func (s *BreakerService) GetBreakerStatusMonitor() *BreakerStatusMonitor {
 	return s.breakerStatusMonitor
 }
 
+// SetServiceManager 设置统一服务管理器
+func (s *BreakerService) SetServiceManager(manager *ServiceManager) {
+	s.serviceManager = manager
+}
+
+// GetServiceManager 获取统一服务管理器
+func (s *BreakerService) GetServiceManager() *ServiceManager {
+	return s.serviceManager
+}
+
 // GetStatusMonitorService 获取状态监控服务
 func (s *BreakerService) GetStatusMonitorService() *StatusMonitorService {
 	return s.statusMonitorService
@@ -67,6 +78,9 @@ func (s *BreakerService) GetBreakers() ([]models.BreakerListResponse, error) {
 	responses := make([]models.BreakerListResponse, 0, len(breakers))
 	for _, breaker := range breakers {
 		response := breaker.ToListResponse()
+
+		// 移除错误的状态一致性逻辑，让MODBUS状态作为真实状态
+		// 数据库状态应该反映MODBUS的真实状态，而不是相反
 
 		// 不在列表接口中读取设备配置参数，避免性能问题
 		// 设备配置参数通过实时数据接口获取
@@ -95,6 +109,10 @@ func (s *BreakerService) GetLatestRealtimeData(id uint) (*models.BreakerRealtime
 		if collector := s.breakerStatusMonitor.GetDataCollector(); collector != nil {
 			if data, err := collector.GetLatestData(id); err == nil {
 				s.logger.Info("从数据采集服务获取最新数据", "breaker_id", id, "age", time.Since(data.UpdatedAt))
+
+				// 移除错误的状态替换逻辑，使用真实的MODBUS状态
+				// MODBUS状态是设备的真实状态，应该作为权威数据源
+
 				// 转换为正确的类型
 				return &models.BreakerRealtimeData{
 					ID:             data.ID,
@@ -154,6 +172,10 @@ func (s *BreakerService) GetLatestRealtimeData(id uint) (*models.BreakerRealtime
 	}
 
 	s.logger.Info("从数据库获取最新实时数据", "breaker_id", id, "age", time.Since(latestData.UpdatedAt))
+
+	// 移除错误的状态一致性处理，使用真实的MODBUS状态
+	// 让MODBUS状态作为权威数据源，用于更新数据库
+
 	return &latestData, nil
 }
 
@@ -598,12 +620,30 @@ func (s *BreakerService) executeControl(breaker *models.Breaker, control *models
 		s.logger.Error("更新控制状态失败", "control_id", control.ControlID, "error", err)
 	}
 
-	// 使用MODBUS服务执行真实的控制操作
+	// 使用统一MODBUS服务执行真实的控制操作
 	var controlErr error
 	actionStr := string(control.Action)
-	if err := s.modbusService.ControlBreaker(breaker, actionStr); err != nil {
-		s.logger.Error("MODBUS控制失败", "breaker_id", breaker.ID, "error", err)
-		controlErr = err
+
+	// 优先使用统一MODBUS服务
+	if s.serviceManager != nil && s.serviceManager.IsStarted() {
+		s.logger.Info("使用统一MODBUS服务执行控制操作", "breaker_id", breaker.ID, "action", actionStr)
+		result, err := s.serviceManager.ControlBreaker(breaker.ID, actionStr)
+		if err != nil {
+			s.logger.Error("统一MODBUS服务控制失败", "breaker_id", breaker.ID, "error", err)
+			controlErr = err
+		} else if result != nil && !result.Success {
+			s.logger.Error("统一MODBUS服务控制操作失败", "breaker_id", breaker.ID, "error", result.Error)
+			controlErr = result.Error
+		} else {
+			s.logger.Info("统一MODBUS服务控制操作成功", "breaker_id", breaker.ID, "action", actionStr)
+		}
+	} else {
+		// 降级到旧的MODBUS服务
+		s.logger.Warn("统一MODBUS服务不可用，降级到旧MODBUS服务", "breaker_id", breaker.ID)
+		if err := s.modbusService.ControlBreaker(breaker, actionStr); err != nil {
+			s.logger.Error("旧MODBUS控制失败", "breaker_id", breaker.ID, "error", err)
+			controlErr = err
+		}
 	}
 
 	// 更新控制记录
@@ -619,18 +659,42 @@ func (s *BreakerService) executeControl(breaker *models.Breaker, control *models
 		control.Status = "completed"
 		control.Success = true
 
-		// 更新断路器状态到数据库
-		if control.Action == models.BreakerActionOn {
-			breaker.Status = models.SwitchStatusOn
+		// ✅ 修复：MODBUS控制成功后，立即读取实际的断路器状态
+		// 而不是直接根据发送的命令更新数据库
+		s.logger.Info("MODBUS控制成功，开始读取实际断路器状态", "breaker_id", breaker.ID)
+
+		// 短暂延迟，确保断路器状态已更新
+		time.Sleep(100 * time.Millisecond)
+
+		// 读取实际的MODBUS状态
+		actualStatus, err := s.modbusService.ReadBreakerStatus(breaker)
+		if err != nil {
+			s.logger.Warn("读取实际断路器状态失败，使用命令状态", "breaker_id", breaker.ID, "error", err)
+			// 降级：使用发送的命令状态
+			if control.Action == models.BreakerActionOn {
+				breaker.Status = models.SwitchStatusOn
+			} else {
+				breaker.Status = models.SwitchStatusOff
+			}
 		} else {
-			breaker.Status = models.SwitchStatusOff
+			// ✅ 使用实际读取的状态
+			breaker.Status = actualStatus
+			s.logger.Info("成功读取实际断路器状态",
+				"breaker_id", breaker.ID,
+				"actual_status", actualStatus,
+				"command_action", control.Action)
 		}
+
 		breaker.LastUpdate = &now
 
 		// 保存断路器状态更新
 		if err := s.breakerRepo.Update(breaker); err != nil {
 			s.logger.Error("更新断路器状态失败", "breaker_id", breaker.ID, "error", err)
 		} else {
+			s.logger.Info("断路器状态已更新到数据库",
+				"breaker_id", breaker.ID,
+				"status", breaker.Status)
+
 			// 通知状态监控服务状态已更新
 			actionStr := string(control.Action)
 			if err := s.statusMonitorService.UpdateBreakerStatusFromOperation(breaker.ID, actionStr, true); err != nil {
@@ -781,29 +845,57 @@ func (s *BreakerService) ControlBreakerLock(id uint, lock bool) error {
 		return fmt.Errorf("断路器不存在: %w", err)
 	}
 
-	// 使用MODBUS服务执行真实的锁定控制操作
-	if err := s.modbusService.ControlBreakerLock(breaker, lock); err != nil {
-		s.logger.Warn("MODBUS锁定控制失败，仅更新数据库状态", "breaker_id", breaker.ID, "action", action, "error", err)
+	// 优先使用统一MODBUS服务执行真实的锁定控制操作
+	if s.serviceManager != nil && s.serviceManager.IsStarted() {
+		s.logger.Info("使用统一MODBUS服务执行锁定控制", "breaker_id", breaker.ID, "action", action)
+		result, err := s.serviceManager.ControlBreakerLock(breaker.ID, lock)
+		if err != nil {
+			s.logger.Error("统一MODBUS服务锁定控制失败", "breaker_id", breaker.ID, "error", err)
+			// 降级策略：仍然更新数据库状态
+			dbErr := s.breakerRepo.UpdateBreakerLockStatus(id, lock)
+			if dbErr != nil {
+				return fmt.Errorf("统一MODBUS控制失败且数据库更新失败: MODBUS错误=%v, 数据库错误=%v", err, dbErr)
+			}
+			s.logger.Info("统一MODBUS控制失败但数据库状态已更新", "breaker_id", id, "action", action)
+			return nil
+		} else if result != nil && !result.Success {
+			s.logger.Error("统一MODBUS服务锁定操作失败", "breaker_id", breaker.ID, "error", result.Error)
+			// 降级策略：仍然更新数据库状态
+			dbErr := s.breakerRepo.UpdateBreakerLockStatus(id, lock)
+			if dbErr != nil {
+				return fmt.Errorf("统一MODBUS控制失败且数据库更新失败: MODBUS错误=%v, 数据库错误=%v", result.Error, dbErr)
+			}
+			s.logger.Info("统一MODBUS控制失败但数据库状态已更新", "breaker_id", id, "action", action)
+			return nil
+		} else {
+			s.logger.Info("统一MODBUS服务锁定控制成功", "breaker_id", breaker.ID, "action", action)
+			return nil
+		}
+	} else {
+		// 降级到旧的MODBUS服务
+		s.logger.Warn("统一MODBUS服务不可用，降级到旧MODBUS服务", "breaker_id", breaker.ID)
+		if err := s.modbusService.ControlBreakerLock(breaker, lock); err != nil {
+			s.logger.Warn("旧MODBUS锁定控制失败，仅更新数据库状态", "breaker_id", breaker.ID, "action", action, "error", err)
 
-		// MODBUS控制失败时，仍然更新数据库状态（降级策略）
-		dbErr := s.breakerRepo.UpdateBreakerLockStatus(id, lock)
-		if dbErr != nil {
-			s.logger.Error("更新断路器锁定状态失败", "breaker_id", id, "lock", lock, "error", dbErr)
-			return fmt.Errorf("MODBUS控制失败且数据库更新失败: MODBUS错误=%v, 数据库错误=%v", err, dbErr)
+			// MODBUS控制失败时，仍然更新数据库状态（降级策略）
+			dbErr := s.breakerRepo.UpdateBreakerLockStatus(id, lock)
+			if dbErr != nil {
+				s.logger.Error("更新断路器锁定状态失败", "breaker_id", id, "lock", lock, "error", dbErr)
+				return fmt.Errorf("MODBUS控制失败且数据库更新失败: MODBUS错误=%v, 数据库错误=%v", err, dbErr)
+			}
+
+			s.logger.Info("旧MODBUS控制失败但数据库状态已更新", "breaker_id", id, "action", action)
+			return nil
 		}
 
-		s.logger.Info("MODBUS控制失败但数据库状态已更新", "breaker_id", id, "action", action)
-		// 返回成功，因为数据库状态已更新（降级策略）
+		// 旧MODBUS控制成功，更新数据库中的锁定状态
+		err = s.breakerRepo.UpdateBreakerLockStatus(id, lock)
+		if err != nil {
+			s.logger.Error("更新断路器锁定状态失败", "breaker_id", id, "lock", lock, "error", err)
+			return fmt.Errorf("MODBUS控制成功但数据库更新失败: %w", err)
+		}
+
+		s.logger.Info("断路器锁定控制成功", "breaker_id", breaker.ID, "action", action)
 		return nil
 	}
-
-	// MODBUS控制成功，更新数据库中的锁定状态
-	err = s.breakerRepo.UpdateBreakerLockStatus(id, lock)
-	if err != nil {
-		s.logger.Error("更新断路器锁定状态失败", "breaker_id", id, "lock", lock, "error", err)
-		return fmt.Errorf("MODBUS控制成功但数据库更新失败: %w", err)
-	}
-
-	s.logger.Info("断路器锁定控制成功", "breaker_id", breaker.ID, "action", action)
-	return nil
 }

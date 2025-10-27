@@ -2,7 +2,7 @@
   <div class="breaker-config">
     <div class="page-header">
       <h1>断路器配置</h1>
-      <p>管理智能断路器配置和服务器绑定关系</p>
+      <p>管理智能断路器配置和参数设置</p>
     </div>
     
     <div class="config-content">
@@ -45,11 +45,7 @@
               </div>
             </template>
           </el-table-column>
-          <el-table-column label="绑定服务器" width="150">
-            <template #default="scope">
-              {{ formatBoundServers(scope.row.bound_servers) }}
-            </template>
-          </el-table-column>
+
           <el-table-column prop="status" label="状态" width="80">
             <template #default="scope">
               <el-tag
@@ -74,9 +70,7 @@
                 <el-button type="text" size="small" @click="editBreaker(scope.row)">
                   编辑
                 </el-button>
-                <el-button type="text" size="small" @click="configBinding(scope.row)">
-                  绑定配置
-                </el-button>
+
                 <el-button
                   type="text"
                   size="small"
@@ -236,26 +230,7 @@
       </template>
     </el-dialog>
 
-    <!-- 绑定配置对话框 -->
-    <el-dialog v-model="bindingDialogVisible" title="绑定配置" width="800px" center>
-      <div v-if="currentBreaker">
-        <h4>断路器: {{ currentBreaker.breaker_name }}</h4>
-        <p>当前绑定的服务器: {{ formatBoundServers(currentBreaker.bound_servers) }}</p>
 
-        <!-- 这里可以添加绑定配置的具体内容 -->
-        <el-alert
-          title="绑定配置功能"
-          description="此功能允许配置断路器与服务器的绑定关系，包括关机延时、优先级等设置。"
-          type="info"
-          show-icon
-          :closable="false"
-        />
-      </div>
-
-      <template #footer>
-        <el-button @click="bindingDialogVisible = false">关闭</el-button>
-      </template>
-    </el-dialog>
   </div>
 </template>
 
@@ -280,37 +255,23 @@ interface BreakerConfig {
   is_enabled: boolean
   status: string
   description: string
-  bound_servers?: BoundServerInfo[]
+
   // 设备配置参数（从MODBUS设备读取）
   device_rated_current?: number    // 设备额定电流 (A) - 从40005寄存器读取
   device_alarm_current?: number    // 设备告警电流阈值 (mA) - 从40006寄存器读取
   device_over_temp_threshold?: number // 设备过温阈值 (°C) - 从40007寄存器读取
 }
 
-interface BoundServerInfo {
-  server_id: number
-  server_name: string
-  binding_id: number
-  priority: number
-  is_active: boolean
-}
 
-interface Server {
-  id: number
-  server_name: string
-  ip_address: string
-  status: string
-}
 
 // 响应式数据
 const loading = ref(false)
 const breakerConfigs = ref<BreakerConfig[]>([])
-const servers = ref<Server[]>([])
+
 
 // 对话框状态
 const addDialogVisible = ref(false)
 const editDialogVisible = ref(false)
-const bindingDialogVisible = ref(false)
 
 // 表单数据
 const addForm = ref({
@@ -376,17 +337,7 @@ const fetchBreakers = async () => {
   }
 }
 
-// 获取服务器列表
-const fetchServers = async () => {
-  try {
-    const response = await apiClient.get('/servers')
-    if (response.data.code === 200) {
-      servers.value = response.data.data || []
-    }
-  } catch (error) {
-    console.error('获取服务器列表失败:', error)
-  }
-}
+
 
 // 添加断路器
 const addBreaker = () => {
@@ -496,11 +447,7 @@ const submitEdit = async () => {
   }
 }
 
-// 配置绑定
-const configBinding = (breaker: BreakerConfig) => {
-  currentBreaker.value = breaker
-  bindingDialogVisible.value = true
-}
+
 
 // 切换断路器状态
 const toggleBreaker = async (breaker: BreakerConfig) => {
@@ -551,13 +498,7 @@ const deleteBreaker = async (breaker: BreakerConfig) => {
   }
 }
 
-// 格式化绑定服务器显示
-const formatBoundServers = (boundServers?: BoundServerInfo[]) => {
-  if (!boundServers || boundServers.length === 0) {
-    return '未绑定'
-  }
-  return boundServers.map(server => server.server_name).join(', ')
-}
+
 
 // 格式化设备参数值显示
 const formatDeviceValue = (value?: number) => {
@@ -570,7 +511,6 @@ const formatDeviceValue = (value?: number) => {
 // 页面加载时获取数据
 onMounted(() => {
   fetchBreakers()
-  fetchServers()
 })
 </script>
 

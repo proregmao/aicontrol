@@ -640,6 +640,7 @@ import { ref, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Check, Close, Warning, Minus, InfoFilled, Refresh } from '@element-plus/icons-vue'
 import AlarmTemplateManager from './components/AlarmTemplateManager.vue'
+import api from '@/utils/api'
 
 // localStorage 数据持久化
 const STORAGE_KEY = 'alarm_rules'
@@ -1735,16 +1736,11 @@ const saveEditRule = async () => {
 const loadHardwareData = async () => {
   hardwareLoading.value = true
   try {
+    // 使用统一的API服务，避免直接访问后端端口
     const [serversData, breakersData, sensorsData] = await Promise.all([
-      fetch(`http://${window.location.hostname}:2999/api/v1/servers`, {
-        headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
-      }).then(res => res.json()),
-      fetch(`http://${window.location.hostname}:2999/api/v1/breakers`, {
-        headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
-      }).then(res => res.json()),
-      fetch(`http://${window.location.hostname}:2999/api/v1/sensors`, {
-        headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
-      }).then(res => res.json())
+      api.get('/servers'),
+      api.get('/breakers'),
+      api.get('/sensors')
     ])
 
     // 处理服务器数据

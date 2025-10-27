@@ -102,8 +102,8 @@
                 </span>
                 <br>
                 <small style="color: #666;">
-                  额定: {{ formatCurrent(breaker.device_rated_current || breaker.rated_current) }}A
-                  / 告警: {{ formatCurrent(breaker.device_alarm_current || breaker.alarm_current) }}mA
+                  额定: {{ getStableRatedCurrent(breaker) }}A
+                  / 告警: {{ getStableAlarmCurrent(breaker) }}mA
                 </small>
               </td>
               <td>
@@ -197,9 +197,7 @@
               <td>
                 {{ breaker.breaker_name }} ({{ breaker.port }})
                 <br>
-                <small style="color: #666;">
-                  绑定: {{ getBindingText(breaker.server_binding) }}
-                </small>
+
               </td>
               <td>
                 <span
@@ -234,12 +232,7 @@
                 >
                   {{ breaker.is_locked ? '解锁' : '锁定' }}
                 </button>
-                <button
-                  class="btn btn-primary"
-                  @click="showBindingModal(breaker)"
-                >
-                  绑定
-                </button>
+
               </td>
             </tr>
           </tbody>
@@ -296,7 +289,7 @@ interface Breaker {
   leakage_current?: number
   temperature?: number
   is_locked?: boolean
-  server_binding?: string
+
   last_update?: string
   // 设备配置参数（从MODBUS设备读取）
   device_rated_current?: number    // 设备额定电流 (A) - 从40005寄存器读取
@@ -326,16 +319,30 @@ const activeBreakers = computed(() =>
 const fetchBreakers = async () => {
   loading.value = true
   try {
+    console.log('🔄 开始获取断路器列表...')
     const response = await api.get('/breakers')
-    console.log('API响应:', response) // 调试日志
+    console.log('🔄 API响应:', response) // 调试日志
 
     let breakerData = []
     // 检查API响应数据结构
     if (response && response.data && response.data.data && Array.isArray(response.data.data) && response.data.data.length > 0) {
       breakerData = response.data.data
-      console.log('成功获取断路器数据:', breakerData.length, '个断路器')
+      console.log('🔄 成功获取断路器数据:', breakerData.length, '个断路器')
+
+      // 记录每个断路器的详细状态
+      breakerData.forEach(breaker => {
+        console.log(`🔄 断路器 ${breaker.breaker_name} API状态:`, {
+          id: breaker.id,
+          is_locked: breaker.is_locked,
+          status: breaker.status,
+          last_update: breaker.last_update,
+          source: 'fetchBreakers_API'
+        })
+
+        // 移除特殊处理逻辑，显示所有断路器的真实状态
+      })
     } else {
-      console.log('没有找到断路器数据')
+      console.log('🔄 没有找到断路器数据')
       ElMessage.warning('没有找到断路器配置数据')
       return
     }
@@ -371,7 +378,7 @@ const fetchBreakers = async () => {
       temperature: 25,
       status: breaker.status || 'unknown',
       is_locked: breaker.is_locked || false,
-      server_binding: breaker.server_binding || '未绑定',
+
       last_update: new Date().toISOString()
     }))
 
@@ -410,15 +417,32 @@ const fetchBreakers = async () => {
 const loadBackendMonitorInterval = async () => {
   try {
     const response = await api.get('/status-monitor')
-    if (response.data && response.data.data && response.data.data.interval) {
-      const intervalStr = response.data.data.interval
-      const intervalSeconds = parseInt(intervalStr.replace('s', ''))
-      backendMonitorInterval.value = intervalSeconds
+    if (response.data && response.data.data && response.data.data.interval !== undefined) {
+      let intervalSeconds = response.data.data.interval
 
-      // 如果前端刷新间隔小于后端监控间隔，则同步为后端间隔
-      if (refreshInterval.value < intervalSeconds) {
-        refreshInterval.value = intervalSeconds
-        console.log(`前端刷新间隔已同步为后端监控间隔: ${intervalSeconds}秒`)
+      // 处理不同的数据格式
+      if (typeof intervalSeconds === 'string') {
+        // 如果是字符串，移除 's' 后缀并转换为数字
+        intervalSeconds = parseInt(intervalSeconds.replace('s', ''))
+      } else if (typeof intervalSeconds === 'number') {
+        // 如果已经是数字，直接使用
+        intervalSeconds = Math.floor(intervalSeconds)
+      } else {
+        // 其他格式，尝试转换
+        intervalSeconds = parseInt(String(intervalSeconds))
+      }
+
+      // 验证转换结果
+      if (!isNaN(intervalSeconds) && intervalSeconds > 0) {
+        backendMonitorInterval.value = intervalSeconds
+
+        // 如果前端刷新间隔小于后端监控间隔，则同步为后端间隔
+        if (refreshInterval.value < intervalSeconds) {
+          refreshInterval.value = intervalSeconds
+          console.log(`前端刷新间隔已同步为后端监控间隔: ${intervalSeconds}秒`)
+        }
+      } else {
+        console.warn('后端返回的监控间隔无效:', response.data.data.interval)
       }
     }
   } catch (error) {
@@ -468,7 +492,7 @@ const updateBreakerConfigs = async () => {
             temperature: 25,
             status: newBreaker.status || 'off', // 默认状态改为off而不是unknown
             is_locked: newBreaker.is_locked || false,
-            server_binding: newBreaker.server_binding || '未绑定',
+
             last_update: new Date().toISOString()
           })
         }
@@ -504,12 +528,15 @@ const updateRealTimeData = async () => {
       const currentBreaker = breakers.value[index]
       let hasChanges = false
 
-      // 定义需要检查变化的字段
+      // 定义需要检查变化的字段（排除锁定状态，避免被实时数据覆盖）
       const fieldsToCheck = [
         'voltage', 'current', 'power', 'power_factor', 'frequency',
-        'leakage_current', 'temperature', 'status', 'is_locked',
+        'leakage_current', 'temperature', 'status',
         'device_rated_current', 'device_alarm_current', 'device_over_temp_threshold'
       ]
+
+      // 锁定状态单独处理：只有当实时数据明确提供锁定状态时才更新
+      const lockStatusFields = ['is_locked']
 
       // 检查是否有字段发生变化
       for (const field of fieldsToCheck) {
@@ -519,11 +546,50 @@ const updateRealTimeData = async () => {
         }
       }
 
+      // 检查锁定状态是否有明确的变化（只有当实时数据明确提供锁定状态时才检查）
+      for (const field of lockStatusFields) {
+        if (realTimeData[field] !== undefined && realTimeData[field] !== currentBreaker[field]) {
+          hasChanges = true
+          break
+        }
+      }
+
       // 只有数据发生变化时才更新
       if (hasChanges) {
+        // 准备更新数据，排除未定义的锁定状态
+        const updateData = { ...realTimeData }
+
+        // 如果实时数据中的锁定状态未定义，则不更新锁定状态
+        if (realTimeData.is_locked === undefined) {
+          delete updateData.is_locked
+        }
+
+        // 记录锁定状态更新日志
+        if (updateData.is_locked !== undefined && updateData.is_locked !== currentBreaker.is_locked) {
+          console.log(`🔒 断路器 ${breaker.breaker_name} 锁定状态更新:`, {
+            from: currentBreaker.is_locked,
+            to: updateData.is_locked,
+            source: 'realtime_data'
+          })
+        }
+
+        // 记录状态更新日志
+        if (updateData.status !== undefined && updateData.status !== currentBreaker.status) {
+          console.log(`🔄 断路器 ${breaker.breaker_name} 状态更新:`, {
+            breaker_id: breaker.id,
+            from: currentBreaker.status,
+            to: updateData.status,
+            source: 'realtime_data',
+            timestamp: new Date().toISOString(),
+            raw_data: realTimeData
+          })
+
+          // 移除特殊处理逻辑，统一记录所有断路器的状态变化
+        }
+
         // 使用Object.assign进行浅拷贝更新，保持响应式
         Object.assign(breakers.value[index], {
-          ...realTimeData,
+          ...updateData,
           last_update: new Date().toISOString()
         })
         console.log(`断路器 ${breaker.breaker_name} 实时数据已更新`)
@@ -568,88 +634,86 @@ const manualRefresh = async () => {
 // 读取断路器实时数据（从数据库读取，避免MODBUS操作导致跳闸）
 const readBreakerRealTimeData = async (breaker: any) => {
   try {
-    // 首先尝试获取真实的MODBUS实时数据
-    console.log(`尝试获取断路器 ${breaker.breaker_name} 的实时MODBUS数据...`)
-    const realtimeResponse = await api.get(`/breakers/${breaker.id}/latest-data`)
+    // ✅ 修复：状态应该从数据库读取，而不是从实时数据读取
+    // 原因：
+    // 1. 数据库中的状态是控制操作后的真实状态
+    // 2. 实时数据中的状态可能是MODBUS读取的瞬时值，不稳定
+    // 3. 前端应该显示的是"当前状态"，即数据库中的状态
 
-    if (realtimeResponse && realtimeResponse.data && realtimeResponse.data.code === 200 && realtimeResponse.data.data && realtimeResponse.data.data.data) {
-      const realtimeData = realtimeResponse.data.data.data
-      console.log(`成功获取断路器 ${breaker.breaker_name} 实时数据:`, realtimeData)
+    console.log(`获取断路器 ${breaker.breaker_name} 的状态和实时数据...`)
 
-      // 返回真实的MODBUS数据
-      return {
-        voltage: realtimeData.voltage || 0,
-        current: realtimeData.current || 0,
-        power: realtimeData.power || 0,
-        power_factor: realtimeData.power_factor || 0,
-        frequency: realtimeData.frequency || 50.0,
-        leakage_current: realtimeData.leakage_current || 0,
-        temperature: realtimeData.temperature || 25,
-        status: realtimeData.status || 'unknown',
-        is_locked: realtimeData.is_locked || false,
-        device_rated_current: realtimeData.rated_current || breaker.rated_current || 125,
-        device_alarm_current: realtimeData.alarm_current || 30,
-        device_over_temp_threshold: realtimeData.over_temp_threshold || 80
-      }
+    // 首先获取数据库中的状态（这是权威的当前状态）
+    const breakerResponse = await api.get(`/breakers/${breaker.id}`)
+    if (!breakerResponse || !breakerResponse.data || breakerResponse.data.code !== 200 || !breakerResponse.data.data) {
+      throw new Error('无法获取断路器状态')
     }
 
-    // 如果实时数据获取失败，回退到数据库状态
-    console.log(`实时数据获取失败，回退到数据库状态...`)
-    const response = await api.get(`/breakers/${breaker.id}`)
+    const dbBreaker = breakerResponse.data.data
+    console.log(`成功获取断路器 ${breaker.breaker_name} 数据库状态:`, {
+      status: dbBreaker.status,
+      is_locked: dbBreaker.is_locked
+    })
 
-    if (response && response.data && response.data.code === 200 && response.data.data) {
-      const dbData = response.data.data
-      console.log(`成功获取断路器 ${breaker.breaker_name} 数据库状态:`, dbData)
-
-      // 返回基于数据库状态的实时数据格式
-      return {
-        voltage: breaker.rated_voltage || 220,
-        current: 0, // 数据库中没有实时电流数据
-        power: 0,
-        power_factor: 0,
-        frequency: 50.0,
-        leakage_current: 0,
-        temperature: 25,
-        status: dbData.status || 'off', // 使用数据库中的实际状态
-        is_locked: dbData.is_locked || false, // 使用数据库中的实际锁定状态
-        device_rated_current: dbData.rated_current || 125,
-        device_alarm_current: 30,
-        device_over_temp_threshold: 80
+    // 然后尝试获取实时数据（用于显示电压、电流等参数）
+    let realtimeData = null
+    try {
+      const realtimeResponse = await api.get(`/breakers/${breaker.id}/latest-data`)
+      if (realtimeResponse && realtimeResponse.data && realtimeResponse.data.code === 200 && realtimeResponse.data.data && realtimeResponse.data.data.data) {
+        realtimeData = realtimeResponse.data.data.data
+        console.log(`成功获取断路器 ${breaker.breaker_name} 实时数据:`, {
+          voltage: realtimeData.voltage,
+          current: realtimeData.current,
+          temperature: realtimeData.temperature
+        })
       }
-    } else {
-      console.log(`API响应格式异常，使用默认数据:`, response)
-      return await simulateBreakerRealTimeData(breaker)
+    } catch (error) {
+      console.warn(`获取实时数据失败，使用默认值:`, error)
+    }
+
+    // ✅ 返回组合数据：状态来自数据库，参数来自实时数据
+    return {
+      // 状态字段：来自数据库（权威数据源）
+      status: dbBreaker.status || 'unknown',
+      is_locked: dbBreaker.is_locked || false,
+
+      // 参数字段：来自实时数据或默认值
+      voltage: realtimeData?.voltage || dbBreaker.rated_voltage || 220,
+      current: realtimeData?.current || 0,
+      power: realtimeData?.power || 0,
+      power_factor: realtimeData?.power_factor || 0,
+      frequency: realtimeData?.frequency || 50.0,
+      leakage_current: realtimeData?.leakage_current || 0,
+      temperature: realtimeData?.temperature || 25,
+
+      // 配置字段
+      device_rated_current: dbBreaker.rated_current || 125,
+      device_alarm_current: dbBreaker.alarm_current || 30,
+      device_over_temp_threshold: dbBreaker.over_temp_threshold || 80
     }
   } catch (error) {
-    console.error('读取实时数据失败，使用模拟数据:', error)
-    return await simulateBreakerRealTimeData(breaker)
-  }
-}
-
-// 模拟断路器实时数据（基于LX47LE-125协议）
-const simulateBreakerRealTimeData = async (breaker: any) => {
-  // 模拟MODBUS读取延迟
-  await new Promise(resolve => setTimeout(resolve, 100))
-
-  // 根据断路器配置模拟真实的数据
-  const isOn = Math.random() > 0.5 // 随机状态，实际应该从MODBUS读取
-
-  return {
-    // 基于LX47LE-125协议的寄存器数据
-    voltage: breaker.rated_voltage + (Math.random() - 0.5) * 10, // 电压波动
-    current: isOn ? (Math.random() * (breaker.rated_current * 0.8)) : 0, // 电流
-    power_factor: isOn ? (0.85 + Math.random() * 0.15) : 0, // 功率因数
-    frequency: 49.8 + Math.random() * 0.4, // 频率 49.8-50.2Hz
-    leakage_current: Math.random() * 5, // 漏电流 0-5mA
-    temperature: 25 + Math.random() * 30, // 温度 25-55°C
-    status: isOn ? 'on' : 'off', // 断路器状态
-    is_locked: false, // 默认不锁定
-    // 计算功率
-    get power() {
-      return isOn ? (this.voltage * this.current * this.power_factor) / 1000 : 0
+    console.error('读取断路器数据失败:', error)
+    // ✅ 修复：失败时使用当前前端状态，而不是随机模拟数据
+    // 这样可以避免状态随机变化
+    return {
+      status: breaker.status || 'unknown',
+      is_locked: breaker.is_locked || false,
+      voltage: breaker.voltage || breaker.rated_voltage || 220,
+      current: breaker.current || 0,
+      power: breaker.power || 0,
+      power_factor: breaker.power_factor || 0,
+      frequency: breaker.frequency || 50.0,
+      leakage_current: breaker.leakage_current || 0,
+      temperature: breaker.temperature || 25,
+      device_rated_current: breaker.rated_current || 125,
+      device_alarm_current: breaker.alarm_current || 30,
+      device_over_temp_threshold: breaker.over_temp_threshold || 80
     }
   }
 }
+
+// ❌ 已删除：simulateBreakerRealTimeData 函数
+// 原因：这个函数使用随机数据，导致前端状态随机变化
+// 修复：现在使用实际的数据库状态和实时数据
 
 
 
@@ -687,9 +751,17 @@ const toggleBreaker = async (breaker: Breaker) => {
         reason: `手动${action}操作`
       })
 
-      if (response.data) {
-        // 获取控制ID，用于查询控制状态
-        const controlId = response.data.control_id
+      if (response.data && response.data.data) {
+        // ✅ 修复：正确访问嵌套的data字段
+        const controlData = response.data.data
+        const controlId = controlData.control_id
+
+        console.log(`📤 控制命令已发送:`, {
+          breakerId: breaker.id,
+          controlId,
+          action: newStatus,
+          status: controlData.status
+        })
 
         // 轮询控制状态
         if (controlId) {
@@ -724,29 +796,40 @@ const pollControlStatus = async (breakerId: number, controlId: string) => {
     try {
       const response = await api.get(`/breakers/${breakerId}/control/${controlId}`)
 
-      if (response.data) {
-        const status = response.data.status
+      if (response.data && response.data.data) {
+        // ✅ 修复：正确访问嵌套的data字段
+        const controlData = response.data.data
+        const status = controlData.status
+
+        console.log(`🔍 控制状态查询结果:`, {
+          breakerId,
+          controlId,
+          status,
+          success: controlData.success,
+          error_msg: controlData.error_msg
+        })
 
         if (status === 'completed') {
-          if (response.data.success) {
+          if (controlData.success) {
             ElMessage.success('断路器控制操作成功')
             // 延迟刷新，让用户能看到乐观更新的效果
             setTimeout(async () => {
               await fetchBreakers()
             }, 2000) // 2秒后刷新，确保与后端同步
           } else {
-            ElMessage.error(`断路器控制失败: ${response.data.error_msg || '未知错误'}`)
+            ElMessage.error(`断路器控制失败: ${controlData.error_msg || '未知错误'}`)
             // 操作失败时立即刷新以显示正确状态
             await fetchBreakers()
           }
           return
         } else if (status === 'failed') {
-          ElMessage.error(`断路器控制失败: ${response.data.error_msg || '未知错误'}`)
+          ElMessage.error(`断路器控制失败: ${controlData.error_msg || '未知错误'}`)
           return
-        } else if (status === 'pending' || status === 'running') {
+        } else if (status === 'executing' || status === 'pending' || status === 'running') {
           attempts++
           if (attempts < maxAttempts) {
             // 继续轮询
+            console.log(`⏳ 继续轮询控制状态 (${attempts}/${maxAttempts})`)
             setTimeout(poll, 1000) // 1秒后再次查询
           } else {
             ElMessage.warning('断路器控制状态查询超时')
@@ -766,6 +849,13 @@ const toggleLock = async (breaker: Breaker) => {
   const action = breaker.is_locked ? '解锁' : '锁定'
   const newLockStatus = !breaker.is_locked
 
+  console.log(`🔒 开始${action}操作`, {
+    breaker_id: breaker.id,
+    breaker_name: breaker.breaker_name,
+    current_status: breaker.is_locked,
+    target_status: newLockStatus
+  })
+
   try {
     await ElMessageBox.confirm(
       `确定要${action}断路器 ${breaker.breaker_name} 吗？`,
@@ -784,28 +874,63 @@ const toggleLock = async (breaker: Breaker) => {
     const originalLockStatus = breaker.is_locked
     if (breakerIndex !== -1) {
       breakers.value[breakerIndex].is_locked = newLockStatus
+      console.log(`🔒 乐观更新前端状态`, {
+        breaker_id: breaker.id,
+        index: breakerIndex,
+        new_status: newLockStatus
+      })
     }
     ElMessage.success(`断路器${action}中...`)
 
     try {
       // 调用真实的断路器锁定控制API
+      console.log(`🔒 调用锁定API`, {
+        url: `/breakers/${breaker.id}/lock`,
+        payload: { lock: newLockStatus }
+      })
+
       const response = await api.post(`/breakers/${breaker.id}/lock`, {
         lock: newLockStatus
+      })
+
+      console.log(`🔒 API响应`, {
+        status: response.status,
+        data: response.data
       })
 
       if (response.data) {
         ElMessage.success(`断路器${action}成功`)
 
+        // 记录锁定操作成功日志
+        console.log(`🔒 断路器 ${breaker.breaker_name} ${action}成功`, {
+          breaker_id: breaker.id,
+          new_lock_status: newLockStatus,
+          api_response: response.data
+        })
+
         // 刷新断路器数据以确保与后端同步
+        console.log(`🔒 开始刷新断路器数据...`)
         await fetchBreakers()
+
+        // 检查刷新后的状态
+        const updatedBreaker = breakers.value.find(b => b.id === breaker.id)
+        console.log(`🔒 刷新后的断路器状态`, {
+          breaker_id: breaker.id,
+          is_locked: updatedBreaker?.is_locked,
+          expected: newLockStatus
+        })
       }
     } catch (error) {
-      console.error(`断路器${action}失败:`, error)
+      console.error(`🔒 断路器${action}失败:`, error)
       ElMessage.error(`断路器${action}失败`)
 
       // 操作失败时回滚状态
       if (breakerIndex !== -1) {
         breakers.value[breakerIndex].is_locked = originalLockStatus
+        console.log(`🔒 回滚状态`, {
+          breaker_id: breaker.id,
+          rollback_to: originalLockStatus
+        })
       }
     } finally {
       operatingBreakerId.value = null
@@ -815,9 +940,7 @@ const toggleLock = async (breaker: Breaker) => {
   }
 }
 
-const showBindingModal = (breaker: Breaker) => {
-  ElMessage.info(`绑定功能开发中 - ${breaker.breaker_name}`)
-}
+
 
 const exportReport = () => {
   ElMessage.info('导出报告功能开发中')
@@ -906,12 +1029,19 @@ const formatLastOperation = (lastUpdate?: string) => {
 
 // 状态处理方法
 const getStatusText = (status: string) => {
+  // 添加调试日志
+  if (status !== 'on' && status !== 'off') {
+    console.log(`⚠️ 异常状态值: ${status}`)
+  }
+
   switch (status) {
     case 'on': return '合闸'
     case 'off': return '分闸'
     case 'fault': return '故障'
     case 'unknown': return '未知'
-    default: return '未知'
+    default:
+      console.log(`⚠️ 未知状态值: ${status}`)
+      return '未知'
   }
 }
 
@@ -942,8 +1072,62 @@ const getStatusCardClass = (status: string) => {
   }
 }
 
-const getBindingText = (binding?: string) => {
-  return binding || '未绑定'
+
+
+// 获取稳定的额定电流值（优先使用数据库配置，避免MODBUS读取不稳定）
+const getStableRatedCurrent = (breaker: Breaker) => {
+  // 优先使用数据库配置的稳定值
+  if (breaker.rated_current && breaker.rated_current > 0) {
+    return formatCurrent(breaker.rated_current)
+  }
+
+  // 如果设备读取值与数据库值差异过大，使用数据库值
+  if (breaker.device_rated_current && breaker.rated_current) {
+    const deviceValue = breaker.device_rated_current
+    const dbValue = breaker.rated_current
+    const difference = Math.abs(deviceValue - dbValue)
+
+    // 如果差异超过20%，认为设备值不稳定，使用数据库值
+    if (difference > dbValue * 0.2) {
+      console.warn(`断路器${breaker.breaker_name}设备额定电流不稳定`, {
+        device_value: deviceValue,
+        db_value: dbValue,
+        difference: difference
+      })
+      return formatCurrent(dbValue)
+    }
+  }
+
+  // 最后才使用设备读取值
+  return formatCurrent(breaker.device_rated_current || breaker.rated_current || 63)
+}
+
+// 获取稳定的告警电流值
+const getStableAlarmCurrent = (breaker: Breaker) => {
+  // 优先使用数据库配置的稳定值
+  if (breaker.alarm_current && breaker.alarm_current > 0) {
+    return formatCurrent(breaker.alarm_current)
+  }
+
+  // 如果设备读取值与数据库值差异过大，使用数据库值
+  if (breaker.device_alarm_current && breaker.alarm_current) {
+    const deviceValue = breaker.device_alarm_current
+    const dbValue = breaker.alarm_current
+    const difference = Math.abs(deviceValue - dbValue)
+
+    // 如果差异超过50%，认为设备值不稳定，使用数据库值
+    if (difference > dbValue * 0.5) {
+      console.warn(`断路器${breaker.breaker_name}设备告警电流不稳定`, {
+        device_value: deviceValue,
+        db_value: dbValue,
+        difference: difference
+      })
+      return formatCurrent(dbValue)
+    }
+  }
+
+  // 最后才使用设备读取值
+  return formatCurrent(breaker.device_alarm_current || breaker.alarm_current || 30)
 }
 
 // 颜色处理方法

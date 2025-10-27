@@ -209,6 +209,7 @@ import { ref, reactive, onMounted } from 'vue'
 import { ElMessage, ElMessageBox, ElLoading } from 'element-plus'
 import type { FormInstance, FormRules } from 'element-plus'
 import { Plus, Search } from '@element-plus/icons-vue'
+import api from '@/utils/api'
 
 // 响应式数据
 const dialogVisible = ref(false)
@@ -277,26 +278,12 @@ const autoDetectSensor = async () => {
   showManualConfig.value = false
 
   try {
-    // 调用后端API进行设备检测
-    const token = localStorage.getItem('token')
-    const response = await fetch(`http://${window.location.hostname}:2999/api/v1/sensors/detect`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${token}`
-      },
-      body: JSON.stringify({
-        address: sensorForm.address,
-        port: sensorForm.port,
-        station: 1 // 默认站号
-      })
+    // 调用后端API进行设备检测 - 使用统一的API服务
+    const result = await api.post('/sensors/detect', {
+      address: sensorForm.address,
+      port: sensorForm.port,
+      station: 1 // 默认站号
     })
-
-    if (!response.ok) {
-      throw new Error(`HTTP ${response.status}: ${response.statusText}`)
-    }
-
-    const result = await response.json()
 
     if (result.code === 20000 && result.data) {
       detectionResult.value = result.data
@@ -534,28 +521,10 @@ const saveSensor = async () => {
       channels: channels
     }
 
-    // 调用API保存传感器配置
-    const token = localStorage.getItem('token')
-    const url = isEdit.value
-      ? `http://${window.location.hostname}:2999/api/v1/sensors/${currentSensorId.value}`
-      : `http://${window.location.hostname}:2999/api/v1/sensors`
-    const method = isEdit.value ? 'PUT' : 'POST'
-
-    const response = await fetch(url, {
-      method: method,
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${token}`
-      },
-      body: JSON.stringify(requestData)
-    })
-
-    if (!response.ok) {
-      const errorData = await response.json()
-      throw new Error(errorData.message || '保存失败')
-    }
-
-    const result = await response.json()
+    // 调用API保存传感器配置 - 使用统一的API服务
+    const result = isEdit.value
+      ? await api.put(`/sensors/${currentSensorId.value}`, requestData)
+      : await api.post('/sensors', requestData)
     console.log('传感器保存成功:', result)
 
     ElMessage.success(isEdit.value ? '传感器更新成功' : '传感器添加成功')
@@ -580,18 +549,8 @@ const loadChannels = async (isAutoRefresh = false) => {
       loading.value = true
     }
 
-    const token = localStorage.getItem('token')
-    const response = await fetch(`http://${window.location.hostname}:2999/api/v1/sensors/channels`, {
-      headers: {
-        'Authorization': `Bearer ${token}`
-      }
-    })
-
-    if (!response.ok) {
-      throw new Error('获取通道列表失败')
-    }
-
-    const result = await response.json()
+    // 使用统一的API服务
+    const result = await api.get('/sensors/channels')
     if (!isAutoRefresh) {
       console.log('通道列表:', result)
     }
@@ -649,19 +608,8 @@ const loadChannels = async (isAutoRefresh = false) => {
 // 加载传感器列表（增量更新版本）
 const loadSensors = async (isAutoRefresh = false) => {
   try {
-    const token = localStorage.getItem('token')
-    const response = await fetch(`http://${window.location.hostname}:2999/api/v1/sensors`, {
-      method: 'GET',
-      headers: {
-        'Authorization': `Bearer ${token}`
-      }
-    })
-
-    if (!response.ok) {
-      throw new Error('获取传感器列表失败')
-    }
-
-    const result = await response.json()
+    // 使用统一的API服务
+    const result = await api.get('/sensors')
     if (result.code === 20000 && result.data) {
       const newSensors = result.data.sensors || []
 
@@ -738,15 +686,8 @@ const deleteChannel = async (channel: any) => {
       }
     )
 
-    const response = await fetch(`http://${window.location.hostname}:2999/api/v1/sensors/${channel.id}/channels/${channel.channel_number}`, {
-      method: 'DELETE',
-      headers: {
-        'Authorization': `Bearer ${localStorage.getItem('token')}`,
-        'Content-Type': 'application/json'
-      }
-    })
-
-    const result = await response.json()
+    // 使用统一的API服务
+    const result = await api.delete(`/sensors/${channel.id}/channels/${channel.channel_number}`)
 
     if (result.code === 20000) {
       // 显示详细的删除结果消息
@@ -783,20 +724,8 @@ const testSensor = async (sensor: any) => {
   })
 
   try {
-    const token = localStorage.getItem('token')
-    const response = await fetch(`http://${window.location.hostname}:2999/api/v1/sensors/${sensor.id}/test`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${token}`
-      }
-    })
-
-    if (!response.ok) {
-      throw new Error('测试请求失败')
-    }
-
-    const result = await response.json()
+    // 使用统一的API服务
+    const result = await api.post(`/sensors/${sensor.id}/test`)
 
     if (result.code === 20000 && result.data.success) {
       ElMessage.success(`传感器 ${sensor.name} 测试成功！`)
@@ -843,22 +772,8 @@ const deleteSensor = async (sensor: any) => {
       }
     )
 
-    // 执行删除操作
-    const token = localStorage.getItem('token')
-    const response = await fetch(`http://${window.location.hostname}:2999/api/v1/sensors/${sensor.id}`, {
-      method: 'DELETE',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${token}`
-      }
-    })
-
-    if (!response.ok) {
-      const errorData = await response.json()
-      throw new Error(errorData.message || '删除失败')
-    }
-
-    const result = await response.json()
+    // 执行删除操作 - 使用统一的API服务
+    const result = await api.delete(`/sensors/${sensor.id}`)
     console.log('传感器删除成功:', result)
 
     ElMessage.success('传感器删除成功')

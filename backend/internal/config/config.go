@@ -136,7 +136,7 @@ func LoadConfig() (*Config, error) {
 			Name:    getEnv("APP_NAME", "智能设备管理系统"),
 			Version: getEnv("APP_VERSION", "1.0.0"),
 			Env:     getEnv("APP_ENV", "development"),
-			Port:    getEnv("BACKEND_PORT", getEnv("APP_PORT", "8080")),
+			Port:    getEnv("BACKEND_PORT", getEnv("APP_PORT", "2999")),
 			Host:    getEnv("BACKEND_HOST", getEnv("APP_HOST", "0.0.0.0")),
 		},
 		Database: DatabaseConfig{

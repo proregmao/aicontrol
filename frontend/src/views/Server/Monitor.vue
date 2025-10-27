@@ -260,6 +260,7 @@
 <script setup lang="ts">
 import { ref, onMounted, computed } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
+import api from '@/utils/api'
 
 // 服务器列表数据
 const servers = ref([])
@@ -281,15 +282,8 @@ const loadServers = async (isAutoRefresh = false) => {
       loading.value = true
     }
 
-    const response = await fetch(`http://${window.location.hostname}:2999/api/v1/servers`, {
-      method: 'GET',
-      headers: {
-        'Authorization': `Bearer ${localStorage.getItem('token')}`,
-        'Content-Type': 'application/json'
-      }
-    })
-
-    const result = await response.json()
+    // 使用统一的API服务，避免直接访问后端端口
+    const result = await api.get('/servers')
     if (result.code === 200) {
       if (result.data && Array.isArray(result.data)) {
         const newServers = result.data.map((server: any) => ({
@@ -440,16 +434,8 @@ const detectAndSaveHardware = async () => {
 
     console.log('开始检测硬件信息:', detectRequest)
 
-    const response = await fetch(`http://${window.location.hostname}:2999/api/v1/servers/detect-hardware`, {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${localStorage.getItem('token')}`,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify(detectRequest)
-    })
-
-    const result = await response.json()
+    // 使用统一的API服务，避免直接访问后端端口
+    const result = await api.post('/servers/detect-hardware', detectRequest)
     console.log('硬件检测结果:', result)
 
     if (result.code === 200) {
@@ -490,15 +476,8 @@ const testServerConnection = async () => {
   try {
     ElMessage.info('正在测试连接...')
 
-    const response = await fetch(`http://${window.location.hostname}:2999/api/v1/servers/${selectedServer.value.id}/test`, {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${localStorage.getItem('token')}`,
-        'Content-Type': 'application/json'
-      }
-    })
-
-    const result = await response.json()
+    // 使用统一的API服务，避免直接访问后端端口
+    const result = await api.post(`/servers/${selectedServer.value.id}/test`)
     if (result.code === 200) {
       ElMessage.success('连接测试成功')
       // 刷新服务器列表以更新状态
@@ -523,17 +502,8 @@ const loadHardwareInfo = async () => {
   try {
     console.log('开始获取硬件信息，服务器ID:', selectedServer.value.id)
 
-    // 调用后端API获取真实硬件信息
-    const response = await fetch(`http://${window.location.hostname}:2999/api/v1/servers/${selectedServer.value.id}/hardware`, {
-      method: 'GET',
-      headers: {
-        'Authorization': `Bearer ${localStorage.getItem('token')}`,
-        'Content-Type': 'application/json'
-      }
-    })
-
-    console.log('API响应状态:', response.status)
-    const result = await response.json()
+    // 调用后端API获取真实硬件信息 - 使用统一的API服务
+    const result = await api.get(`/servers/${selectedServer.value.id}/hardware`)
     console.log('API响应数据:', result)
 
     if (result.code === 200) {

@@ -2,7 +2,7 @@ module smart-device-management
 
 go 1.23.0
 
-toolchain go1.24.7
+toolchain go1.24.9
 
 require (
 	github.com/gin-contrib/cors v1.7.6

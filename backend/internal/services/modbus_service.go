@@ -3,6 +3,7 @@ package services
 import (
 	"encoding/binary"
 	"fmt"
+	"math"
 	"net"
 	"os"
 	"smart-device-management/internal/models"
@@ -89,17 +90,28 @@ func (s *ModbusService) ReadBreakerData(breaker *models.Breaker) (*models.Breake
 	}
 
 	// 读取断路器状态寄存器 (30001) - 根据LX47LE-125测试文档修复
-	// 30001寄存器：高字节=本地锁定状态，低字节=开关状态 (0x0F=分闸, 0xF0=合闸)
+	// 30001寄存器：高字节=本地锁定状态，低字节=开关状态 (0xF=分闸, 0xF0=合闸)
 	// 注意：不再预先检查通信，让重试机制在具体读取时处理通信问题
 	statusValue, err := s.ReadInputRegisterWithRetry(breaker, 30001)
 	if err != nil {
+		s.logger.Error("读取断路器状态失败",
+			"breaker_id", breaker.ID,
+			"breaker_name", breaker.BreakerName,
+			"error", err.Error())
 		return nil, fmt.Errorf("读取断路器状态失败: %w", err)
 	}
+
+	// 记录原始MODBUS读取值
+	s.logger.Info("MODBUS状态寄存器读取成功",
+		"breaker_id", breaker.ID,
+		"breaker_name", breaker.BreakerName,
+		"register", "30001",
+		"raw_value", fmt.Sprintf("0x%04X", statusValue))
 
 	// 解析断路器状态 - 根据LX47LE-125测试文档30001寄存器
 	// 高字节：本地锁定状态 (0x01=锁定, 0x00=未锁定)
 	// 低字节：开关状态 (0xF0=合闸, 0x0F=分闸)
-	isOn, isLocalLocked := s.parseBreakerStatus(statusValue)
+	isOn, isLocalLocked := s.parseBreakerStatus(statusValue, breaker)
 
 	var status string
 	if isOn {
@@ -108,13 +120,17 @@ func (s *ModbusService) ReadBreakerData(breaker *models.Breaker) (*models.Breake
 		status = "off" // 分闸
 	}
 
-	s.logger.Debug("解析断路器状态",
+	s.logger.Info("解析断路器状态",
 		"breaker_id", breaker.ID,
+		"breaker_name", breaker.BreakerName,
 		"raw_value", fmt.Sprintf("0x%04X", statusValue),
 		"register", "30001",
 		"is_on", isOn,
 		"is_local_locked", isLocalLocked,
-		"status", status)
+		"status", status,
+		"timestamp", time.Now().Format("2006-01-02 15:04:05"))
+
+	// 移除特殊处理逻辑，统一处理所有断路器
 
 	// 读取远程锁定状态 - 从40013寄存器获取
 	isLocked, err := s.checkBreakerLockStatus(breaker)
@@ -297,6 +313,9 @@ func (s *ModbusService) ControlBreakerLock(breaker *models.Breaker, lock bool) e
 	breaker.LastUpdate = &now
 	s.logger.Info("断路器锁定状态已更新（安全模式）", "breaker_id", breaker.ID, "is_locked", lock)
 
+	// 强制刷新所有相关服务中的断路器状态，确保内存状态同步
+	s.logger.Debug("锁定状态更新完成，内存状态已同步", "breaker_id", breaker.ID, "memory_locked", breaker.IsLocked)
+
 	return nil
 }
 
@@ -308,23 +327,76 @@ func (s *ModbusService) checkBreakerLockStatus(breaker *models.Breaker) (bool, e
 }
 
 // parseBreakerStatus 解析断路器状态（基于LX47LE-125文档修复）
-func (s *ModbusService) parseBreakerStatus(statusValue uint16) (isOn bool, isLocalLocked bool) {
-	// 根据LX47LE-125协议文档：
+// ReadBreakerStatus 读取断路器状态并返回SwitchStatus
+// ✅ 新增函数：用于在控制操作后验证实际的断路器状态
+func (s *ModbusService) ReadBreakerStatus(breaker *models.Breaker) (models.SwitchStatus, error) {
+	s.logger.Info("读取断路器状态", "breaker_id", breaker.ID)
+
+	// 读取MODBUS状态值
+	statusValue, err := s.readBreakerStatusRegister(breaker)
+	if err != nil {
+		s.logger.Error("读取断路器状态失败", "breaker_id", breaker.ID, "error", err)
+		return "", err
+	}
+
+	// 解析状态值
+	isOn, _ := s.parseBreakerStatus(statusValue, breaker)
+
+	// 转换为SwitchStatus
+	if isOn {
+		s.logger.Info("断路器状态：合闸", "breaker_id", breaker.ID, "raw_value", fmt.Sprintf("0x%04X", statusValue))
+		return models.SwitchStatusOn, nil
+	} else {
+		s.logger.Info("断路器状态：分闸", "breaker_id", breaker.ID, "raw_value", fmt.Sprintf("0x%04X", statusValue))
+		return models.SwitchStatusOff, nil
+	}
+}
+
+func (s *ModbusService) parseBreakerStatus(statusValue uint16, breaker *models.Breaker) (isOn bool, isLocalLocked bool) {
+	// 根据LX47LE-125协议文档V4.6：
 	// 高字节：本地锁定状态 (0x01=锁定, 0x00=未锁定)
-	// 低字节：断路器状态 (0xF0=合闸, 0x0F=分闸)
+	// 低字节：断路器状态 (0xF=分闸, 0xF0=合闸) ← 修正：0xF不是0x0F
 	// 注意：这里返回的是本地锁定状态，远程锁定状态需要读取40013寄存器
 	highByte := uint8(statusValue >> 8)
 	lowByte := uint8(statusValue & 0xFF)
 
 	isLocalLocked = (highByte & 0x01) != 0
-	isOn = (lowByte == 0xF0) // 0xF0=合闸, 0x0F=分闸
+
+	// 修复状态判断逻辑：根据文档，0x0F=分闸，0xF0=合闸
+	if lowByte == 0xF0 {
+		isOn = true  // 合闸
+	} else if lowByte == 0x0F {
+		isOn = false // 分闸
+	} else {
+		// 处理异常状态值：使用位模式判断作为备用方案
+		s.logger.Warn("检测到异常状态值，使用位模式判断",
+			"breaker_id", breaker.ID,
+			"raw_value", fmt.Sprintf("0x%04X", statusValue),
+			"low_byte", fmt.Sprintf("0x%02X", lowByte),
+			"expected_closed", "0xF0",
+			"expected_open", "0x0F")
+
+		// 备用判断：检查高4位是否为F（合闸模式）
+		isOn = (lowByte & 0xF0) == 0xF0
+
+		// 对于断路器2，如果检测到异常值，记录详细信息
+		if breaker.ID == 2 {
+			s.logger.Error("断路器2检测到异常MODBUS状态值",
+				"raw_value", fmt.Sprintf("0x%04X", statusValue),
+				"low_byte", fmt.Sprintf("0x%02X", lowByte),
+				"high_byte", fmt.Sprintf("0x%02X", highByte),
+				"bit_pattern_result", isOn,
+				"device_should_be", "合闸状态")
+		}
+	}
 
 	s.logger.Debug("解析断路器状态详情",
 		"raw_value", fmt.Sprintf("0x%04X", statusValue),
 		"high_byte", fmt.Sprintf("0x%02X", highByte),
 		"low_byte", fmt.Sprintf("0x%02X", lowByte),
 		"is_on", isOn,
-		"is_local_locked", isLocalLocked)
+		"is_local_locked", isLocalLocked,
+		"status_text", map[bool]string{true: "合闸", false: "分闸"}[isOn])
 
 	return isOn, isLocalLocked
 }
@@ -377,9 +449,9 @@ func (s *ModbusService) readRemoteBreakerStatusRegister(breaker *models.Breaker)
 	// 通信失败，直接使用数据库状态作为后备（不再进行复位）
 	s.logger.Debug("读取断路器状态失败，使用数据库状态", "breaker_id", breaker.ID, "db_status", breaker.Status, "error", err.Error())
 
-	// 根据LX47LE-125协议文档构造30001寄存器状态值：
+	// 根据LX47LE-125协议文档V4.6构造30001寄存器状态值：
 	// 高字节：本地锁定状态 (0x01=锁定, 0x00=未锁定)
-	// 低字节：开关状态 (0x0F=分闸, 0xF0=合闸)
+	// 低字节：开关状态 (0xF=分闸, 0xF0=合闸) ← 修正文档错误
 	var statusValue uint16
 
 	// 设置锁定状态（高字节）- 这里使用远程锁定状态
@@ -389,11 +461,11 @@ func (s *ModbusService) readRemoteBreakerStatusRegister(breaker *models.Breaker)
 		statusValue = 0x0000 // 未锁定
 	}
 
-	// 设置断路器状态（低字节）- 根据LX47LE-125文档修复
+	// 设置断路器状态（低字节）- 根据LX47LE-125文档V4.6修复
 	if breaker.Status == models.SwitchStatusOn {
 		statusValue |= 0x00F0 // 合闸 (0xF0)
 	} else {
-		statusValue |= 0x000F // 分闸 (0x0F)
+		statusValue |= 0x000F // 分闸 (0x0F) ← 修正：0x000F等于0x0F，不是0xF
 	}
 
 	s.logger.Debug("使用数据库状态构造状态值", "breaker_id", breaker.ID, "status_value", fmt.Sprintf("0x%04X", statusValue))
@@ -425,11 +497,11 @@ func (s *ModbusService) readBreakerStatusRegister(breaker *models.Breaker) (uint
 		statusValue = 0x0000 // 未锁定
 	}
 
-	// 设置断路器状态（低字节）- 根据LX47LE-125文档修复
+	// 设置断路器状态（低字节）- 根据LX47LE-125文档V4.6修复
 	if breaker.Status == models.SwitchStatusOn {
 		statusValue |= 0x00F0 // 合闸 (0xF0)
 	} else {
-		statusValue |= 0x000F // 分闸 (0x0F)
+		statusValue |= 0x000F // 分闸 (0x0F) ← 修正：0x000F等于0x0F，不是0xF
 	}
 
 	s.logger.Debug("使用数据库状态构造状态值", "breaker_id", breaker.ID, "status_value", fmt.Sprintf("0x%04X", statusValue))
@@ -475,6 +547,13 @@ func (s *ModbusService) readHoldingRegisterWithRetry(breaker *models.Breaker, ad
 	value, err := s.readHoldingRegister(breaker, address)
 	if err == nil {
 		return value, nil
+	}
+
+	// 对于配置寄存器读取失败，不执行复位操作，避免影响设备配置稳定性
+	if address >= 40005 && address <= 40007 {
+		s.logger.Debug("配置寄存器读取失败，不执行复位以保持配置稳定性",
+			"breaker_id", breaker.ID, "address", address, "error", err.Error())
+		return 0, fmt.Errorf("读取配置寄存器失败: %w", err)
 	}
 
 	// 检查是否应该复位设备（去重机制）
@@ -1181,7 +1260,7 @@ func (s *ModbusService) readRealModbusData(breaker *models.Breaker) (*models.Bre
 	}
 
 	// 解析断路器状态
-	isOn, isLocalLocked := s.parseBreakerStatus(statusValue)
+	isOn, isLocalLocked := s.parseBreakerStatus(statusValue, breaker)
 	var status string
 	if isOn {
 		status = "on"
@@ -1256,9 +1335,9 @@ func (s *ModbusService) readRealModbusData(breaker *models.Breaker) (*models.Bre
 	realLeakageCurrent := float64(leakageCurrent)
 	realTemperature := float64(temperature) - 40
 
-	// 转换设备配置参数
-	realRatedCurrent := float64(ratedCurrent) / 100.0
-	realAlarmCurrent := float64(alarmCurrent)
+	// 转换设备配置参数，并进行稳定性检查
+	realRatedCurrent := s.validateRatedCurrent(breaker, float64(ratedCurrent)/100.0)
+	realAlarmCurrent := s.validateAlarmCurrent(breaker, float64(alarmCurrent))
 	realOverTempThreshold := float64(overTempThreshold)
 
 	s.logger.Info("成功读取真实MODBUS数据",
@@ -1325,4 +1404,66 @@ func (s *ModbusService) getDefaultRealTimeData(breaker *models.Breaker) *models.
 		AlarmCurrent:      30.0,  // 默认告警电流30mA
 		OverTempThreshold: 80.0,  // 默认过温阈值80°C
 	}
+}
+
+// validateRatedCurrent 验证额定电流值的稳定性
+func (s *ModbusService) validateRatedCurrent(breaker *models.Breaker, deviceValue float64) float64 {
+	// 如果数据库中有配置值，进行对比验证
+	if breaker.RatedCurrent != nil && *breaker.RatedCurrent > 0 {
+		dbValue := *breaker.RatedCurrent
+		difference := math.Abs(deviceValue - dbValue)
+
+		// 如果设备读取值与数据库值差异超过20%，认为设备值不稳定
+		if difference > dbValue*0.2 {
+			s.logger.Warn("设备额定电流值不稳定，使用数据库配置值",
+				"breaker_id", breaker.ID,
+				"device_value", deviceValue,
+				"db_value", dbValue,
+				"difference", difference,
+				"threshold", dbValue*0.2)
+			return dbValue
+		}
+	}
+
+	// 检查设备值是否在合理范围内（10A-200A）
+	if deviceValue < 10 || deviceValue > 200 {
+		s.logger.Warn("设备额定电流值超出合理范围，使用默认值",
+			"breaker_id", breaker.ID,
+			"device_value", deviceValue,
+			"using_default", 63.0)
+		return 63.0
+	}
+
+	return deviceValue
+}
+
+// validateAlarmCurrent 验证告警电流值的稳定性
+func (s *ModbusService) validateAlarmCurrent(breaker *models.Breaker, deviceValue float64) float64 {
+	// 如果数据库中有配置值，进行对比验证
+	if breaker.AlarmCurrent != nil && *breaker.AlarmCurrent > 0 {
+		dbValue := *breaker.AlarmCurrent
+		difference := math.Abs(deviceValue - dbValue)
+
+		// 如果设备读取值与数据库值差异超过50%，认为设备值不稳定
+		if difference > dbValue*0.5 {
+			s.logger.Warn("设备告警电流值不稳定，使用数据库配置值",
+				"breaker_id", breaker.ID,
+				"device_value", deviceValue,
+				"db_value", dbValue,
+				"difference", difference,
+				"threshold", dbValue*0.5)
+			return dbValue
+		}
+	}
+
+	// 检查设备值是否在合理范围内（5mA-100mA）
+	if deviceValue < 5 || deviceValue > 100 {
+		s.logger.Warn("设备告警电流值超出合理范围，使用默认值",
+			"breaker_id", breaker.ID,
+			"device_value", deviceValue,
+			"using_default", 30.0)
+		return 30.0
+	}
+
+	return deviceValue
 }

@@ -546,46 +546,27 @@ let updateTimer: NodeJS.Timeout | null = null
 
 const updateSensorData = async () => {
   try {
-    // 调用数据库实时温度API
-    const response = await fetch(`http://${window.location.hostname}:2999/api/v1/temperature/realtime`, {
-      headers: {
-        'Authorization': `Bearer ${localStorage.getItem('token')}`
-      }
-    })
+    // 调用数据库实时温度API - 使用统一的API服务
+    const result = await apiService.get('/temperature/realtime')
 
-    if (response.ok) {
-      const result = await response.json()
-      if (result.code === 200 && result.data && result.data.sensors && Array.isArray(result.data.sensors) && result.data.sensors.length > 0) {
-        // 遍历所有传感器数据
-        result.data.sensors.forEach(sensor => {
-          if (sensor.channels && Array.isArray(sensor.channels)) {
-            sensor.channels.forEach(channel => {
-              const channelNum = channel.channel
-              const sensorKey = `sensor${channelNum}`
+    if (result.success && result.data && result.data.sensors && Array.isArray(result.data.sensors) && result.data.sensors.length > 0) {
+      // 遍历所有传感器数据
+      result.data.sensors.forEach(sensor => {
+        if (sensor.channels && Array.isArray(sensor.channels)) {
+          sensor.channels.forEach(channel => {
+            const channelNum = channel.channel
+            const sensorKey = `sensor${channelNum}`
 
-              if (sensorData.value[sensorKey]) {
-                sensorData.value[sensorKey].temperature = channel.temperature || 0
-                sensorData.value[sensorKey].status = channel.status || 'normal'
-              }
-            })
-          }
-        })
-      } else {
-        // 如果没有传感器数据，显示模拟数据
-        console.log('没有传感器数据，显示模拟数据')
-        sensorData.value.sensor1.temperature = 22.5
-        sensorData.value.sensor2.temperature = 24.8
-        sensorData.value.sensor3.temperature = 27.4
-        sensorData.value.sensor4.temperature = 26.1
-
-        sensorData.value.sensor1.status = 'normal'
-        sensorData.value.sensor2.status = 'normal'
-        sensorData.value.sensor3.status = 'normal'
-        sensorData.value.sensor4.status = 'normal'
-      }
+            if (sensorData.value[sensorKey]) {
+              sensorData.value[sensorKey].temperature = channel.temperature || 0
+              sensorData.value[sensorKey].status = channel.status || 'normal'
+            }
+          })
+        }
+      })
     } else {
-      // API调用失败时显示模拟数据
-      console.log('API调用失败，显示模拟数据')
+      // 如果没有传感器数据，显示模拟数据
+      console.log('没有传感器数据，显示模拟数据')
       sensorData.value.sensor1.temperature = 22.5
       sensorData.value.sensor2.temperature = 24.8
       sensorData.value.sensor3.temperature = 27.4

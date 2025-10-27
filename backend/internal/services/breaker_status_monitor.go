@@ -211,16 +211,35 @@ func (m *BreakerStatusMonitor) checkSingleBreaker(breaker *models.Breaker) {
 	}
 
 	// 解析开关状态和本地锁定状态
-	isOn, isLocalLocked := m.modbusService.parseBreakerStatus(statusValue)
+	isOn, isLocalLocked := m.modbusService.parseBreakerStatus(statusValue, breaker)
 
-	// 安全模式：直接使用数据库中的锁定状态，避免MODBUS读取导致跳闸
-	isRemoteLocked := breaker.IsLocked
+	// 移除错误的状态替换逻辑，使用真实的MODBUS状态
+	// MODBUS状态是设备的真实状态，应该用来更新数据库
+
+	// 安全模式：从数据库重新读取最新的锁定状态，避免使用过期的内存状态
+	var latestBreaker models.Breaker
+	if err := m.db.Select("is_locked").First(&latestBreaker, breaker.ID).Error; err != nil {
+		m.logger.Warn("读取最新锁定状态失败，使用内存状态", "breaker_id", breaker.ID, "error", err)
+		latestBreaker.IsLocked = breaker.IsLocked
+	}
+	isRemoteLocked := latestBreaker.IsLocked
+
+	// 同步内存状态与数据库状态，避免后续的状态变化检测误判
+	if breaker.IsLocked != isRemoteLocked {
+		m.logger.Debug("同步内存锁定状态与数据库状态",
+			"breaker_id", breaker.ID,
+			"memory_locked", breaker.IsLocked,
+			"db_locked", isRemoteLocked)
+		breaker.IsLocked = isRemoteLocked
+	}
 
 	m.logger.Debug("状态监控读取结果",
 		"breaker_id", breaker.ID,
 		"switch_on", isOn,
 		"local_locked", isLocalLocked,
-		"remote_locked", isRemoteLocked)
+		"remote_locked", isRemoteLocked,
+		"memory_locked", breaker.IsLocked,
+		"db_locked", latestBreaker.IsLocked)
 	
 	// 转换为数据库状态格式
 	var newSwitchStatus models.SwitchStatus
@@ -235,22 +254,33 @@ func (m *BreakerStatusMonitor) checkSingleBreaker(breaker *models.Breaker) {
 	lockChanged := false
 
 	if breaker.Status != newSwitchStatus {
-		m.logger.Info("检测到断路器开关状态变化",
+		m.logger.Warn("检测到断路器开关状态变化",
 			"breaker_id", breaker.ID,
 			"name", breaker.BreakerName,
 			"old_status", breaker.Status,
-			"new_status", newSwitchStatus)
+			"new_status", newSwitchStatus,
+			"raw_modbus_value", fmt.Sprintf("0x%04X", statusValue),
+			"is_on", isOn,
+			"timestamp", time.Now().Format("2006-01-02 15:04:05"))
 		statusChanged = true
+
+		// 记录所有断路器的状态变化，不进行特殊处理
+		m.logger.Info("断路器状态变化",
+			"breaker_name", breaker.BreakerName,
+			"old_status", breaker.Status,
+			"new_status", newSwitchStatus,
+			"raw_value", fmt.Sprintf("0x%04X", statusValue),
+			"parsed_is_on", isOn)
 	}
 
-	// 使用远程锁定状态进行比较（因为我们主要关心远程控制）
+	// 锁定状态变化检测：由于我们已经同步了内存状态，这里通常不会有变化
+	// 但保留检测逻辑以防万一
 	if breaker.IsLocked != isRemoteLocked {
-		m.logger.Info("检测到断路器远程锁定状态变化",
+		m.logger.Warn("检测到内存与数据库锁定状态不一致（这不应该发生）",
 			"breaker_id", breaker.ID,
 			"name", breaker.BreakerName,
-			"old_remote_locked", breaker.IsLocked,
-			"new_remote_locked", isRemoteLocked,
-			"local_locked", isLocalLocked)
+			"memory_locked", breaker.IsLocked,
+			"db_locked", isRemoteLocked)
 		lockChanged = true
 	}
 

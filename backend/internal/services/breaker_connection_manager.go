@@ -595,11 +595,21 @@ func readCriticalStatus(conn net.Conn, breaker *models.Breaker, logger *logger.L
 	// 方法1：读取状态寄存器 30001（主要方法）
 	statusValue, err := readInputRegister(conn, 30001, logger)
 	if err == nil {
-		// 解析状态
+		// 解析状态 - 根据LX47LE-125文档V4.6修复
 		highByte := uint8(statusValue >> 8)
 		lowByte := uint8(statusValue & 0xFF)
 		isLocalLocked := (highByte & 0x01) != 0
-		isOn := (lowByte == 0xF0) // 0xF0=合闸, 0x0F=分闸
+
+		// 修复状态判断：根据文档0x0F=分闸，0xF0=合闸
+		var isOn bool
+		if lowByte == 0xF0 {
+			isOn = true  // 合闸
+		} else if lowByte == 0x0F {
+			isOn = false // 分闸
+		} else {
+			// 异常值处理：使用位模式判断
+			isOn = (lowByte & 0xF0) == 0xF0
+		}
 
 		var status string
 		if isOn {
@@ -611,6 +621,10 @@ func readCriticalStatus(conn net.Conn, breaker *models.Breaker, logger *logger.L
 		logger.Debug("方法1读取状态成功",
 			"breaker_id", breaker.ID,
 			"raw_value", fmt.Sprintf("0x%04X", statusValue),
+			"high_byte", fmt.Sprintf("0x%02X", highByte),
+			"low_byte", fmt.Sprintf("0x%02X", lowByte),
+			"is_on", isOn,
+			"is_local_locked", isLocalLocked,
 			"status", status)
 
 		return status, isLocalLocked, nil
