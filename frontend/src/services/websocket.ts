@@ -27,10 +27,15 @@ export class WebSocketService {
   private listeners: Map<WebSocketEventType, Function[]> = new Map()
 
   constructor(url?: string) {
-    // 生产环境使用当前域名和2999端口
-    const host = window.location.hostname
-    const port = '2999'
-    this.url = url || `ws://${host}:${port}/ws`
+    // 生产环境使用当前域名通过Nginx代理连接
+    // 开发环境使用localhost:2999，生产环境使用Nginx代理的/ws路径
+    if (url) {
+      this.url = url
+    } else {
+      const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
+      const host = window.location.host // 包含端口号
+      this.url = `${protocol}//${host}/ws`
+    }
   }
 
   // 连接WebSocket

@@ -4,7 +4,17 @@
  */
 
 // API基础配置
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:2999'
+// 生产环境使用相对路径通过Nginx代理，开发环境使用localhost:2999
+const getApiBaseUrl = () => {
+  // 如果是生产环境（不是localhost），使用相对路径
+  if (typeof window !== 'undefined' && window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1') {
+    return '/api/v1' // 使用相对路径，通过Nginx代理
+  }
+  // 开发环境使用localhost:2999
+  return 'http://localhost:2999/api/v1'
+}
+
+const API_BASE_URL = getApiBaseUrl()
 
 // API响应接口
 interface ApiResponse<T = any> {

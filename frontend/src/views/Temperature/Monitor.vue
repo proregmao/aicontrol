@@ -411,7 +411,7 @@ const saveAlarmRule = async () => {
     }
 
     // 模拟API调用保存到后端
-    const response = await fetch(`http://${window.location.hostname}:2999/api/v1/temperature/alarm-rules`, {
+    const response = await fetch(`/api/v1/temperature/alarm-rules`, {
       method: isEditMode.value ? 'PUT' : 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -470,7 +470,7 @@ const deleteAlarmRule = async (row: any) => {
     const index = alarmThresholds.value.findIndex(item => item.probe === row.probe)
     if (index !== -1) {
       // 调用API删除 - 使用真实的数据库ID而不是数组索引
-      const response = await fetch(`http://${window.location.hostname}:2999/api/v1/temperature/alarm-rules/${row.id}`, {
+      const response = await fetch(`/api/v1/temperature/alarm-rules/${row.id}`, {
         method: 'DELETE',
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('token')}`
@@ -497,7 +497,7 @@ const deleteAlarmRule = async (row: any) => {
 // 加载告警规则
 const loadAlarmRules = async () => {
   try {
-    const response = await fetch(`http://${window.location.hostname}:2999/api/v1/temperature/alarm-rules`, {
+    const response = await fetch(`/api/v1/temperature/alarm-rules`, {
       headers: {
         'Authorization': `Bearer ${localStorage.getItem('token')}`
       }
@@ -547,26 +547,35 @@ let updateTimer: NodeJS.Timeout | null = null
 const updateSensorData = async () => {
   try {
     // 调用数据库实时温度API - 使用统一的API服务
+    // 注意：apiService.get() 会自动添加 API_BASE_URL，所以这里只需要路径部分
     const result = await apiService.get('/temperature/realtime')
 
-    if (result.success && result.data && result.data.sensors && Array.isArray(result.data.sensors) && result.data.sensors.length > 0) {
+    console.log('🌡️ 获取实时温度数据:', result)
+
+    // 检查 API 响应格式：可能是 {success: true, data: {...}} 或 {code: 200, data: {...}}
+    const hasData = (result.success || result.code === 200) && result.data && result.data.sensors && Array.isArray(result.data.sensors) && result.data.sensors.length > 0
+
+    if (hasData) {
       // 遍历所有传感器数据
       result.data.sensors.forEach(sensor => {
+        console.log('📊 处理传感器:', sensor)
         if (sensor.channels && Array.isArray(sensor.channels)) {
           sensor.channels.forEach(channel => {
             const channelNum = channel.channel
             const sensorKey = `sensor${channelNum}`
 
             if (sensorData.value[sensorKey]) {
+              const oldTemp = sensorData.value[sensorKey].temperature
               sensorData.value[sensorKey].temperature = channel.temperature || 0
               sensorData.value[sensorKey].status = channel.status || 'normal'
+              console.log(`✅ 更新 ${sensorKey}: ${oldTemp}°C → ${sensorData.value[sensorKey].temperature}°C`)
             }
           })
         }
       })
     } else {
       // 如果没有传感器数据，显示模拟数据
-      console.log('没有传感器数据，显示模拟数据')
+      console.log('⚠️ 没有传感器数据，显示模拟数据')
       sensorData.value.sensor1.temperature = 22.5
       sensorData.value.sensor2.temperature = 24.8
       sensorData.value.sensor3.temperature = 27.4
@@ -578,7 +587,7 @@ const updateSensorData = async () => {
       sensorData.value.sensor4.status = 'normal'
     }
   } catch (error) {
-    console.error('获取实时温度数据失败:', error)
+    console.error('❌ 获取实时温度数据失败:', error)
     // 错误时显示模拟数据
     sensorData.value.sensor1.temperature = 22.5
     sensorData.value.sensor2.temperature = 24.8

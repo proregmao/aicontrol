@@ -103,38 +103,38 @@ export const aiControlApi = {
   },
 
   getStrategy: async (id: number) => {
-    return await apiClient.get(`/api/v1/ai-control/strategies/${id}`)
+    return await apiClient.get(`/ai-control/strategies/${id}`)
   },
 
   createStrategy: async (data: CreateStrategyRequest) => {
-    return await apiClient.post('/api/v1/ai-control/strategies', data)
+    return await apiClient.post('/ai-control/strategies', data)
   },
 
   updateStrategy: async (id: number, data: Partial<CreateStrategyRequest>) => {
-    return await apiClient.put(`/api/v1/ai-control/strategies/${id}`, data)
+    return await apiClient.put(`/ai-control/strategies/${id}`, data)
   },
 
   deleteStrategy: async (id: number) => {
-    return await apiClient.delete(`/api/v1/ai-control/strategies/${id}`)
+    return await apiClient.delete(`/ai-control/strategies/${id}`)
   },
 
   // 策略状态管理
   enableStrategy: async (id: number) => {
-    return await apiClient.patch(`/api/v1/ai-control/strategies/${id}/enable`)
+    return await apiClient.patch(`/ai-control/strategies/${id}/enable`)
   },
 
   disableStrategy: async (id: number) => {
-    return await apiClient.patch(`/api/v1/ai-control/strategies/${id}/disable`)
+    return await apiClient.patch(`/ai-control/strategies/${id}/disable`)
   },
 
   executeStrategy: async (id: number, force?: boolean) => {
-    return await apiClient.post(`/api/v1/ai-control/strategies/${id}/execute`, {
+    return await apiClient.post(`/ai-control/strategies/${id}/execute`, {
       force
     })
   },
 
   testStrategy: async (id: number, testData?: any) => {
-    return await apiClient.post(`/api/v1/ai-control/strategies/${id}/test`, {
+    return await apiClient.post(`/ai-control/strategies/${id}/test`, {
       test_data: testData
     })
   },
@@ -373,10 +373,10 @@ export const aiControlApi = {
 
   // 实时监控
   subscribeAIEvents: async (callback: (event: any) => void) => {
-    // 生产环境使用当前域名和2999端口
-    const host = window.location.hostname
-    const port = '2999'
-    const ws = new WebSocket(`${process.env.VUE_APP_WS_URL || `ws://${host}:${port}`}/api/v1/ai-control/events`)
+    // 生产环境使用当前域名通过Nginx代理
+    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
+    const host = window.location.host
+    const ws = new WebSocket(`${protocol}//${host}/ws`)
     
     ws.onmessage = (event) => {
       try {
@@ -392,7 +392,7 @@ export const aiControlApi = {
 
   // 导出导入
   exportStrategies: async (strategyIds?: number[]) => {
-    return await apiClient.post('/api/v1/ai-control/strategies/export', {
+    return await apiClient.post('/ai-control/strategies/export', {
       strategy_ids: strategyIds
     }, {
       responseType: 'blob'

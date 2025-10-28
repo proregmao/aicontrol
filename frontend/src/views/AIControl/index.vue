@@ -295,7 +295,7 @@ const handleStrategyAction = ({ action, strategy }) => {
 const editStrategy = async (strategy) => {
   try {
     // 获取策略详细信息
-    const response = await fetch(`http://${window.location.hostname}:2999/api/v1/ai-control/strategies/${strategy.id}`, {
+    const response = await fetch(`/api/v1/ai-control/strategies/${strategy.id}`, {
       method: 'GET',
       headers: {
         'Authorization': `Bearer ${localStorage.getItem('token')}`,
@@ -327,7 +327,7 @@ const testStrategy = async (strategy) => {
   try {
     ElMessage.info('正在执行策略测试...')
 
-    const response = await fetch(`http://${window.location.hostname}:2999/api/v1/ai-control/strategies/${strategy.id}/execute`, {
+    const response = await fetch(`/api/v1/ai-control/strategies/${strategy.id}/execute`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -573,7 +573,7 @@ const api = {
   // 获取AI策略列表
   getStrategies: async () => {
     try {
-      const response = await fetch(`http://${window.location.hostname}:2999/api/v1/ai-control/strategies`, {
+      const response = await fetch(`/api/v1/ai-control/strategies`, {
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('token')}`
         }
@@ -594,7 +594,7 @@ const api = {
   // 获取控制历史记录
   getHistory: async () => {
     try {
-      const response = await fetch(`http://${window.location.hostname}:2999/api/v1/ai-control/executions`, {
+      const response = await fetch(`/api/v1/ai-control/executions`, {
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('token')}`
         }
@@ -616,7 +616,7 @@ const api = {
   toggleStrategy: async (id: number, status: string) => {
     try {
       const enabled = status === '启用'
-      const response = await fetch(`http://${window.location.hostname}:2999/api/v1/ai-control/strategies/${id}/toggle`, {
+      const response = await fetch(`/api/v1/ai-control/strategies/${id}/toggle`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -634,7 +634,7 @@ const api = {
   // 删除策略
   deleteStrategy: async (id: number) => {
     try {
-      const response = await fetch(`http://${window.location.hostname}:2999/api/v1/ai-control/strategies/${id}`, {
+      const response = await fetch(`/api/v1/ai-control/strategies/${id}`, {
         method: 'DELETE',
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('token')}`
@@ -692,17 +692,18 @@ const loadStrategies = async () => {
 
 const loadHistory = async () => {
   try {
-    const historyResponse = await api.getHistory()
-    const items = historyResponse.items || []
+    // api.getHistory() 返回的是 data.data.executions 数组或 []
+    const items = await api.getHistory()
+
+    console.log('获取到的历史记录数据:', items)
+
     historyData.value = items.map((record: any) => ({
-      time: record.start_time || record.execution_time,
-      strategyName: record.strategy_name,
-      condition: record.trigger_reason,
-      action: record.actions_executed?.map((action: any) =>
-        `${action.device_name}: ${action.action}`
-      ).join(', ') || '无动作',
-      result: record.status === 'success' ? '成功' : '失败',
-      devices: record.actions_executed?.map((action: any) => action.device_name).join(', ') || '无设备'
+      time: record.executed_at || record.start_time || record.execution_time,
+      strategyName: record.strategy?.name || record.strategy_name || '未知策略',
+      condition: record.trigger_by || record.trigger_reason || '自动触发',
+      action: record.result || '无动作',
+      result: record.status === 'success' ? '成功' : (record.status === 'failed' ? '失败' : '运行中'),
+      devices: record.strategy?.actions?.map((action: any) => action.deviceName).join(', ') || '无设备'
     }))
 
     console.log('加载历史记录成功:', historyData.value.length)

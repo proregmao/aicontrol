@@ -188,7 +188,7 @@ const systemStats = ref({
   servers: 2,
   sensors: 4,
   breakers: 2,
-  avgTemperature: 24.5,
+  avgTemperature: 0,  // 从API获取
   powerStatus: '正常',
   activeAlarms: 0
 })
@@ -380,17 +380,37 @@ const handleDeviceAction = (actionName: string, row: any) => {
   }
 }
 
+// 从API获取实时温度数据
+const loadRealtimeTemperature = async () => {
+  try {
+    const response = await fetch(`/api/v1/dashboard/overview`, {
+      headers: {
+        'Authorization': `Bearer ${localStorage.getItem('token')}`
+      }
+    })
+    const data = await response.json()
+
+    if (data.code === 200 && data.data && data.data.temperature_summary) {
+      systemStats.value.avgTemperature = data.data.temperature_summary.avg_temperature || 24.5
+      console.log('✅ 更新环境温度:', systemStats.value.avgTemperature)
+    }
+  } catch (error) {
+    console.error('获取实时温度失败:', error)
+  }
+}
+
 // 定时更新数据
 let timer: NodeJS.Timeout | null = null
 
 onMounted(async () => {
-  // 页面加载时立即获取硬件信息
+  // 页面加载时立即获取硬件信息和温度数据
   await refreshHardwareInfo()
+  await loadRealtimeTemperature()
 
   // 每30秒更新一次数据
   timer = setInterval(() => {
     refreshHardwareInfo()
-    systemStats.value.avgTemperature = Math.random() * 5 + 22
+    loadRealtimeTemperature()
   }, 30000)
 })
 

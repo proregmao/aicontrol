@@ -10,10 +10,13 @@ export interface ApiResponse<T = any> {
 
 // 获取API基础URL
 const getApiBaseUrl = () => {
-  // 生产环境使用当前域名和2999端口
-  const host = window.location.hostname
-  const port = import.meta.env.VITE_API_PORT || '2999'
-  return `http://${host}:${port}/api/v1`
+  // 生产环境使用相对路径通过Nginx代理，开发环境使用localhost:2999
+  if (typeof window !== 'undefined' && window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1') {
+    // 生产环境：使用相对路径，通过Nginx代理
+    return '/api/v1'
+  }
+  // 开发环境：使用localhost:2999
+  return 'http://localhost:2999/api/v1'
 }
 
 // 创建axios实例

@@ -278,7 +278,7 @@ const loadTemplates = async () => {
 
   try {
     console.log('📡 从API加载模板...')
-    const response = await fetch(`http://${window.location.hostname}:2999/api/v1/alarms/templates`, {
+    const response = await fetch(`/api/v1/alarms/templates`, {
       headers: {
         'Authorization': `Bearer ${localStorage.getItem('token')}`,
         'Content-Type': 'application/json'
@@ -547,7 +547,7 @@ const saveTemplate = async () => {
     if (isEditMode.value) {
       // 更新现有模板
       console.log('📝 更新模板，ID:', templateForm.id)
-      response = await fetch(`http://${window.location.hostname}:2999/api/v1/alarms/templates/${templateForm.id}`, {
+      response = await fetch(`/api/v1/alarms/templates/${templateForm.id}`, {
         method: 'PUT',
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('token')}`,
@@ -558,7 +558,7 @@ const saveTemplate = async () => {
     } else {
       // 创建新模板
       console.log('➕ 创建新模板')
-      response = await fetch(`http://${window.location.hostname}:2999/api/v1/alarms/templates`, {
+      response = await fetch(`/api/v1/alarms/templates`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('token')}`,
@@ -643,7 +643,7 @@ const deleteTemplate = async (template: any) => {
     console.log('🗑️ 开始删除模板:', template.name, 'ID:', template.id)
 
     // 调用API删除模板
-    const response = await fetch(`http://${window.location.hostname}:2999/api/v1/alarms/templates/${template.id}`, {
+    const response = await fetch(`/api/v1/alarms/templates/${template.id}`, {
       method: 'DELETE',
       headers: {
         'Authorization': `Bearer ${localStorage.getItem('token')}`,
@@ -738,7 +738,7 @@ const testDingTalkTemplate = async () => {
 
   try {
     // 通过后端代理发送钉钉消息，解决CORS问题
-    const response = await fetch(`http://${window.location.hostname}:2999/api/v1/alarms/dingtalk/send`, {
+    const response = await fetch(`/api/v1/alarms/dingtalk/send`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',

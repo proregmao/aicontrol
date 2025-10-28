@@ -298,11 +298,19 @@ export function useWebSocket(options: WebSocketOptions) {
 
 // 创建全局WebSocket实例
 export function createGlobalWebSocket() {
-  // 生产环境使用当前域名和2999端口
-  const host = window.location.hostname
-  const port = import.meta.env.VITE_WS_PORT || '2999'
-  const wsUrl = import.meta.env.VITE_WS_URL || `ws://${host}:${port}/ws`
-  
+  // 生产环境使用相对路径通过Nginx代理，开发环境使用localhost:2999
+  let wsUrl: string
+
+  if (typeof window !== 'undefined' && window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1') {
+    // 生产环境：使用相对路径，通过Nginx代理
+    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
+    const host = window.location.host // 包含端口号
+    wsUrl = `${protocol}//${host}/ws`
+  } else {
+    // 开发环境：使用localhost:2999
+    wsUrl = import.meta.env.VITE_WS_URL || 'ws://localhost:2999/ws'
+  }
+
   return useWebSocket({
     url: wsUrl,
     autoReconnect: true,

@@ -543,7 +543,7 @@ const restartServer = async (server: any) => {
     ElMessage.info(`正在重启服务器 ${server.server}...`)
 
     // 调用后端API执行重启命令
-    const response = await fetch(`http://${window.location.hostname}:2999/api/v1/servers/${server.id}/execute`, {
+    const response = await fetch(`/api/v1/servers/${server.id}/execute`, {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${localStorage.getItem('token')}`,
@@ -600,7 +600,7 @@ const shutdownServer = async (server: any) => {
     ElMessage.info(`正在关闭服务器 ${server.server}...`)
 
     // 调用后端API执行关机命令
-    const response = await fetch(`http://${window.location.hostname}:2999/api/v1/servers/${server.id}/execute`, {
+    const response = await fetch(`/api/v1/servers/${server.id}/execute`, {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${localStorage.getItem('token')}`,

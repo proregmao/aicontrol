@@ -678,7 +678,7 @@ const api = {
   // 获取温度探头列表
   getTemperatureSensors: async () => {
     try {
-      const response = await fetch(`http://${window.location.hostname}:2999/api/v1/sensors`, {
+      const response = await fetch(`/api/v1/sensors`, {
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('token')}`
         }
@@ -698,7 +698,7 @@ const api = {
   // 获取服务器列表
   getServers: async () => {
     try {
-      const response = await fetch(`http://${window.location.hostname}:2999/api/v1/servers`, {
+      const response = await fetch(`/api/v1/servers`, {
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('token')}`
         }
@@ -714,7 +714,7 @@ const api = {
   // 获取断路器列表
   getBreakers: async () => {
     try {
-      const response = await fetch(`http://${window.location.hostname}:2999/api/v1/breakers`, {
+      const response = await fetch(`/api/v1/breakers`, {
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('token')}`
         }
@@ -730,7 +730,7 @@ const api = {
   // 创建AI策略
   createStrategy: async (strategy: any) => {
     try {
-      const response = await fetch(`http://${window.location.hostname}:2999/api/v1/ai-control/strategies`, {
+      const response = await fetch(`/api/v1/ai-control/strategies`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -748,7 +748,7 @@ const api = {
   // 更新AI策略
   updateStrategy: async (id: number, strategy: any) => {
     try {
-      const response = await fetch(`http://${window.location.hostname}:2999/api/v1/ai-control/strategies/${id}`, {
+      const response = await fetch(`/api/v1/ai-control/strategies/${id}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -766,7 +766,7 @@ const api = {
   // 服务器控制
   controlServer: async (serverId: string, operation: string) => {
     try {
-      const response = await fetch(`http://${window.location.hostname}:2999/api/v1/servers/${serverId}/control`, {
+      const response = await fetch(`/api/v1/servers/${serverId}/control`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -784,7 +784,7 @@ const api = {
   // 断路器控制
   controlBreaker: async (breakerId: string, operation: string) => {
     try {
-      const response = await fetch(`http://${window.location.hostname}:2999/api/v1/breakers/${breakerId}/control`, {
+      const response = await fetch(`/api/v1/breakers/${breakerId}/control`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

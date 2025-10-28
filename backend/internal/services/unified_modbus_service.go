@@ -515,6 +515,30 @@ func (s *UnifiedModbusService) executeControlOperation(breaker *models.Breaker, 
 		}
 	}
 
+	// 2. 检查断路器当前状态，避免重复操作
+	s.logger.Info("检查断路器当前状态", "breaker_id", breaker.ID, "target_action", operation.Action)
+	currentStatus, err := s.modbusService.ReadBreakerStatus(breaker)
+	if err != nil {
+		s.logger.Warn("读取断路器当前状态失败，继续执行操作", "breaker_id", breaker.ID, "error", err)
+		// 继续执行，不中断操作
+	} else {
+		// 检查是否需要执行操作
+		if operation.Action == "on" && currentStatus == models.SwitchStatusOn {
+			s.logger.Info("断路器已处于合闸状态，无需重复操作", "breaker_id", breaker.ID)
+			return UnifiedOperationResult{
+				Success: false,
+				Error:   fmt.Errorf("断路器已处于合闸状态，无需重复操作"),
+			}
+		} else if operation.Action == "off" && currentStatus == models.SwitchStatusOff {
+			s.logger.Info("断路器已处于分闸状态，无需重复操作", "breaker_id", breaker.ID)
+			return UnifiedOperationResult{
+				Success: false,
+				Error:   fmt.Errorf("断路器已处于分闸状态，无需重复操作"),
+			}
+		}
+		s.logger.Info("断路器状态检查完成，需要执行操作", "breaker_id", breaker.ID, "current_status", currentStatus, "target_action", operation.Action)
+	}
+
 	var value uint16
 	var newStatus models.SwitchStatus
 

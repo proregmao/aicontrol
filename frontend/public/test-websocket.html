@@ -1,0 +1,249 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WebSocket 连接测试</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 50px auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background-color: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #333;
+        }
+        .test-section {
+            margin: 20px 0;
+            padding: 15px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+        .test-section h2 {
+            margin-top: 0;
+            color: #1890ff;
+        }
+        .status {
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 4px;
+            font-weight: bold;
+        }
+        .status.success {
+            background-color: #f6ffed;
+            color: #52c41a;
+            border: 1px solid #b7eb8f;
+        }
+        .status.error {
+            background-color: #fff1f0;
+            color: #ff4d4f;
+            border: 1px solid #ffccc7;
+        }
+        .status.info {
+            background-color: #e6f7ff;
+            color: #1890ff;
+            border: 1px solid #91d5ff;
+        }
+        button {
+            background-color: #1890ff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+        }
+        button:hover {
+            background-color: #40a9ff;
+        }
+        .log {
+            background-color: #f5f5f5;
+            padding: 10px;
+            border-radius: 4px;
+            max-height: 300px;
+            overflow-y: auto;
+            font-family: monospace;
+            font-size: 12px;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔌 WebSocket 连接测试</h1>
+        
+        <div class="test-section">
+            <h2>1. 环境信息</h2>
+            <p>当前主机: <strong id="hostname"></strong></p>
+            <p>当前端口: <strong id="port"></strong></p>
+            <p>协议: <strong id="protocol"></strong></p>
+            <p>WebSocket URL: <strong id="wsUrl"></strong></p>
+            <p>API URL: <strong id="apiUrl"></strong></p>
+        </div>
+
+        <div class="test-section">
+            <h2>2. WebSocket 连接测试</h2>
+            <button onclick="testWebSocket()">测试 WebSocket 连接</button>
+            <div id="wsStatus" class="status info" style="display:none;"></div>
+            <div class="log" id="wsLog"></div>
+        </div>
+
+        <div class="test-section">
+            <h2>3. API 连接测试</h2>
+            <button onclick="testAPI()">测试 API 连接</button>
+            <div id="apiStatus" class="status info" style="display:none;"></div>
+            <div class="log" id="apiLog"></div>
+        </div>
+
+        <div class="test-section">
+            <h2>4. 诊断信息</h2>
+            <button onclick="showDiagnostics()">显示诊断信息</button>
+            <div class="log" id="diagnostics"></div>
+        </div>
+    </div>
+
+    <script>
+        // 初始化环境信息
+        function initEnvironment() {
+            const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+            const host = window.location.host;
+            const wsUrl = `${protocol}//${host}/ws`;
+            const apiUrl = `${window.location.protocol}//${host}/api/v1`;
+
+            document.getElementById('hostname').textContent = window.location.hostname;
+            document.getElementById('port').textContent = window.location.port || (window.location.protocol === 'https:' ? '443' : '80');
+            document.getElementById('protocol').textContent = window.location.protocol;
+            document.getElementById('wsUrl').textContent = wsUrl;
+            document.getElementById('apiUrl').textContent = apiUrl;
+        }
+
+        // 测试 WebSocket 连接
+        function testWebSocket() {
+            const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+            const host = window.location.host;
+            const wsUrl = `${protocol}//${host}/ws`;
+
+            const log = document.getElementById('wsLog');
+            const status = document.getElementById('wsStatus');
+            log.textContent = '';
+            status.style.display = 'none';
+
+            addLog(log, `正在连接到: ${wsUrl}`);
+
+            try {
+                const ws = new WebSocket(wsUrl);
+
+                ws.onopen = () => {
+                    addLog(log, '✅ WebSocket 连接成功！');
+                    showStatus(status, 'success', '✅ WebSocket 连接成功');
+                    ws.send(JSON.stringify({ type: 'ping' }));
+                    setTimeout(() => ws.close(), 2000);
+                };
+
+                ws.onmessage = (event) => {
+                    addLog(log, `📨 收到消息: ${event.data}`);
+                };
+
+                ws.onerror = (error) => {
+                    addLog(log, `❌ WebSocket 错误: ${error}`);
+                    showStatus(status, 'error', `❌ WebSocket 连接失败: ${error}`);
+                };
+
+                ws.onclose = () => {
+                    addLog(log, '🔌 WebSocket 连接已关闭');
+                };
+            } catch (error) {
+                addLog(log, `❌ 异常: ${error.message}`);
+                showStatus(status, 'error', `❌ 异常: ${error.message}`);
+            }
+        }
+
+        // 测试 API 连接
+        function testAPI() {
+            const apiUrl = `${window.location.protocol}//${window.location.host}/api/v1/auth/login`;
+            const log = document.getElementById('apiLog');
+            const status = document.getElementById('apiStatus');
+            log.textContent = '';
+            status.style.display = 'none';
+
+            addLog(log, `正在请求: ${apiUrl}`);
+
+            fetch(apiUrl, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    username: 'admin',
+                    password: 'admin123'
+                })
+            })
+            .then(response => {
+                addLog(log, `📊 HTTP 状态码: ${response.status}`);
+                return response.json();
+            })
+            .then(data => {
+                addLog(log, `✅ API 响应成功！`);
+                addLog(log, `📋 响应数据: ${JSON.stringify(data, null, 2)}`);
+                showStatus(status, 'success', '✅ API 连接成功');
+            })
+            .catch(error => {
+                addLog(log, `❌ API 错误: ${error.message}`);
+                showStatus(status, 'error', `❌ API 连接失败: ${error.message}`);
+            });
+        }
+
+        // 显示诊断信息
+        function showDiagnostics() {
+            const diag = document.getElementById('diagnostics');
+            diag.textContent = `
+浏览器信息:
+- User Agent: ${navigator.userAgent}
+- 语言: ${navigator.language}
+- 在线状态: ${navigator.onLine ? '在线' : '离线'}
+
+当前页面信息:
+- 完整 URL: ${window.location.href}
+- 主机名: ${window.location.hostname}
+- 端口: ${window.location.port || '默认'}
+- 协议: ${window.location.protocol}
+- 路径: ${window.location.pathname}
+
+网络信息:
+- 连接类型: ${navigator.connection?.effectiveType || '未知'}
+- 下行速度: ${navigator.connection?.downlink || '未知'} Mbps
+- RTT: ${navigator.connection?.rtt || '未知'} ms
+
+WebSocket 支持: ${typeof WebSocket !== 'undefined' ? '✅ 支持' : '❌ 不支持'}
+Fetch API 支持: ${typeof fetch !== 'undefined' ? '✅ 支持' : '❌ 不支持'}
+            `;
+        }
+
+        // 辅助函数
+        function addLog(element, message) {
+            const timestamp = new Date().toLocaleTimeString();
+            element.textContent += `[${timestamp}] ${message}\n`;
+            element.scrollTop = element.scrollHeight;
+        }
+
+        function showStatus(element, type, message) {
+            element.className = `status ${type}`;
+            element.textContent = message;
+            element.style.display = 'block';
+        }
+
+        // 页面加载时初始化
+        window.addEventListener('load', initEnvironment);
+    </script>
+</body>
+</html>
+
